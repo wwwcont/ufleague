@@ -4,11 +4,13 @@ import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useMatchDetails } from '../../hooks/data/useMatchDetails'
 import { useTeams } from '../../hooks/data/useTeams'
 import { usePlayers } from '../../hooks/data/usePlayers'
+import { useEvents } from '../../hooks/data/useEvents'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { Scoreboard } from '../../components/data-display/Scoreboard'
 import { TeamAvatar } from '../../components/ui/TeamAvatar'
 import { tournament } from '../../mocks/data/tournament'
 import { CommentsSection } from '../../components/comments'
+import { EventFeedSection } from '../../components/events'
 
 const statusLabel: Record<string, string> = {
   scheduled: 'По расписанию',
@@ -74,6 +76,7 @@ export const MatchDetailsPage = () => {
   const { data: match } = useMatchDetails(matchId)
   const { data: teams } = useTeams()
   const { data: players } = usePlayers()
+  const { data: matchFeed } = useEvents({ entityType: 'match', entityId: matchId, limit: 4 })
 
   const teamMap = Object.fromEntries((teams ?? []).map((team) => [team.id, team]))
   const playerMap = Object.fromEntries((players ?? []).map((player) => [player.id, player]))
@@ -147,6 +150,10 @@ export const MatchDetailsPage = () => {
           </ul>
         )}
       </section>
+
+
+
+      <EventFeedSection title="Match public events" events={matchFeed ?? []} layout="timeline" messageWhenEmpty="Публичные события матча пока не опубликованы." />
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
         <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Users size={16} className="text-accentYellow" /> Squads / lineups</h2>

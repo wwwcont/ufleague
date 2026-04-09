@@ -152,3 +152,23 @@ export interface CommentAuthorState {
   cooldownSeconds: number
   blockedReason?: string
 }
+
+
+export type EventEntityType = 'global' | 'team' | 'player' | 'match'
+export type EventCategory = 'news' | 'announcement' | 'report' | 'injury' | 'discipline' | 'tactical'
+
+export interface PublicEvent {
+  id: ID
+  title: string
+  summary: string
+  text: string
+  timestamp: string
+  source: string
+  authorName: string
+  category: EventCategory
+  entityType: EventEntityType
+  entityId?: ID
+  imageUrl?: string
+  canEdit?: boolean
+  canDelete?: boolean
+}

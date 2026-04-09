@@ -1,6 +1,7 @@
 import type {
   BracketRepository,
   CommentsRepository,
+  EventsRepository,
   MatchesRepository,
   PlayersRepository,
   SearchRepository,
@@ -9,6 +10,7 @@ import type {
 } from '../../domain/repositories/contracts'
 import { bracketMatches, bracketRounds } from '../data/bracket'
 import { comments, currentCommentAuthor } from '../data/comments'
+import { events } from '../data/events'
 import { matches } from '../data/matches'
 import { players } from '../data/players'
 import { standings } from '../data/standings'
@@ -55,6 +57,17 @@ export const bracketRepository: BracketRepository = {
 
 
 
+
+
+export const eventsRepository: EventsRepository = {
+  async getEvents() {
+    return events
+  },
+  async getEventById(eventId) {
+    return events.find((event) => event.id === eventId) ?? null
+  },
+}
+
 export const commentsRepository: CommentsRepository = {
   async getComments(entityType, entityId) {
     return comments
@@ -98,4 +111,5 @@ export const repositories = {
   bracketRepository,
   searchRepository,
   commentsRepository,
+  eventsRepository,
 }

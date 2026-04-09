@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { CalendarClock, Pencil, UserCircle2 } from 'lucide-react'
+import { UserCircle2 } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { usePlayerDetails } from '../../hooks/data/usePlayerDetails'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
@@ -7,6 +7,8 @@ import { useMatches } from '../../hooks/data/useMatches'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { SocialLinks } from '../../components/ui/SocialLinks'
 import { CommentsSection } from '../../components/comments'
+import { EventFeedSection } from '../../components/events'
+import { useEvents } from '../../hooks/data/useEvents'
 
 const getInitials = (name: string) => name.split(' ').map((part) => part[0]).join('').slice(0, 2)
 
@@ -15,10 +17,11 @@ export const PlayerDetailsPage = () => {
   const { data: player } = usePlayerDetails(playerId)
   const { data: team } = useTeamDetails(player?.teamId)
   const { data: matches } = useMatches()
+  const { data: playerFeed } = useEvents({ entityType: 'player', entityId: playerId, limit: 4 })
 
   if (!player) return <PageContainer><EmptyState title="Игрок не найден" /></PageContainer>
 
-  const playerEvents = (matches ?? [])
+  const matchPlayerEvents = (matches ?? [])
     .flatMap((match) =>
       match.events
         .filter((event) => event.playerId === player.id)
@@ -26,8 +29,8 @@ export const PlayerDetailsPage = () => {
     )
     .sort((a, b) => a.minute - b.minute)
 
-  const yellowCards = playerEvents.filter((event) => event.type === 'yellow_card').length
-  const redCards = playerEvents.filter((event) => event.type === 'red_card').length
+  const yellowCards = matchPlayerEvents.filter((event) => event.type === 'yellow_card').length
+  const redCards = matchPlayerEvents.filter((event) => event.type === 'red_card').length
 
   return (
     <PageContainer>
@@ -69,28 +72,7 @@ export const PlayerDetailsPage = () => {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-textPrimary"><CalendarClock size={16} className="text-accentYellow" /> Player events / updates</h2>
-          <button type="button" className="inline-flex items-center gap-1 rounded-lg border border-dashed border-borderStrong px-2 py-1 text-xs text-textMuted">
-            <Pencil size={12} /> future edit
-          </button>
-        </div>
-
-        <div className="space-y-2">
-          {playerEvents.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-borderStrong bg-mutedBg px-3 py-6 text-center text-sm text-textMuted">События игрока пока не найдены.</div>
-          ) : (
-            playerEvents.map((event) => (
-              <Link key={event.id} to={`/matches/${event.matchId}`} className="block rounded-xl border border-borderSubtle bg-mutedBg px-3 py-3 transition hover:border-borderStrong">
-                <p className="text-sm font-semibold text-textPrimary">{event.type} · {event.minute}′</p>
-                <p className="text-xs text-textMuted">{event.round} · {event.date} · матч #{event.matchId}</p>
-                {event.note && <p className="mt-1 text-xs text-textSecondary">{event.note}</p>}
-              </Link>
-            ))
-          )}
-        </div>
-      </section>
+      <EventFeedSection title="Player events / updates" events={playerFeed ?? []} layout="timeline" messageWhenEmpty="События игрока пока не найдены." />
 
       <CommentsSection entityType="player" entityId={player.id} title="Player comments" />
     </PageContainer>

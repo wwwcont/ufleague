@@ -40,7 +40,7 @@ export const SearchPage = () => {
     if (activeType === 'team') return ['Все группы', 'A', 'B']
     if (activeType === 'player') return ['Все позиции', 'GK', 'DF', 'MF', 'FW']
     if (activeType === 'match') return ['Все статусы', 'live', 'scheduled', 'finished']
-    if (activeType === 'event') return ['Все типы', 'news', 'announcement', 'report']
+    if (activeType === 'event') return ['Все типы', 'news', 'announcement', 'report', 'injury', 'discipline', 'tactical']
     return ['Весь турнир']
   }, [activeType])
 
@@ -62,7 +62,7 @@ export const SearchPage = () => {
       ...(teams ?? []).map((team) => ({ id: team.id, type: 'team' as const, route: `/teams/${team.id}`, title: team.name, subtitle: `${team.shortName} • Группа ${team.group}`, date: '', filter: team.group })),
       ...(players ?? []).map((player) => ({ id: player.id, type: 'player' as const, route: `/players/${player.id}`, title: player.displayName, subtitle: `#${player.number} • ${player.position}`, date: '', filter: player.position })),
       ...(matches ?? []).map((match) => ({ id: match.id, type: 'match' as const, route: `/matches/${match.id}`, title: `${match.date} ${match.time}`, subtitle: `${match.venue} • ${match.round}`, date: match.date, filter: match.status })),
-      ...(events ?? []).map((event) => ({ id: event.id, type: 'event' as const, route: `/events/${event.id}`, title: event.title, subtitle: `${event.date} • ${event.author}`, date: event.date, filter: event.category })),
+      ...(events ?? []).map((event) => ({ id: event.id, type: 'event' as const, route: `/events/${event.id}`, title: event.title, subtitle: `${event.timestamp} • ${event.authorName}`, date: event.timestamp, filter: event.category })),
     ]
 
     const byType = activeType === 'all' ? list : list.filter((item) => item.type === activeType)
@@ -103,12 +103,12 @@ export const SearchPage = () => {
           <button
             key={filter}
             onClick={() => setActiveFilter(filter)}
-            className={`rounded-full px-3 py-1.5 text-xs uppercase tracking-[0.08em] ${activeFilter === filter ? 'bg-accentYellow text-app' : 'bg-elevated text-textSecondary'}`}
+            className={`rounded-full px-3 py-1.5 text-xs uppercase tracking-[0.08em] ${activeFilter === filter ? 'bg-accentYellow text-app' : 'bg-panelSoft text-textSecondary'}`}
           >
             {filter}
           </button>
         ))}
-        <select value={sortBy} onChange={(event) => setSortBy(event.target.value as SortType)} className="rounded-full bg-elevated px-3 py-1.5 text-xs text-textSecondary outline-none">
+        <select value={sortBy} onChange={(event) => setSortBy(event.target.value as SortType)} className="rounded-full bg-panelSoft px-3 py-1.5 text-xs text-textSecondary outline-none">
           {(Object.keys(sortLabel) as SortType[]).map((sortKey) => (
             <option key={sortKey} value={sortKey}>{sortLabel[sortKey]}</option>
           ))}

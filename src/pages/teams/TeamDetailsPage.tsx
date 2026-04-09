@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { CalendarClock, PlusCircle, Trophy, Users } from 'lucide-react'
+import { Trophy, Users } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
 import { usePlayers } from '../../hooks/data/usePlayers'
@@ -13,6 +13,7 @@ import { TeamAvatar } from '../../components/ui/TeamAvatar'
 import { SocialLinks } from '../../components/ui/SocialLinks'
 import { tournament } from '../../mocks/data/tournament'
 import { CommentsSection } from '../../components/comments'
+import { EventFeedSection } from '../../components/events'
 
 const formLabel: Record<string, string> = { W: 'В', D: 'Н', L: 'П' }
 
@@ -20,7 +21,7 @@ export const TeamDetailsPage = () => {
   const { teamId } = useParams()
   const { data: team } = useTeamDetails(teamId)
   const { data: players } = usePlayers(teamId)
-  const { data: events } = useEvents()
+  const { data: teamFeed } = useEvents({ entityType: 'team', entityId: teamId, limit: 4 })
   const { data: standings } = useStandings()
   const { data: matches } = useMatches()
   const { data: teams } = useTeams()
@@ -28,7 +29,6 @@ export const TeamDetailsPage = () => {
   if (!team) return <PageContainer><EmptyState title="Команда не найдена" /></PageContainer>
 
   const standing = standings?.find((row) => row.teamId === team.id)
-  const teamEvents = (events ?? []).filter((event) => !event.teamId || event.teamId === team.id)
   const teamMatches = (matches ?? []).filter((match) => match.homeTeamId === team.id || match.awayTeamId === team.id).slice(0, 4)
   const teamMap = Object.fromEntries((teams ?? []).map((item) => [item.id, item]))
 
@@ -64,27 +64,7 @@ export const TeamDetailsPage = () => {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-textPrimary"><CalendarClock size={16} className="text-accentYellow" /> Team events / updates</h2>
-          <button type="button" className="inline-flex items-center gap-1 rounded-lg border border-dashed border-borderStrong px-2 py-1 text-xs text-textMuted">
-            <PlusCircle size={12} /> add event
-          </button>
-        </div>
-
-        <div className="space-y-2">
-          {teamEvents.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-borderStrong bg-mutedBg px-3 py-6 text-center text-sm text-textMuted">События команды пока не добавлены.</div>
-          ) : (
-            teamEvents.slice(0, 4).map((event) => (
-              <Link key={event.id} to={`/events/${event.id}`} className="block rounded-xl border border-borderSubtle bg-mutedBg px-3 py-3 transition hover:border-borderStrong">
-                <p className="text-sm font-semibold text-textPrimary">{event.title}</p>
-                <p className="mt-1 text-xs text-textMuted">{event.date} · {event.author}</p>
-              </Link>
-            ))
-          )}
-        </div>
-      </section>
+      <EventFeedSection title="Team events / updates" events={teamFeed ?? []} layout="timeline" messageWhenEmpty="События команды пока не добавлены." />
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
         <div className="mb-3 flex items-center justify-between">

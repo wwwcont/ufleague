@@ -1,47 +1,77 @@
-export interface EventPost {
-  id: string
-  title: string
-  date: string
-  author: string
-  text: string
-  imageUrl?: string
-  category: 'news' | 'announcement' | 'report'
-  teamId?: string
-}
+import type { PublicEvent } from '../../domain/entities/types'
 
-export const events: EventPost[] = [
+export const events: PublicEvent[] = [
   {
     id: 'ev1',
     title: 'Обновлено расписание плей-офф',
-    date: '2026-04-09',
-    author: 'Администратор UFL',
+    summary: 'Два матча получили новое время старта по запросу арен.',
+    timestamp: '2026-04-09 10:10',
+    authorName: 'Администратор UFL',
+    source: 'UFL HQ',
     text: 'Публикуем обновленное расписание матчей плей-офф. Время начала двух встреч скорректировано по запросу арен.',
     category: 'announcement',
+    entityType: 'global',
+    canEdit: true,
+    canDelete: true,
   },
   {
     id: 'ev2',
     title: 'Открыта аккредитация на финал',
-    date: '2026-04-08',
-    author: 'Медиа-центр',
+    summary: 'Прием заявок для медиа продлится до 20 апреля.',
+    timestamp: '2026-04-08 12:30',
+    authorName: 'Медиа-центр',
+    source: 'Press Office',
     text: 'Прием заявок на медиа-аккредитацию открыт до 20 апреля. Подробные условия доступны в регламенте турнира.',
     category: 'news',
+    entityType: 'global',
   },
   {
     id: 'ev3',
     title: 'Итоги недели: лучшие игроки тура',
-    date: '2026-04-07',
-    author: 'Редакция UFL',
+    summary: 'Редакция выделила трех лидеров по влиянию на результат.',
+    timestamp: '2026-04-07 18:00',
+    authorName: 'Редакция UFL',
+    source: 'Editorial Desk',
     text: 'Подводим итоги недели и выделяем игроков, повлиявших на результаты матчей тура.',
     category: 'report',
-    teamId: 'team_1',
+    entityType: 'team',
+    entityId: 'team_1',
   },
   {
     id: 'ev4',
     title: 'Тренер Метро Старс о подготовке к финалу',
-    date: '2026-04-06',
-    author: 'Пресс-служба клуба',
+    summary: 'Команда усиливает работу над стандартами и переходами.',
+    timestamp: '2026-04-06 16:20',
+    authorName: 'Пресс-служба клуба',
+    source: 'Club Media',
     text: 'Команда фокусируется на восстановлении и стандартах перед решающим отрезком сезона.',
-    category: 'news',
-    teamId: 'team_5',
+    category: 'tactical',
+    entityType: 'team',
+    entityId: 'team_5',
+  },
+  {
+    id: 'ev5',
+    title: 'Игрок p1 вернулся в общую группу',
+    summary: 'После микроповреждения форвард готов к следующему матчу.',
+    timestamp: '2026-04-09 09:15',
+    authorName: 'Медицинский штаб',
+    source: 'Team Medical',
+    text: 'Тренерский штаб подтвердил полное возвращение игрока в общую группу перед матчем тура.',
+    category: 'injury',
+    entityType: 'player',
+    entityId: 'p1',
+    canEdit: true,
+  },
+  {
+    id: 'ev6',
+    title: 'VAR подтвердил второй гол в матче m1',
+    summary: 'Решение по эпизоду на 72 минуте оставлено в силе.',
+    timestamp: '2026-04-10 19:20',
+    authorName: 'Матч-центр',
+    source: 'Match Operations',
+    text: 'После проверки видеоповтора взятие ворот на 72-й минуте было подтверждено.',
+    category: 'discipline',
+    entityType: 'match',
+    entityId: 'm1',
   },
 ]

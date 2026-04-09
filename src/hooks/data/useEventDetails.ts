@@ -1,7 +1,9 @@
-import { useMemo } from 'react'
-import { events } from '../../mocks/data/events'
+import { useCallback } from 'react'
+import { useRepositories } from '../../app/providers/use-repositories'
+import { useQueryState } from './useQueryState'
 
 export const useEventDetails = (eventId?: string) => {
-  const data = useMemo(() => events.find((event) => event.id === eventId) ?? null, [eventId])
-  return { data }
+  const { eventsRepository } = useRepositories()
+  const loader = useCallback(() => (eventId ? eventsRepository.getEventById(eventId) : Promise.resolve(null)), [eventId, eventsRepository])
+  return useQueryState(loader, (item) => !item)
 }

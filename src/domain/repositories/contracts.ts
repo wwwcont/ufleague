@@ -6,6 +6,7 @@ import type {
   CommentNode,
   Match,
   Player,
+  PublicEvent,
   SearchResult,
   StandingRow,
   Team,
@@ -41,4 +42,9 @@ export interface SearchRepository {
 export interface CommentsRepository {
   getComments(entityType: CommentEntityType, entityId: string): Promise<CommentNode[]>
   getCurrentAuthor(): Promise<CommentAuthorState>
+}
+
+export interface EventsRepository {
+  getEvents(): Promise<PublicEvent[]>
+  getEventById(eventId: string): Promise<PublicEvent | null>
 }
