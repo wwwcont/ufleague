@@ -1,6 +1,8 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { PublicShell } from '../../layouts/public-shell/PublicShell'
 import { BracketPage } from '../../pages/bracket/BracketPage'
+import { EventDetailsPage } from '../../pages/events/EventDetailsPage'
+import { EventsPage } from '../../pages/events/EventsPage'
 import { HomePage } from '../../pages/home/HomePage'
 import { LoginPage } from '../../pages/login/LoginPage'
 import { MatchDetailsPage } from '../../pages/matches/MatchDetailsPage'
@@ -28,6 +30,8 @@ export const router = createBrowserRouter([
       { path: 'table', element: <TablePage /> },
       { path: 'bracket', element: <BracketPage /> },
       { path: 'search', element: <SearchPage /> },
+      { path: 'events', element: <EventsPage /> },
+      { path: 'events/:eventId', element: <EventDetailsPage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'profile', element: <ProfilePage /> },
     ],

@@ -6,35 +6,33 @@ import { SectionHeader } from '../../components/ui/SectionHeader'
 import { useMatches } from '../../hooks/data/useMatches'
 import { useTeams } from '../../hooks/data/useTeams'
 import { EmptyState } from '../../components/ui/EmptyState'
-
-const adminNews = [
-  { id: 'n1', title: 'Обновлено расписание плей-офф', time: 'Сегодня' },
-  { id: 'n2', title: 'Открыта аккредитация на финал', time: 'Вчера' },
-  { id: 'n3', title: 'Добавлен новый формат статистики игроков', time: '2 дня назад' },
-]
+import { useEvents } from '../../hooks/data/useEvents'
 
 export const HomePage = () => {
   const { data: matchList } = useMatches()
   const { data: teams } = useTeams()
+  const { data: events } = useEvents()
+
   const teamMap = Object.fromEntries((teams ?? []).map((t) => [t.id, t]))
   const liveAndUpcoming = (matchList ?? []).filter((m) => m.status === 'live' || m.status === 'scheduled').slice(0, 5)
+  const recentEvents = (events ?? []).slice(0, 3)
 
   return (
     <PageContainer>
-      <Link to="/search" className="matte-panel mt-1 flex items-center gap-2 px-4 py-2.5 text-sm text-textSecondary hover:text-textPrimary" aria-label="Открыть поиск">
+      <Link to="/search" className="sticky top-[4.15rem] z-20 mt-1 flex items-center gap-2 rounded-2xl bg-app/65 px-4 py-2.5 text-sm text-textSecondary shadow-surface backdrop-blur-md hover:text-textPrimary" aria-label="Открыть поиск">
         <Search size={15} className="text-accentYellow" />
-        <span className="typing-cursor text-base leading-none" aria-hidden="true">|</span>
+        <span className="text-textMuted/70">Поиск по турниру</span>
       </Link>
 
       <h2 className="mt-3 text-2xl font-bold uppercase tracking-[0.08em]">UNITED FOOLBALL LEAGUE</h2>
 
-      <SectionHeader title="События / Новости" action={<button className="text-sm text-accentYellow">ВСЕ</button>} />
+      <SectionHeader title="События / Новости" action={<Link to="/events" className="text-sm text-accentYellow">ВСЕ</Link>} />
       <div className="space-y-2">
-        {adminNews.map((item) => (
-          <article key={item.id} className="matte-panel px-4 py-3">
+        {recentEvents.map((item) => (
+          <Link key={item.id} to={`/events/${item.id}`} className="matte-panel block px-4 py-3">
             <p className="text-base text-textPrimary">{item.title}</p>
-            <p className="mt-1 text-sm text-textMuted">{item.time}</p>
-          </article>
+            <p className="mt-1 text-sm text-textMuted">{item.date} • {item.author}</p>
+          </Link>
         ))}
       </div>
 

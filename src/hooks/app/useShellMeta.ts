@@ -5,20 +5,22 @@ export const useShellMeta = () => {
   const isHome = pathname === '/'
 
   const title = (() => {
-    if (pathname === '/') return 'UFLEAGUE'
+    if (pathname === '/') return 'UNITED FOOTBALL LEAGUE'
     if (pathname.startsWith('/matches/')) return 'МАТЧ'
     if (pathname === '/matches') return 'МАТЧИ'
     if (pathname.startsWith('/teams/')) return 'КОМАНДА'
     if (pathname === '/teams') return 'КОМАНДЫ'
     if (pathname.startsWith('/players/')) return 'ИГРОК'
     if (pathname === '/players') return 'ИГРОКИ'
-    if (pathname === '/table') return 'ТАБЛИЦА'
+    if (pathname === '/table') return 'ТАБЛИЦА / СЕТКА'
     if (pathname === '/bracket') return 'СЕТКА'
     if (pathname === '/search') return 'ПОИСК'
+    if (pathname.startsWith('/events/')) return 'СОБЫТИЕ'
+    if (pathname === '/events') return 'СОБЫТИЯ'
     if (pathname === '/login') return 'ВХОД'
     if (pathname === '/profile') return 'ЛК'
-    return 'UFLEAGUE'
+    return 'UNITED FOOTBALL LEAGUE'
   })()
 
-  return { title, showBack: !isHome }
+  return { title, showBack: !isHome, isHome }
 }
