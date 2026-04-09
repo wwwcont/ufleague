@@ -18,11 +18,10 @@ export const HomePage = () => {
     <PageContainer>
       <HomeSummary />
 
-      <Link to="/search" className="matte-panel mt-4 block px-4 py-3 text-sm font-medium text-textSecondary hover:text-textPrimary">
-        <div className="accent-line mb-2 w-10" />
+      <Link to="/search" className="matte-panel mt-4 block px-4 py-3 text-sm font-medium text-textSecondary hover:text-textPrimary" aria-label="Открыть поиск">
         <div className="flex items-center gap-2">
           <Search size={16} className="text-accentYellow" />
-          ПОИСК КОМАНД, ИГРОКОВ И МАТЧЕЙ
+          <span className="typing-cursor text-base leading-none" aria-hidden="true">|</span>
         </div>
       </Link>
 

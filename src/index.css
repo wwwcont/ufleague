@@ -21,11 +21,22 @@ body {
 @layer components {
   .matte-panel {
     @apply relative overflow-hidden rounded-2xl bg-surface shadow-surface;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.02);
   }
 
-  .accent-line {
-    @apply h-px bg-accentYellow/70;
+  .typing-cursor {
+    animation: typingBlink 1s steps(1, end) infinite;
+  }
+}
+
+@keyframes typingBlink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  46%,
+  100% {
+    opacity: 0;
   }
 }
 

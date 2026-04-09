@@ -33,10 +33,9 @@ export const SearchPage = () => {
               key={type}
               onClick={() => setActiveType(type)}
               className={`matte-panel px-4 py-3 text-left text-sm font-semibold transition ${
-                activeType === type ? 'text-textPrimary shadow-elevated' : 'text-textSecondary'
+                activeType === type ? 'text-textPrimary shadow-surface' : 'text-textSecondary'
               }`}
             >
-              <div className="accent-line mb-2 w-8" />
               {typeLabel[type]}
             </button>
           ))}
@@ -48,7 +47,6 @@ export const SearchPage = () => {
       <div className="mt-4 space-y-2">
         {filteredResults.map((r) => (
           <Link key={r.id} to={r.route} className="matte-panel block p-3">
-            <div className="accent-line mb-2 w-8" />
             <p className="text-sm font-medium">{r.title}</p>
             <p className="text-xs text-textMuted">{r.subtitle} • {typeLabel[r.type]}</p>
           </Link>

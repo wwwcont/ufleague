@@ -3,8 +3,7 @@ import type { Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
 
 export const TeamCard = ({ team }: { team: Team }) => (
-  <Link to={`/teams/${team.id}`} className="matte-panel block p-4 hover:bg-surface">
-    <div className="accent-line mb-2 w-8" />
+  <Link to={`/teams/${team.id}`} className="matte-panel block p-4 hover:bg-elevated">
     <div className="mb-2 flex items-center gap-3">
       <TeamAvatar team={team} />
       <p className="text-sm font-semibold">{team.name}</p>

@@ -16,8 +16,8 @@ export default {
         statusLive: '#FF5A36',
       },
       boxShadow: {
-        surface: '0 4px 14px rgba(0,0,0,0.35)',
-        elevated: '0 10px 26px rgba(0,0,0,0.4)',
+        surface: '0 1px 6px rgba(0,0,0,0.18)',
+        elevated: '0 4px 14px rgba(0,0,0,0.24)',
       },
     },
   },

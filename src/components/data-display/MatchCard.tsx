@@ -4,8 +4,7 @@ import { StatusBadge } from './StatusBadge'
 import { TeamAvatar } from '../ui/TeamAvatar'
 
 export const MatchCard = ({ match, home, away }: { match: Match; home: Team; away: Team }) => (
-  <Link to={`/matches/${match.id}`} className="group matte-panel block px-3 py-3 transition hover:bg-surface">
-    <div className="accent-line mb-2 w-8" />
+  <Link to={`/matches/${match.id}`} className="group matte-panel block px-3 py-3 transition hover:bg-elevated">
     <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-textMuted">
       <span>{match.round}</span>
       <StatusBadge status={match.status} />

@@ -17,7 +17,6 @@ export const TeamDetailsPage = () => {
   return (
     <PageContainer>
       <div className="matte-panel p-4">
-        <div className="accent-line mb-3 w-10" />
         <div className="mb-2 flex items-center gap-3">
           <TeamAvatar team={team} size="lg" />
           <h2 className="text-xl font-bold">{team.name}</h2>
