@@ -1,7 +1,7 @@
 import { Search, X } from 'lucide-react'
 
 export const SearchField = ({ value, onChange, placeholder = 'Поиск' }: { value: string; onChange: (v: string) => void; placeholder?: string }) => (
-  <div className="matte-panel relative flex items-center gap-2 px-3">
+  <div className="inset-field relative flex items-center gap-2 px-3">
     <Search size={16} className="text-textMuted" />
     <input
       value={value}
