@@ -10,7 +10,7 @@ export const PublicShell = () => (
       <div className="bg-orb bg-orb-c" />
     </div>
     <AppHeader />
-    <main className="safe-top pt-16">
+    <main className="safe-top pt-20">
       <Outlet />
     </main>
     <BottomNav />
