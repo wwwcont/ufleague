@@ -26,7 +26,7 @@ export const StandingsTable = ({ rows, teamMap }: { rows: StandingRow[]; teamMap
               <td className="rounded-l-lg px-2 py-3 font-medium text-textSecondary">{row.position}</td>
               <td className="px-2 py-3">
                 <Link className="flex items-center gap-2 font-medium text-textPrimary transition hover:text-accentYellow" to={`/teams/${row.teamId}`}>
-                  {team ? <TeamAvatar team={team} size="sm" /> : <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-elevated text-[10px]">?</span>}
+                  {team ? <TeamAvatar team={team} size="sm" /> : <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-panelSoft text-[10px]">?</span>}
                   <span>{team?.shortName ?? row.teamId}</span>
                 </Link>
               </td>
@@ -35,7 +35,7 @@ export const StandingsTable = ({ rows, teamMap }: { rows: StandingRow[]; teamMap
               <td className="px-2 py-3 text-center tabular-nums text-textSecondary">{row.drawn}</td>
               <td className="px-2 py-3 text-center tabular-nums text-textSecondary">{row.lost}</td>
               <td className="px-2 py-3 text-center tabular-nums text-textSecondary">
-                <span className="inline-flex min-w-[76px] items-center justify-center rounded-full bg-elevated px-3 py-1">
+                <span className="inline-flex min-w-[76px] items-center justify-center rounded-full bg-panelSoft px-3 py-1">
                   {row.goalsFor}:{row.goalsAgainst}
                   <span className="ml-2 text-[11px] font-semibold text-accentYellow">{row.goalDiff > 0 ? `+${row.goalDiff}` : row.goalDiff}</span>
                 </span>

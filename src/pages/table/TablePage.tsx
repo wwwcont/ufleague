@@ -27,9 +27,9 @@ export const TablePage = () => {
 
   if (mode === 'bracket') {
     return (
-      <div className="px-4 pb-20 pt-4 md:px-6">
+      <div className="px-4 pb-20 pt-20 md:px-6">
         <div className="matte-panel relative mb-3 flex p-1">
-          <span className="absolute top-1 h-[calc(100%-8px)] w-[calc(50%-4px)] rounded-xl bg-elevated transition-transform duration-300 translate-x-full" />
+          <span className="absolute top-1 h-[calc(100%-8px)] w-[calc(50%-4px)] rounded-xl bg-panelSoft transition-transform duration-300 translate-x-full" />
           <button className="relative z-10 w-1/2 rounded-xl py-2 text-sm font-medium text-textMuted" onClick={() => setMode('table')}>Таблица</button>
           <button className="relative z-10 w-1/2 rounded-xl py-2 text-sm font-medium text-textPrimary" onClick={() => setMode('bracket')}>Сетка</button>
         </div>
@@ -41,7 +41,7 @@ export const TablePage = () => {
   return (
     <PageContainer>
       <div className="matte-panel relative flex p-1">
-        <span className="absolute top-1 h-[calc(100%-8px)] w-[calc(50%-4px)] rounded-xl bg-elevated transition-transform duration-300 translate-x-0" />
+        <span className="absolute top-1 h-[calc(100%-8px)] w-[calc(50%-4px)] rounded-xl bg-panelSoft transition-transform duration-300 translate-x-0" />
         <button className="relative z-10 w-1/2 rounded-xl py-2 text-sm font-medium text-textPrimary" onClick={() => setMode('table')}>Таблица</button>
         <button className="relative z-10 w-1/2 rounded-xl py-2 text-sm font-medium text-textMuted" onClick={() => setMode('bracket')}>Сетка</button>
       </div>

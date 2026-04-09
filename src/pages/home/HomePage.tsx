@@ -7,7 +7,6 @@ import { useMatches } from '../../hooks/data/useMatches'
 import { useTeams } from '../../hooks/data/useTeams'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { useEvents } from '../../hooks/data/useEvents'
-import { PageIntro } from '../../components/ui/PageIntro'
 import { EventFeedSection } from '../../components/events'
 
 export const HomePage = () => {
@@ -19,17 +18,11 @@ export const HomePage = () => {
   const liveAndUpcoming = (matchList ?? []).filter((m) => m.status === 'live' || m.status === 'scheduled').slice(0, 5)
 
   return (
-    <>
-      <div className="fixed inset-x-0 top-16 z-30 mx-auto w-full max-w-5xl px-4 md:px-6">
-        <Link to="/search" className="flex items-center gap-2 rounded-2xl border border-borderSubtle bg-panelBg px-4 py-2.5 text-sm text-textSecondary shadow-soft hover:text-textPrimary" aria-label="Открыть поиск">
-          <Search size={15} className="text-accentYellow" />
-          <span className="text-textMuted/70">Поиск по турниру</span>
-        </Link>
-      </div>
-
-      <PageContainer>
-        <div className="h-12" />
-        <PageIntro title="Главная" subtitle="Сводка турнира и живые обновления" />
+    <PageContainer>
+      <Link to="/search" className="flex items-center gap-2 rounded-2xl border border-borderSubtle bg-panelBg px-4 py-2.5 text-sm text-textSecondary shadow-soft hover:text-textPrimary" aria-label="Открыть поиск">
+        <Search size={15} className="text-accentYellow" />
+        <span className="text-textMuted/70">Поиск по турниру</span>
+      </Link>
 
         <SectionHeader title="События / Новости" action={<Link to="/events" className="text-sm text-accentYellow">ВСЕ</Link>} />
         {eventsLoading ? <p className="text-sm text-textMuted">Загрузка событий...</p> : <EventFeedSection title="Key tournament events" events={events ?? []} messageWhenEmpty="Ключевые события скоро появятся." />}
@@ -44,7 +37,6 @@ export const HomePage = () => {
             ))}
           </div>
         )}
-      </PageContainer>
-    </>
+    </PageContainer>
   )
 }
