@@ -1,177 +1,214 @@
-import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { Flag, Info, MessageSquare, NotebookText, Pencil, PlusCircle, ShieldCheck, Siren, Timer, Users } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useMatchDetails } from '../../hooks/data/useMatchDetails'
-import { useMatches } from '../../hooks/data/useMatches'
 import { useTeams } from '../../hooks/data/useTeams'
+import { usePlayers } from '../../hooks/data/usePlayers'
 import { EmptyState } from '../../components/ui/EmptyState'
+import { Scoreboard } from '../../components/data-display/Scoreboard'
 import { TeamAvatar } from '../../components/ui/TeamAvatar'
+import { tournament } from '../../mocks/data/tournament'
 
-const formatKickoff = (date: string, time: string) => {
+const statusLabel: Record<string, string> = {
+  scheduled: 'По расписанию',
+  live: 'Идет матч',
+  half_time: 'Перерыв',
+  finished: 'Завершен',
+}
+
+const eventTypeLabel: Record<string, string> = {
+  goal: 'Гол',
+  yellow_card: 'Желтая карточка',
+  red_card: 'Красная карточка',
+  substitution: 'Замена',
+}
+
+const eventTypeTone: Record<string, string> = {
+  goal: 'text-accentYellow',
+  yellow_card: 'text-yellow-300',
+  red_card: 'text-red-400',
+  substitution: 'text-textSecondary',
+}
+
+const formatMatchDate = (date: string, time: string) => {
   const [year, month, day] = date.split('-')
-  return `${day}.${month}.${year} ${time}`
+  return `${day}.${month}.${year} • ${time}`
 }
 
-interface CommentItem {
-  id: string
-  author: string
-  text: string
-  isOwn: boolean
-  createdAt: string
-}
+const EventRow = ({
+  minute,
+  type,
+  teamName,
+  player,
+  note,
+}: {
+  minute: number
+  type: string
+  teamName: string
+  player: string
+  note?: string
+}) => (
+  <li className="rounded-xl border border-borderSubtle bg-mutedBg px-3 py-3">
+    <div className="grid gap-2 sm:grid-cols-[54px_1fr_auto] sm:items-center sm:gap-3">
+      <div className="text-sm font-semibold tabular-nums text-textPrimary">{minute}′</div>
+      <div className="min-w-0">
+        <p className={`text-sm font-semibold ${eventTypeTone[type] ?? 'text-textPrimary'}`}>{eventTypeLabel[type] ?? type}</p>
+        <p className="truncate text-sm text-textSecondary">{player} · {teamName}</p>
+        {note && <p className="mt-1 text-xs text-textMuted">{note}</p>}
+      </div>
+      <div className="flex items-center gap-2 text-xs text-textMuted">
+        <button type="button" className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle px-2 py-1 hover:border-borderStrong">
+          <Pencil size={12} /> edit
+        </button>
+        <button type="button" className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle px-2 py-1 hover:border-borderStrong">
+          <PlusCircle size={12} /> add
+        </button>
+      </div>
+    </div>
+  </li>
+)
 
 export const MatchDetailsPage = () => {
   const { matchId } = useParams()
   const { data: match } = useMatchDetails(matchId)
   const { data: teams } = useTeams()
-  const { data: allMatches } = useMatches()
+  const { data: players } = usePlayers()
 
-  const [likes, setLikes] = useState(112)
-  const [dislikes, setDislikes] = useState(8)
-  const [expandedChat, setExpandedChat] = useState(false)
-  const [newComment, setNewComment] = useState('')
-  const [replyTo, setReplyTo] = useState<string | null>(null)
-  const [commentSearch, setCommentSearch] = useState('')
-  const [comments, setComments] = useState<CommentItem[]>([
-    { id: 'c1', author: 'Fan_11', text: 'Отличный темп в первом тайме!', isOwn: false, createdAt: '10:15' },
-    { id: 'c2', author: 'You', text: 'Жду замену в центре поля.', isOwn: true, createdAt: '10:21' },
-    { id: 'c3', author: 'UFL_Viewer', text: 'Судья держит планку.', isOwn: false, createdAt: '10:27' },
-    { id: 'c4', author: 'You', text: 'Гол назревает!', isOwn: true, createdAt: '10:31' },
-    { id: 'c5', author: 'NorthSide', text: 'Сильная игра в обороне.', isOwn: false, createdAt: '10:39' },
-    { id: 'c6', author: 'Watcher', text: 'Нужен прессинг выше.', isOwn: false, createdAt: '10:44' },
-  ])
+  const teamMap = Object.fromEntries((teams ?? []).map((team) => [team.id, team]))
+  const playerMap = Object.fromEntries((players ?? []).map((player) => [player.id, player]))
 
-  const teamMap = Object.fromEntries((teams ?? []).map((t) => [t.id, t]))
   const home = match ? teamMap[match.homeTeamId] : null
   const away = match ? teamMap[match.awayTeamId] : null
 
-  const teamStats = useMemo(() => {
-    if (!allMatches || !match) return { homeRecent: [], awayRecent: [] }
+  if (!match || !teams || !home || !away) {
+    return (
+      <PageContainer>
+        <EmptyState title="Матч не найден" />
+      </PageContainer>
+    )
+  }
 
-    const pickRecent = (teamId: string) =>
-      allMatches
-        .filter((item) => item.homeTeamId === teamId || item.awayTeamId === teamId)
-        .slice(0, 3)
-        .map((item) => ({ id: item.id, score: `${item.score.home}:${item.score.away}` }))
+  const homePlayers = (players ?? []).filter((item) => item.teamId === home.id)
+  const awayPlayers = (players ?? []).filter((item) => item.teamId === away.id)
 
-    return {
-      homeRecent: pickRecent(match.homeTeamId),
-      awayRecent: pickRecent(match.awayTeamId),
-    }
-  }, [allMatches, match])
-
-  if (!match || !teams || !home || !away) return <PageContainer><EmptyState title="Матч не найден" /></PageContainer>
-
-  const visibleComments = expandedChat
-    ? comments.filter((comment) => `${comment.author} ${comment.text}`.toLowerCase().includes(commentSearch.toLowerCase()))
-    : comments.slice(-5)
+  const startersHome = homePlayers.slice(0, 2)
+  const benchHome = homePlayers.slice(2)
+  const startersAway = awayPlayers.slice(0, 2)
+  const benchAway = awayPlayers.slice(2)
 
   return (
     <PageContainer>
-      <section className="matte-panel px-4 py-3 text-sm text-textSecondary">
-        <div className="flex items-center justify-between">
-          <span>{formatKickoff(match.date, match.time)}</span>
-          {match.status === 'live' && <span className="inline-flex items-center gap-1 text-statusLive"><span className="live-dot h-2 w-2 rounded-full bg-statusLive" />LIVE</span>}
-          <span>{match.venue}</span>
+      <Scoreboard match={match} home={home} away={away} tournamentLogoUrl={tournament.logoUrl} />
+
+      <section className="rounded-2xl border border-borderSubtle bg-panelBg px-4 py-3 shadow-soft">
+        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-textPrimary">
+          <Info size={14} className="text-accentYellow" /> Quick match info
+        </div>
+        <div className="grid gap-2 text-sm text-textSecondary sm:grid-cols-2 lg:grid-cols-5">
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Статус:</span> {statusLabel[match.status]}</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Тур:</span> {match.round}</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Venue:</span> {match.venue}</div>
+          <div className="rounded-lg border border-dashed border-borderStrong bg-mutedBg px-3 py-2"><span className="text-textMuted">Доп. время:</span> +0′ (placeholder)</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Служебное:</span> match:{match.id}</div>
         </div>
       </section>
 
-      <section className="matte-panel relative min-h-[320px] overflow-hidden p-5">
-        <div className="absolute inset-y-0 left-0 flex w-1/2 items-center justify-start pl-3 opacity-20">
-          <TeamAvatar team={home} size="xl" />
+      <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-textPrimary"><Timer size={15} className="text-accentYellow" /> Timeline / match events</h2>
+          <span className="rounded-lg border border-dashed border-borderStrong px-2 py-1 text-xs text-textMuted">future admin/captain actions</span>
         </div>
-        <div className="absolute inset-y-0 right-0 flex w-1/2 items-center justify-end pr-3 opacity-20">
-          <TeamAvatar team={away} size="xl" />
-        </div>
-        <div className="absolute inset-y-0 left-1/2 w-24 -translate-x-1/2 bg-gradient-to-r from-app/0 via-app/95 to-app/0" />
 
-        <div className="relative z-10 flex h-full flex-col justify-between">
-          <div className="self-end text-sm text-textMuted">{match.status === 'live' ? 'Идет ' : ''}{match.status === 'live' ? '67′' : 'Матч'}</div>
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-            <div>
-              <Link to={`/teams/${home.id}`} className="text-4xl font-bold tracking-[0.03em] hover:text-accentYellow">{home.shortName}</Link>
-              <p className="mt-1 text-sm text-textMuted">{home.name}</p>
-            </div>
-            <div className="text-5xl font-bold tabular-nums text-accentYellow">{match.score.home}:{match.score.away}</div>
-            <div className="text-right">
-              <Link to={`/teams/${away.id}`} className="text-4xl font-bold tracking-[0.03em] hover:text-accentYellow">{away.shortName}</Link>
-              <p className="mt-1 text-sm text-textMuted">{away.name}</p>
-            </div>
+        {match.events.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-borderStrong bg-mutedBg px-4 py-8 text-center text-sm text-textMuted">
+            Пока нет событий матча. После старта игры здесь появятся минуты, тип события, игрок и команда.
           </div>
-          <div className="mt-4 flex items-center gap-2">
-            <button onClick={() => setLikes((prev) => prev + 1)} className="rounded-xl bg-app/80 px-3 py-2 text-sm">👍 {likes}</button>
-            <button onClick={() => setDislikes((prev) => prev + 1)} className="rounded-xl bg-app/80 px-3 py-2 text-sm">👎 {dislikes}</button>
-          </div>
-        </div>
-      </section>
+        ) : (
+          <ul className="space-y-2">
+            {match.events
+              .slice()
+              .sort((a, b) => a.minute - b.minute)
+              .map((event) => {
+                const team = event.teamId ? teamMap[event.teamId] : undefined
+                const player = event.playerId ? playerMap[event.playerId] : undefined
 
-      <section className="matte-panel overflow-hidden text-sm">
-        <div className="grid grid-cols-[1fr_auto_1fr] border-b border-white/5 px-4 py-3">
-          <span className="text-left text-textMuted">{home.form.join(' ')}</span>
-          <span className="text-textSecondary">Форма</span>
-          <span className="text-right text-textMuted">{away.form.join(' ')}</span>
-        </div>
-        <div className="grid grid-cols-[1fr_auto_1fr] border-b border-white/5 px-4 py-3">
-          <span className="text-left text-textMuted">{teamStats.homeRecent.map((item) => item.score).join(', ') || '—'}</span>
-          <span className="text-textSecondary">Матчи</span>
-          <span className="text-right text-textMuted">{teamStats.awayRecent.map((item) => item.score).join(', ') || '—'}</span>
-        </div>
-        <div className="grid grid-cols-[1fr_auto_1fr] px-4 py-3">
-          <span className="text-left text-textMuted">{home.statsSummary.goalsFor}</span>
-          <span className="text-textSecondary">Тотал голов</span>
-          <span className="text-right text-textMuted">{away.statsSummary.goalsFor}</span>
-        </div>
-      </section>
-
-      <section className="matte-panel p-4">
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-base font-semibold">Комментарии</p>
-          <button onClick={() => setExpandedChat((prev) => !prev)} className="text-sm text-accentYellow">{expandedChat ? 'Свернуть' : 'Показать все'}</button>
-        </div>
-
-        {expandedChat && (
-          <input
-            value={commentSearch}
-            onChange={(event) => setCommentSearch(event.target.value)}
-            placeholder="Поиск по комментариям"
-            className="mb-2 h-10 w-full rounded-xl bg-app/80 px-3 text-sm outline-none"
-          />
+                return (
+                  <EventRow
+                    key={event.id}
+                    minute={event.minute}
+                    type={event.type}
+                    teamName={team?.shortName ?? 'Команда'}
+                    player={player?.displayName ?? 'Игрок не указан'}
+                    note={event.note}
+                  />
+                )
+              })}
+          </ul>
         )}
+      </section>
 
-        <div className="space-y-2">
-          {visibleComments.map((comment) => (
-            <div key={comment.id} className="rounded-xl bg-app/80 p-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium">{comment.author}</p>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-textMuted">{comment.createdAt}</span>
-                  <button onClick={() => setReplyTo(comment.author)} className="text-xs text-accentYellow">Ответить</button>
-                  {comment.isOwn && <button onClick={() => setComments((prev) => prev.filter((item) => item.id !== comment.id))} className="text-xs text-accentYellow">Удалить</button>}
+      <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
+        <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Users size={16} className="text-accentYellow" /> Squads / lineups</h2>
+
+        <div className="grid gap-3 lg:grid-cols-2">
+          {[
+            { team: home, starters: startersHome, bench: benchHome },
+            { team: away, starters: startersAway, bench: benchAway },
+          ].map((block) => (
+            <div key={block.team.id} className="rounded-xl border border-borderSubtle bg-mutedBg p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <TeamAvatar team={block.team} fallbackLogoUrl={tournament.logoUrl} className="border border-borderStrong bg-panelSoft p-1.5" />
+                <p className="text-sm font-semibold text-textPrimary">{block.team.name}</p>
+              </div>
+
+              <div className="mb-2">
+                <p className="mb-1 text-xs uppercase tracking-[0.08em] text-textMuted">Starters</p>
+                <div className="space-y-1">
+                  {block.starters.map((player) => (
+                    <p key={player.id} className="text-sm text-textSecondary">#{player.number} {player.displayName} · {player.position}</p>
+                  ))}
                 </div>
               </div>
-              <p className="mt-1 text-sm text-textSecondary">{comment.text}</p>
+
+              <div>
+                <p className="mb-1 text-xs uppercase tracking-[0.08em] text-textMuted">Bench</p>
+                <div className="space-y-1">
+                  {block.bench.length === 0 ? (
+                    <p className="text-sm text-textMuted">Будет заполнено после расширения данных состава.</p>
+                  ) : (
+                    block.bench.map((player) => (
+                      <p key={player.id} className="text-sm text-textSecondary">#{player.number} {player.displayName} · {player.position}</p>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           ))}
         </div>
+      </section>
 
-        <div className="mt-3 flex gap-2">
-          <input
-            value={newComment}
-            onChange={(event) => setNewComment(event.target.value)}
-            placeholder={replyTo ? `Ответ для ${replyTo}` : 'Написать комментарий'}
-            className="h-10 w-full rounded-xl bg-app/80 px-3 text-sm outline-none"
-          />
-          <button
-            onClick={() => {
-              if (!newComment.trim()) return
-              setComments((prev) => [...prev, { id: `c_${Date.now()}`, author: 'You', text: `${replyTo ? `@${replyTo} ` : ''}${newComment.trim()}`, isOwn: true, createdAt: 'сейчас' }])
-              setNewComment('')
-              setReplyTo(null)
-            }}
-            className="rounded-xl bg-accentYellow px-3 text-sm font-semibold text-app"
-          >
-            Отправить
-          </button>
+      <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
+        <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-textPrimary"><NotebookText size={16} className="text-accentYellow" /> Match summary / notes</h2>
+        <p className="rounded-xl border border-dashed border-borderStrong bg-mutedBg px-3 py-3 text-sm text-textSecondary">
+          Summary slot: после интеграции аналитики здесь появится структурированный итог матча (ключевые фазы, xG, дисциплина, тактические заметки).
+        </p>
+      </section>
+
+      <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
+        <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-textPrimary"><MessageSquare size={16} className="text-accentYellow" /> Comments (feature shell)</h2>
+        <div className="space-y-2 rounded-xl border border-dashed border-borderStrong bg-mutedBg p-3 text-sm text-textSecondary">
+          <p className="flex items-center gap-2"><ShieldCheck size={14} className="text-textMuted" /> Роли и права комментирования будут подключены на следующем этапе.</p>
+          <p className="flex items-center gap-2"><Siren size={14} className="text-textMuted" /> inline moderation / admin actions — placeholder.</p>
+          <p className="flex items-center gap-2"><Flag size={14} className="text-textMuted" /> thread model и фильтры пока не активированы.</p>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary shadow-soft">
+        <p>Матч: <span className="text-textPrimary">{home.shortName} vs {away.shortName}</span></p>
+        <p className="mt-1">Дата и время: <span className="text-textPrimary">{formatMatchDate(match.date, match.time)}</span></p>
+        <div className="mt-2 flex gap-3 text-xs">
+          <Link to={`/teams/${home.id}`} className="text-accentYellow hover:underline">Команда {home.shortName}</Link>
+          <Link to={`/teams/${away.id}`} className="text-accentYellow hover:underline">Команда {away.shortName}</Link>
         </div>
       </section>
     </PageContainer>

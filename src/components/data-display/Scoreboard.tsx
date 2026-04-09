@@ -1,33 +1,52 @@
 import type { Match, Team } from '../../domain/entities/types'
-import { StatusBadge } from './StatusBadge'
 import { TeamAvatar } from '../ui/TeamAvatar'
+import { StatusBadge } from './StatusBadge'
 
-export const Scoreboard = ({ match, home, away }: { match: Match; home: Team; away: Team }) => (
-  <section className="rounded-2xl bg-app/80 px-3 py-5">
-    <div className="mb-4 flex items-center justify-between text-sm text-textSecondary">
-      <span className="font-medium">{match.round}</span>
+interface ScoreboardProps {
+  match: Match
+  home: Team
+  away: Team
+  tournamentLogoUrl?: string
+}
+
+const formatMetaDate = (date: string, time: string) => {
+  const [year, month, day] = date.split('-')
+  return `${day}.${month}.${year} • ${time}`
+}
+
+export const Scoreboard = ({ match, home, away, tournamentLogoUrl }: ScoreboardProps) => (
+  <section className="relative overflow-hidden rounded-2xl border border-borderStrong bg-panelBg px-4 py-5 shadow-matte">
+    <div className="pointer-events-none absolute left-4 right-4 top-0 h-px bg-gradient-to-r from-accentYellow/0 via-accentYellow to-accentYellow/0" />
+    <div className="pointer-events-none absolute bottom-0 left-10 right-10 h-px bg-gradient-to-r from-accentYellow/0 via-accentYellowSoft to-accentYellow/0" />
+
+    <div className="mb-5 flex items-center justify-between gap-3 text-xs text-textSecondary sm:text-sm">
+      <span className="rounded-lg border border-borderSubtle bg-mutedBg px-2.5 py-1 font-medium">{match.round}</span>
       <StatusBadge status={match.status} />
     </div>
 
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-      <div className="flex flex-col items-start gap-2">
-        <TeamAvatar team={home} size="lg" />
-        <p className="text-base font-semibold text-textPrimary">{home.name}</p>
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-5">
+      <div className="flex min-w-0 flex-col items-start gap-2">
+        <TeamAvatar team={home} size="xl" fallbackLogoUrl={tournamentLogoUrl} className="border border-borderStrong bg-panelSoft p-2" />
+        <p className="truncate text-base font-semibold text-textPrimary sm:text-lg">{home.name}</p>
+        <p className="text-xs uppercase tracking-[0.08em] text-textMuted">{home.shortName}</p>
       </div>
 
-      <div className="text-center text-[44px] font-bold leading-none tabular-nums tracking-[-0.03em] text-textPrimary">
-        {match.score.home}<span className="mx-2 text-accentYellow">:</span>{match.score.away}
+      <div className="px-1 text-center text-[44px] font-bold leading-none tracking-[-0.04em] text-textPrimary sm:text-[64px]">
+        <span className="tabular-nums">{match.score.home}</span>
+        <span className="mx-1.5 text-accentYellow">:</span>
+        <span className="tabular-nums">{match.score.away}</span>
       </div>
 
-      <div className="flex flex-col items-end gap-2 text-right">
-        <TeamAvatar team={away} size="lg" />
-        <p className="text-base font-semibold text-textPrimary">{away.name}</p>
+      <div className="flex min-w-0 flex-col items-end gap-2 text-right">
+        <TeamAvatar team={away} size="xl" fallbackLogoUrl={tournamentLogoUrl} className="border border-borderStrong bg-panelSoft p-2" />
+        <p className="truncate text-base font-semibold text-textPrimary sm:text-lg">{away.name}</p>
+        <p className="text-xs uppercase tracking-[0.08em] text-textMuted">{away.shortName}</p>
       </div>
     </div>
 
-    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-textSecondary">
-      <span>{match.date} • {match.time}</span>
-      <span>{match.venue}</span>
+    <div className="mt-5 grid gap-2 border-t border-borderSubtle pt-3 text-sm text-textSecondary sm:grid-cols-2">
+      <span>{formatMetaDate(match.date, match.time)}</span>
+      <span className="sm:text-right">{match.venue}</span>
     </div>
   </section>
 )
