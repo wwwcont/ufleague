@@ -9,7 +9,7 @@ const links = [
 ]
 
 export const BottomNav = () => (
-  <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 bg-[#0B0D12]/95 backdrop-blur-sm">
+  <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 bg-[#0D0D0D]/95 backdrop-blur-sm">
     <div className="mx-auto grid h-16 max-w-5xl grid-cols-5 px-1">
       {links.map(({ to, label }) => (
         <NavLink
