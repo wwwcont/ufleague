@@ -6,6 +6,7 @@ export interface EventPost {
   text: string
   imageUrl?: string
   category: 'news' | 'announcement' | 'report'
+  teamId?: string
 }
 
 export const events: EventPost[] = [
@@ -32,5 +33,15 @@ export const events: EventPost[] = [
     author: 'Редакция UFL',
     text: 'Подводим итоги недели и выделяем игроков, повлиявших на результаты матчей тура.',
     category: 'report',
+    teamId: 'team_1',
+  },
+  {
+    id: 'ev4',
+    title: 'Тренер Метро Старс о подготовке к финалу',
+    date: '2026-04-06',
+    author: 'Пресс-служба клуба',
+    text: 'Команда фокусируется на восстановлении и стандартах перед решающим отрезком сезона.',
+    category: 'news',
+    teamId: 'team_5',
   },
 ]
