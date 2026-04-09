@@ -172,3 +172,59 @@ export interface PublicEvent {
   canEdit?: boolean
   canDelete?: boolean
 }
+
+
+export type UserRole = 'guest' | 'player' | 'captain' | 'admin' | 'superadmin'
+
+export type PermissionKey =
+  | 'comment.create'
+  | 'comment.delete.own'
+  | 'comment.reply'
+  | 'comment.react'
+  | 'event.create'
+  | 'event.edit'
+  | 'event.delete'
+  | 'team.squad.manage'
+  | 'team.invite.manage'
+  | 'tournament.match.create'
+  | 'tournament.team.create'
+  | 'tournament.moderate'
+  | 'rbac.manage'
+  | 'settings.global.manage'
+
+export interface SessionUser {
+  id: ID
+  displayName: string
+  role: UserRole
+  teamId?: ID
+  telegramHandle?: string
+}
+
+export interface AuthSession {
+  isAuthenticated: boolean
+  user: SessionUser
+  permissions: PermissionKey[]
+  lastLoginAt?: string
+}
+
+export interface RolePermissionProfile {
+  role: UserRole
+  permissions: PermissionKey[]
+}
+
+export interface TelegramAuthStartDTO {
+  authUrl: string
+  requestId: string
+  expiresAt: string
+}
+
+export interface TelegramAuthFinalizeDTO {
+  requestId: string
+  code: string
+}
+
+export interface AuthSessionDTO {
+  accessToken: string
+  refreshToken: string
+  session: AuthSession
+}

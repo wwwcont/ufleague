@@ -5,6 +5,7 @@ import type {
   MatchesRepository,
   PlayersRepository,
   SearchRepository,
+  SessionRepository,
   StandingsRepository,
   TeamsRepository,
 } from '../../domain/repositories/contracts'
@@ -13,6 +14,7 @@ import { comments, currentCommentAuthor } from '../data/comments'
 import { events } from '../data/events'
 import { matches } from '../data/matches'
 import { players } from '../data/players'
+import { defaultSession, makeSessionByRole } from '../data/session'
 import { standings } from '../data/standings'
 import { teams } from '../data/teams'
 
@@ -82,6 +84,23 @@ export const commentsRepository: CommentsRepository = {
   },
 }
 
+
+
+let inMemorySession = defaultSession
+
+export const sessionRepository: SessionRepository = {
+  async getSession() {
+    return inMemorySession
+  },
+  async setSessionByRole(role) {
+    inMemorySession = makeSessionByRole(role)
+    return inMemorySession
+  },
+  async clearSession() {
+    inMemorySession = makeSessionByRole('guest')
+  },
+}
+
 export const searchRepository: SearchRepository = {
   async searchAll(query) {
     const q = query.trim().toLowerCase()
@@ -112,4 +131,5 @@ export const repositories = {
   searchRepository,
   commentsRepository,
   eventsRepository,
+  sessionRepository,
 }

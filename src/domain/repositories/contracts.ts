@@ -1,4 +1,5 @@
 import type {
+  AuthSession,
   BracketMatch,
   BracketRound,
   CommentAuthorState,
@@ -10,6 +11,7 @@ import type {
   SearchResult,
   StandingRow,
   Team,
+  UserRole,
 } from '../entities/types'
 
 export interface TeamsRepository {
@@ -47,4 +49,10 @@ export interface CommentsRepository {
 export interface EventsRepository {
   getEvents(): Promise<PublicEvent[]>
   getEventById(eventId: string): Promise<PublicEvent | null>
+}
+
+export interface SessionRepository {
+  getSession(): Promise<AuthSession>
+  setSessionByRole(role: UserRole): Promise<AuthSession>
+  clearSession(): Promise<void>
 }

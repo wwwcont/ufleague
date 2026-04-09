@@ -1,15 +1,101 @@
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Crown, LogOut, Settings, Shield, User } from 'lucide-react'
+import type { UserRole } from '../../domain/entities/types'
 import { PageContainer } from '../../layouts/containers/PageContainer'
+import { useSession } from '../../app/providers/use-session'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
-export const ProfilePage = () => (
-  <PageContainer>
-    <section className="matte-panel p-5">
-      <h2 className="text-base font-semibold uppercase tracking-[0.1em]">Личный кабинет</h2>
-      <p className="mt-2 text-sm text-textSecondary">Скоро здесь появится профиль. Пока доступен только вход или регистрация.</p>
-      <div className="mt-4 flex gap-2">
-        <Link to="/login" className="rounded-xl bg-accentYellow/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-app">Вход</Link>
-        <Link to="/login" className="rounded-xl bg-elevated px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-textSecondary">Регистрация</Link>
+const roleOrder: UserRole[] = ['guest', 'player', 'captain', 'admin', 'superadmin']
+
+const blocksByRole: Record<UserRole, Array<{ title: string; items: string[] }>> = {
+  guest: [
+    { title: 'Базовый профиль', items: ['Никнейм, telegram handle (placeholder)', 'Публичный статус аккаунта'] },
+    { title: 'Моя активность', items: ['Мои комментарии (placeholder)', 'Мои реакции и ответы (placeholder)'] },
+    { title: 'Доступные права', items: ['Комментирование', 'Reply / delete own / like-dislike'] },
+  ],
+  player: [
+    { title: 'Editable profile', items: ['Редактирование карточки игрока (placeholder)', 'Фото/био/social links (placeholder)'] },
+    { title: 'Связь с командой', items: ['Текущая команда', 'Роль внутри команды'] },
+  ],
+  captain: [
+    { title: 'Моя команда', items: ['Управление составом (placeholder)', 'Приглашения игроков (placeholder)'] },
+    { title: 'События команды', items: ['Создать/редактировать event (placeholder)', 'Командная лента событий'] },
+  ],
+  admin: [
+    { title: 'Быстрые действия', items: ['Создать матч', 'Создать событие', 'Создать команду'] },
+    { title: 'Moderation / tournament actions', items: ['Модерация контента (placeholder)', 'Управление турнирными сущностями (placeholder)'] },
+  ],
+  superadmin: [
+    { title: 'Rights management', items: ['Управление правами и ролями (placeholder)'] },
+    { title: 'Global settings', items: ['Глобальные настройки платформы (placeholder)', 'Advanced actions (placeholder)'] },
+  ],
+}
+
+export const ProfilePage = () => {
+  const { session, logout } = useSession()
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
+  const visibleBlocks = useMemo(() => {
+    const roleIdx = roleOrder.indexOf(session.user.role)
+    const rolesToShow = roleOrder.slice(0, roleIdx + 1)
+    return rolesToShow.flatMap((role) => blocksByRole[role])
+  }, [session.user.role])
+
+  return (
+    <PageContainer>
+      <section className="rounded-2xl border border-borderStrong bg-panelBg p-4 shadow-matte">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-textPrimary">Личный кабинет</h2>
+            <p className="mt-1 text-sm text-textSecondary">{session.user.displayName} · role: {session.user.role}</p>
+            {session.user.telegramHandle && <p className="text-xs text-textMuted">Telegram: {session.user.telegramHandle}</p>}
+          </div>
+          <span className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-xs text-textMuted">session skeleton</span>
+        </div>
+        {!session.isAuthenticated && (
+          <div className="mt-3 rounded-xl border border-dashed border-borderStrong bg-mutedBg p-3 text-sm text-textSecondary">
+            Вы в guest режиме. Для перехода к role-aware cabinet используйте mock login.
+            <div className="mt-2"><Link to="/login" className="text-accentYellow hover:underline">Открыть login entry</Link></div>
+          </div>
+        )}
+      </section>
+
+      <div className="space-y-3">
+        {visibleBlocks.map((block, idx) => (
+          <section key={`${block.title}_${idx}`} className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
+            <h3 className="mb-2 flex items-center gap-2 text-base font-semibold text-textPrimary">
+              {idx % 3 === 0 ? <User size={15} className="text-accentYellow" /> : idx % 3 === 1 ? <Shield size={15} className="text-accentYellow" /> : <Crown size={15} className="text-accentYellow" />}
+              {block.title}
+            </h3>
+            <ul className="space-y-1 text-sm text-textSecondary">
+              {block.items.map((item) => <li key={item}>• {item}</li>)}
+            </ul>
+          </section>
+        ))}
       </div>
-    </section>
-  </PageContainer>
-)
+
+      <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
+        <h3 className="mb-2 flex items-center gap-2 text-base font-semibold text-textPrimary"><Settings size={15} className="text-accentYellow" /> Session actions</h3>
+        <div className="flex flex-wrap gap-2">
+          <Link to="/login" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary">Сменить роль (mock login)</Link>
+          <button type="button" onClick={() => setConfirmOpen(true)} className="inline-flex items-center gap-1 rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app">
+            <LogOut size={12} /> Выйти
+          </button>
+        </div>
+      </section>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Подтвердить выход"
+        description="Вы уверены, что хотите завершить текущую mock session?"
+        confirmLabel="Выйти"
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={async () => {
+          await logout()
+          setConfirmOpen(false)
+        }}
+      />
+    </PageContainer>
+  )
+}
