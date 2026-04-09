@@ -12,7 +12,7 @@ export const BracketPage = () => {
   return (
     <PageContainer>
       <SectionHeader title="Сетка турнира" />
-      <p className="mb-4 text-sm text-textSecondary">Листайте раунды по горизонтали и открывайте детали матча.</p>
+      <p className="text-sm text-textSecondary">Полноценное дерево матчей с выделением победителей. Масштабируйте и перетаскивайте сетку как изображение.</p>
       {data && <BracketView rounds={data.rounds} matches={data.matches} teamMap={teamMap} />}
     </PageContainer>
   )
