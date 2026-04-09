@@ -12,13 +12,13 @@ export const MatchesPage = () => {
 
   return (
     <PageContainer>
-      <SectionHeader title="Match Center" />
-      <p className="mb-4 text-sm text-textSecondary">Round-by-round schedule with live and upcoming fixtures.</p>
+      <SectionHeader title="Центр матчей" />
+      <p className="mb-4 text-sm text-textSecondary">Расписание по турам и актуальные статусы игр.</p>
       <div className="space-y-3">
-        {isLoading && <p className="text-sm text-textMuted">Loading...</p>}
+        {isLoading && <p className="text-sm text-textMuted">Загрузка...</p>}
         {matchList?.map((m) => <MatchCard key={m.id} match={m} home={teamMap[m.homeTeamId]} away={teamMap[m.awayTeamId]} />)}
       </div>
-      {!isLoading && (!matchList || matchList.length === 0) && <EmptyState title="No matches found" />}
+      {!isLoading && (!matchList || matchList.length === 0) && <EmptyState title="Матчи не найдены" />}
     </PageContainer>
   )
 }

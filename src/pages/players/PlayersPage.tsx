@@ -8,7 +8,7 @@ export const PlayersPage = () => {
 
   return (
     <PageContainer>
-      <SectionHeader title="Players" />
+      <SectionHeader title="Игроки" />
       <div className="space-y-2">{players?.map((p) => <PlayerRow key={p.id} player={p} />)}</div>
     </PageContainer>
   )

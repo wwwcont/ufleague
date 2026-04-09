@@ -17,14 +17,14 @@ export const HomePage = () => {
     <PageContainer>
       <HomeSummary />
 
-      <SectionHeader title="Featured Match" />
+      <SectionHeader title="Главный матч" />
       {!featured || !teams ? (
-        <EmptyState title="No featured match" />
+        <EmptyState title="Главный матч не найден" />
       ) : (
         <MatchCard match={featured} home={teamMap[featured.homeTeamId]} away={teamMap[featured.awayTeamId]} />
       )}
 
-      <SectionHeader title="Next Matches" />
+      <SectionHeader title="Ближайшие матчи" />
       <div className="space-y-3">
         {upcoming.map((match) => (
           <MatchCard key={match.id} match={match} home={teamMap[match.homeTeamId]} away={teamMap[match.awayTeamId]} />
