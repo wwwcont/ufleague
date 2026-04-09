@@ -1,4 +1,15 @@
-import type { BracketMatch, BracketRound, Match, Player, SearchResult, StandingRow, Team } from '../entities/types'
+import type {
+  BracketMatch,
+  BracketRound,
+  CommentAuthorState,
+  CommentEntityType,
+  CommentNode,
+  Match,
+  Player,
+  SearchResult,
+  StandingRow,
+  Team,
+} from '../entities/types'
 
 export interface TeamsRepository {
   getTeams(): Promise<Team[]>
@@ -25,4 +36,9 @@ export interface BracketRepository {
 
 export interface SearchRepository {
   searchAll(query: string): Promise<SearchResult[]>
+}
+
+export interface CommentsRepository {
+  getComments(entityType: CommentEntityType, entityId: string): Promise<CommentNode[]>
+  getCurrentAuthor(): Promise<CommentAuthorState>
 }

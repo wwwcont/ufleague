@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { Flag, Info, MessageSquare, NotebookText, Pencil, PlusCircle, ShieldCheck, Siren, Timer, Users } from 'lucide-react'
+import { Info, NotebookText, Pencil, PlusCircle, Timer, Users } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useMatchDetails } from '../../hooks/data/useMatchDetails'
 import { useTeams } from '../../hooks/data/useTeams'
@@ -8,6 +8,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { Scoreboard } from '../../components/data-display/Scoreboard'
 import { TeamAvatar } from '../../components/ui/TeamAvatar'
 import { tournament } from '../../mocks/data/tournament'
+import { CommentsSection } from '../../components/comments'
 
 const statusLabel: Record<string, string> = {
   scheduled: 'По расписанию',
@@ -194,14 +195,7 @@ export const MatchDetailsPage = () => {
         </p>
       </section>
 
-      <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
-        <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-textPrimary"><MessageSquare size={16} className="text-accentYellow" /> Comments (feature shell)</h2>
-        <div className="space-y-2 rounded-xl border border-dashed border-borderStrong bg-mutedBg p-3 text-sm text-textSecondary">
-          <p className="flex items-center gap-2"><ShieldCheck size={14} className="text-textMuted" /> Роли и права комментирования будут подключены на следующем этапе.</p>
-          <p className="flex items-center gap-2"><Siren size={14} className="text-textMuted" /> inline moderation / admin actions — placeholder.</p>
-          <p className="flex items-center gap-2"><Flag size={14} className="text-textMuted" /> thread model и фильтры пока не активированы.</p>
-        </div>
-      </section>
+      <CommentsSection entityType="match" entityId={match.id} title="Match comments" />
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary shadow-soft">
         <p>Матч: <span className="text-textPrimary">{home.shortName} vs {away.shortName}</span></p>

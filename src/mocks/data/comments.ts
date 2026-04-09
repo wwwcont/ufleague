@@ -1,0 +1,76 @@
+import type { CommentAuthorState, CommentNode } from '../../domain/entities/types'
+
+const makeComment = (input: Omit<CommentNode, 'replies'> & { replies?: CommentNode[] }): CommentNode => ({
+  ...input,
+  replies: input.replies ?? [],
+})
+
+export const currentCommentAuthor: CommentAuthorState = {
+  id: 'guest_me',
+  name: 'Guest_42',
+  role: 'guest',
+  isGuest: true,
+  canComment: true,
+  cooldownSeconds: 30,
+}
+
+export const comments: CommentNode[] = [
+  makeComment({
+    id: 'cm_match_1',
+    entityType: 'match',
+    entityId: 'm1',
+    parentId: null,
+    authorName: 'NorthStand',
+    authorRole: 'guest',
+    isOwn: false,
+    createdAt: '12:11',
+    text: 'Темп у матча отличный, особенно в центре поля.',
+    reactions: { likes: 8, dislikes: 1, userReaction: null },
+    canReply: true,
+    canDelete: false,
+    replies: [
+      makeComment({
+        id: 'cm_match_1_r1',
+        entityType: 'match',
+        entityId: 'm1',
+        parentId: 'cm_match_1',
+        authorName: 'Guest_42',
+        authorRole: 'guest',
+        isOwn: true,
+        createdAt: '12:13',
+        text: 'Согласен, особенно после 60-й минуты.',
+        reactions: { likes: 2, dislikes: 0, userReaction: 'like' },
+        canReply: true,
+        canDelete: true,
+      }),
+    ],
+  }),
+  makeComment({
+    id: 'cm_team_1',
+    entityType: 'team',
+    entityId: 'team_1',
+    parentId: null,
+    authorName: 'CoachTalk',
+    authorRole: 'guest',
+    isOwn: false,
+    createdAt: '09:44',
+    text: 'У команды заметен прогресс в позиционной обороне.',
+    reactions: { likes: 4, dislikes: 0, userReaction: null },
+    canReply: true,
+    canDelete: false,
+  }),
+  makeComment({
+    id: 'cm_player_1',
+    entityType: 'player',
+    entityId: 'p1',
+    parentId: null,
+    authorName: 'Guest_42',
+    authorRole: 'guest',
+    isOwn: true,
+    createdAt: '08:20',
+    text: 'Жду от него еще один результативный матч.',
+    reactions: { likes: 5, dislikes: 0, userReaction: 'like' },
+    canReply: true,
+    canDelete: true,
+  }),
+]

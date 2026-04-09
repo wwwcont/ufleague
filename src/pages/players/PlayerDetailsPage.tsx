@@ -1,11 +1,12 @@
 import { Link, useParams } from 'react-router-dom'
-import { CalendarClock, MessageSquare, Pencil, ShieldCheck, UserCircle2 } from 'lucide-react'
+import { CalendarClock, Pencil, UserCircle2 } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { usePlayerDetails } from '../../hooks/data/usePlayerDetails'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
 import { useMatches } from '../../hooks/data/useMatches'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { SocialLinks } from '../../components/ui/SocialLinks'
+import { CommentsSection } from '../../components/comments'
 
 const getInitials = (name: string) => name.split(' ').map((part) => part[0]).join('').slice(0, 2)
 
@@ -91,13 +92,7 @@ export const PlayerDetailsPage = () => {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
-        <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-textPrimary"><MessageSquare size={16} className="text-accentYellow" /> Comments (feature shell)</h2>
-        <div className="space-y-2 rounded-xl border border-dashed border-borderStrong bg-mutedBg p-3 text-sm text-textSecondary">
-          <p className="flex items-center gap-2"><ShieldCheck size={14} className="text-textMuted" /> Комментарии к профилю игрока и moderation workflow будут добавлены позже.</p>
-          <p>Предусмотрены места под role-based note threads и inline edit активности.</p>
-        </div>
-      </section>
+      <CommentsSection entityType="player" entityId={player.id} title="Player comments" />
     </PageContainer>
   )
 }

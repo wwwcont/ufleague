@@ -116,3 +116,39 @@ export interface UserSession {
   isAuthenticated: boolean
   displayName?: string
 }
+
+
+export type CommentEntityType = 'match' | 'team' | 'player' | 'event'
+export type CommentReactionType = 'like' | 'dislike' | null
+
+export interface CommentReactions {
+  likes: number
+  dislikes: number
+  userReaction: CommentReactionType
+}
+
+export interface CommentNode {
+  id: ID
+  entityType: CommentEntityType
+  entityId: ID
+  parentId: ID | null
+  authorName: string
+  authorRole: 'guest' | 'captain' | 'admin'
+  isOwn: boolean
+  createdAt: string
+  text: string
+  reactions: CommentReactions
+  canReply: boolean
+  canDelete: boolean
+  replies: CommentNode[]
+}
+
+export interface CommentAuthorState {
+  id: ID
+  name: string
+  role: 'guest' | 'captain' | 'admin'
+  isGuest: boolean
+  canComment: boolean
+  cooldownSeconds: number
+  blockedReason?: string
+}

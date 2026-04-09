@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { CalendarClock, MessageSquare, PlusCircle, ShieldCheck, Trophy, Users } from 'lucide-react'
+import { CalendarClock, PlusCircle, Trophy, Users } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
 import { usePlayers } from '../../hooks/data/usePlayers'
@@ -12,6 +12,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import { TeamAvatar } from '../../components/ui/TeamAvatar'
 import { SocialLinks } from '../../components/ui/SocialLinks'
 import { tournament } from '../../mocks/data/tournament'
+import { CommentsSection } from '../../components/comments'
 
 const formLabel: Record<string, string> = { W: 'В', D: 'Н', L: 'П' }
 
@@ -126,13 +127,7 @@ export const TeamDetailsPage = () => {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
-        <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-textPrimary"><MessageSquare size={16} className="text-accentYellow" /> Comments (feature shell)</h2>
-        <div className="space-y-2 rounded-xl border border-dashed border-borderStrong bg-mutedBg p-3 text-sm text-textSecondary">
-          <p className="flex items-center gap-2"><ShieldCheck size={14} className="text-textMuted" /> Комментарии и role-based moderation будут добавлены на следующем этапе.</p>
-          <p>Thread структура, pin/focus и inline редактирование здесь уже зарезервированы.</p>
-        </div>
-      </section>
+      <CommentsSection entityType="team" entityId={team.id} title="Team comments" />
     </PageContainer>
   )
 }
