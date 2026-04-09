@@ -4,12 +4,13 @@ import { CircleHelp } from 'lucide-react'
 import type { BracketMatch, BracketRound, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
 
-const NODE_W = 184
+const NODE_W = 142
 const NODE_H = 72
-const ROUND_GAP = 198
+const ROUND_GAP = 168
 const FIRST_ROUND_GAP = 58
 const PADDING_X = 48
 const PADDING_Y = 44
+const CONNECTOR_STUB = 14
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
@@ -109,7 +110,7 @@ export const BracketView = ({ rounds, matches, teamMap, fullScreen = false }: { 
     })
   }
 
-  const nodeClass = 'absolute block px-1 py-1'
+  const nodeClass = 'absolute block rounded-lg border border-white/10 bg-panelAlt/80 px-2 py-2 shadow-soft backdrop-blur'
   const viewportClass = fullScreen ? 'relative h-[calc(100vh-11.6rem)] touch-none overflow-hidden' : 'relative h-[68vh] touch-none overflow-hidden rounded-xl'
 
   return (
@@ -141,10 +142,9 @@ export const BracketView = ({ rounds, matches, teamMap, fullScreen = false }: { 
         <div className="absolute left-0 top-0 origin-top-left" style={{ width, height, transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }}>
           <svg width={width} height={height} className="absolute left-0 top-0">
             {connectors.map((line, index) => {
-              const c1x = line.fromX + 30
-              const c2x = line.toX - 30
-              const path = `M ${line.fromX} ${line.fromY} C ${c1x} ${line.fromY}, ${c2x} ${line.toY}, ${line.toX} ${line.toY}`
-              return <path key={index} d={path} fill="none" stroke="rgba(227,193,75,0.76)" strokeWidth="2" strokeLinecap="round" />
+              const midX = line.fromX + CONNECTOR_STUB
+              const path = `M ${line.fromX} ${line.fromY} H ${midX} V ${line.toY} H ${line.toX}`
+              return <path key={index} d={path} fill="none" stroke="rgba(227,193,75,0.76)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             })}
           </svg>
 
@@ -171,7 +171,7 @@ export const BracketView = ({ rounds, matches, teamMap, fullScreen = false }: { 
               )
             }
 
-            const content = (<>{teamRow(match.homeTeamId, Boolean(homeWinner))}<div className="mt-1">{teamRow(match.awayTeamId, Boolean(awayWinner))}</div></>)
+            const content = (<><div className="leading-4">{teamRow(match.homeTeamId, Boolean(homeWinner))}</div><div className="mt-1 leading-4">{teamRow(match.awayTeamId, Boolean(awayWinner))}</div></>)
 
             if (match.linkedMatchId) {
               return <Link key={match.id} to={`/matches/${match.linkedMatchId}`} className={nodeClass} style={{ left: match.x, top: match.y, width: NODE_W, height: NODE_H }}>{content}</Link>
