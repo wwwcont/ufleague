@@ -1,11 +1,13 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { CircleHelp } from 'lucide-react'
 import type { BracketMatch, BracketRound, Team } from '../../domain/entities/types'
+import { TeamAvatar } from '../ui/TeamAvatar'
 
-const NODE_W = 180
-const NODE_H = 70
-const ROUND_GAP = 220
-const FIRST_ROUND_GAP = 52
+const NODE_W = 190
+const NODE_H = 74
+const ROUND_GAP = 230
+const FIRST_ROUND_GAP = 58
 const PADDING_X = 48
 const PADDING_Y = 44
 
@@ -13,7 +15,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 
 type LayoutNode = BracketMatch & { x: number; y: number }
 
-export const BracketView = ({ rounds, matches, teamMap }: { rounds: BracketRound[]; matches: BracketMatch[]; teamMap: Record<string, Team> }) => {
+export const BracketView = ({ rounds, matches, teamMap, fullScreen = false }: { rounds: BracketRound[]; matches: BracketMatch[]; teamMap: Record<string, Team>; fullScreen?: boolean }) => {
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const dragRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false })
@@ -33,19 +35,11 @@ export const BracketView = ({ rounds, matches, teamMap }: { rounds: BracketRound
       const x = PADDING_X + roundIndex * ROUND_GAP
 
       if (roundIndex === 0) {
-        roundLayouts.set(
-          round.id,
-          roundMatches.map((match, index) => ({
-            ...match,
-            x,
-            y: PADDING_Y + index * (NODE_H + FIRST_ROUND_GAP),
-          })),
-        )
+        roundLayouts.set(round.id, roundMatches.map((match, index) => ({ ...match, x, y: PADDING_Y + index * (NODE_H + FIRST_ROUND_GAP) })))
         return
       }
 
-      const prevRound = sortedRounds[roundIndex - 1]
-      const prevNodes = roundLayouts.get(prevRound.id) ?? []
+      const prevNodes = roundLayouts.get(sortedRounds[roundIndex - 1].id) ?? []
       const groupSize = prevNodes.length && roundMatches.length ? Math.max(1, Math.floor(prevNodes.length / roundMatches.length)) : 1
 
       roundLayouts.set(
@@ -55,36 +49,24 @@ export const BracketView = ({ rounds, matches, teamMap }: { rounds: BracketRound
           const end = clamp(start + groupSize - 1, start, prevNodes.length - 1)
           const centers = prevNodes.slice(start, end + 1).map((node) => node.y + NODE_H / 2)
           const centerY = centers.length ? centers.reduce((sum, c) => sum + c, 0) / centers.length : PADDING_Y + index * (NODE_H + FIRST_ROUND_GAP)
-
-          return {
-            ...match,
-            x,
-            y: centerY - NODE_H / 2,
-          }
+          return { ...match, x, y: centerY - NODE_H / 2 }
         }),
       )
     })
 
     const positioned = sortedRounds.flatMap((round) => roundLayouts.get(round.id) ?? [])
-
     const maxX = Math.max(...positioned.map((node) => node.x), PADDING_X) + NODE_W + PADDING_X
     const maxY = Math.max(...positioned.map((node) => node.y), PADDING_Y) + NODE_H + PADDING_Y
 
     const centers = new Map<string, number>()
-    sortedRounds.forEach((round) => {
-      const nodes = roundLayouts.get(round.id) ?? []
-      centers.set(round.id, PADDING_X + sortedRounds.findIndex((r) => r.id === round.id) * ROUND_GAP + NODE_W / 2)
-      if (nodes.length === 0) centers.set(round.id, PADDING_X)
-    })
+    sortedRounds.forEach((round, index) => centers.set(round.id, PADDING_X + index * ROUND_GAP + NODE_W / 2))
 
     return { positionedMatches: positioned, width: maxX, height: maxY, roundCenters: centers }
   }, [matches, sortedRounds])
 
   const nodesByRound = useMemo(() => {
     const map = new Map<string, LayoutNode[]>()
-    sortedRounds.forEach((round) => {
-      map.set(round.id, positionedMatches.filter((m) => m.roundId === round.id).sort((a, b) => a.slot - b.slot))
-    })
+    sortedRounds.forEach((round) => map.set(round.id, positionedMatches.filter((m) => m.roundId === round.id).sort((a, b) => a.slot - b.slot)))
     return map
   }, [positionedMatches, sortedRounds])
 
@@ -105,12 +87,7 @@ export const BracketView = ({ rounds, matches, teamMap }: { rounds: BracketRound
         const start = nextIndex * groupSize
         const end = clamp(start + groupSize - 1, start, current.length - 1)
         current.slice(start, end + 1).forEach((fromNode) => {
-          lines.push({
-            fromX: fromNode.x + NODE_W,
-            fromY: fromNode.y + NODE_H / 2,
-            toX: nextNode.x,
-            toY: nextNode.y + NODE_H / 2,
-          })
+          lines.push({ fromX: fromNode.x + NODE_W, fromY: fromNode.y + NODE_H / 2, toX: nextNode.x, toY: nextNode.y + NODE_H / 2 })
         })
       })
     })
@@ -118,12 +95,15 @@ export const BracketView = ({ rounds, matches, teamMap }: { rounds: BracketRound
     return lines
   }, [nodesByRound, sortedRounds])
 
-  const zoom = (delta: number) => setScale((prev) => clamp(Number((prev + delta).toFixed(2)), 0.6, 2.2))
+  const zoom = (delta: number) => setScale((prev) => clamp(Number((prev + delta).toFixed(2)), 0.75, 1.7))
+
+  const nodeClass = 'absolute block px-1 py-1'
+  const viewportClass = fullScreen ? 'relative h-[calc(100vh-15.5rem)] touch-none overflow-hidden' : 'relative h-[68vh] touch-none overflow-hidden rounded-xl'
 
   return (
-    <section className="matte-panel p-3">
+    <section className={fullScreen ? '' : 'matte-panel p-3'}>
       <div className="mb-3 flex items-center justify-between gap-2 text-xs text-textMuted">
-        <p>Тяните сетку для перемещения • колесо мыши / кнопки для масштаба</p>
+        <p>Тяните сетку • масштаб: колесо или кнопки</p>
         <div className="flex gap-1">
           <button onClick={() => zoom(-0.1)} className="rounded bg-elevated px-2 py-1 text-textPrimary">−</button>
           <button onClick={() => setScale(1)} className="rounded bg-elevated px-2 py-1 text-textPrimary">100%</button>
@@ -132,7 +112,7 @@ export const BracketView = ({ rounds, matches, teamMap }: { rounds: BracketRound
       </div>
 
       <div
-        className="relative h-[68vh] touch-none overflow-hidden rounded-xl bg-app"
+        className={viewportClass}
         onWheel={(event) => {
           event.preventDefault()
           zoom(event.deltaY > 0 ? -0.08 : 0.08)
@@ -144,36 +124,25 @@ export const BracketView = ({ rounds, matches, teamMap }: { rounds: BracketRound
           if (!dragRef.current.active) return
           setOffset({ x: event.clientX - dragRef.current.x, y: event.clientY - dragRef.current.y })
         }}
-        onPointerUp={() => {
-          dragRef.current.active = false
-        }}
-        onPointerLeave={() => {
-          dragRef.current.active = false
-        }}
+        onPointerUp={() => { dragRef.current.active = false }}
+        onPointerLeave={() => { dragRef.current.active = false }}
       >
-        <div
-          className="absolute left-0 top-0 origin-top-left"
-          style={{ width, height, transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }}
-        >
+        <div className="absolute left-0 top-0 origin-top-left" style={{ width, height, transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }}>
           <svg width={width} height={height} className="absolute left-0 top-0">
             <defs>
               <marker id="bracket-arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
-                <path d="M0,0 L8,4 L0,8 z" fill="rgba(232,197,71,0.75)" />
+                <path d="M0,0 L8,4 L0,8 z" fill="rgba(232,197,71,0.7)" />
               </marker>
             </defs>
             {connectors.map((line, index) => {
               const middleX = (line.fromX + line.toX) / 2
               const path = `M ${line.fromX} ${line.fromY} L ${middleX} ${line.fromY} L ${middleX} ${line.toY} L ${line.toX - 8} ${line.toY}`
-              return <path key={index} d={path} fill="none" stroke="rgba(232,197,71,0.65)" strokeWidth="1.4" markerEnd="url(#bracket-arrow)" />
+              return <path key={index} d={path} fill="none" stroke="rgba(232,197,71,0.52)" strokeWidth="1.2" markerEnd="url(#bracket-arrow)" />
             })}
           </svg>
 
           {sortedRounds.map((round) => (
-            <p
-              key={round.id}
-              className="absolute -translate-x-1/2 text-[11px] uppercase tracking-[0.13em] text-textMuted"
-              style={{ left: roundCenters.get(round.id), top: 8 }}
-            >
+            <p key={round.id} className="absolute -translate-x-1/2 text-[11px] uppercase tracking-[0.13em] text-textMuted" style={{ left: roundCenters.get(round.id), top: 6 }}>
               {round.label}
             </p>
           ))}
@@ -181,42 +150,36 @@ export const BracketView = ({ rounds, matches, teamMap }: { rounds: BracketRound
           {positionedMatches.map((match) => {
             const homeWinner = match.winnerTeamId && match.homeTeamId === match.winnerTeamId
             const awayWinner = match.winnerTeamId && match.awayTeamId === match.winnerTeamId
+
+            const teamRow = (teamId: string | null, winner: boolean) => {
+              const team = teamId ? teamMap[teamId] : null
+
+              return (
+                <div className={`flex items-center justify-between text-sm ${winner ? 'text-accentYellow' : 'text-textPrimary'}`}>
+                  <div className="flex items-center gap-2">
+                    {team ? <TeamAvatar team={team} size="sm" /> : <CircleHelp size={16} className="text-textMuted" />}
+                    <span>{team ? team.shortName : 'TBD'}</span>
+                  </div>
+                </div>
+              )
+            }
+
             const content = (
               <>
-                <div className={`flex items-center justify-between text-[11px] ${homeWinner ? 'text-accentYellow' : 'text-textPrimary'}`}>
-                  <span>{match.homeTeamId ? teamMap[match.homeTeamId]?.shortName : 'TBD'}</span>
-                  <span className="tabular-nums">{match.score?.home ?? '—'}</span>
-                </div>
-                <div className={`mt-1 flex items-center justify-between text-[11px] ${awayWinner ? 'text-accentYellow' : 'text-textPrimary'}`}>
-                  <span>{match.awayTeamId ? teamMap[match.awayTeamId]?.shortName : 'TBD'}</span>
-                  <span className="tabular-nums">{match.score?.away ?? '—'}</span>
-                </div>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.08em] text-textMuted">{match.status === 'finished' ? 'завершен' : match.status === 'live' ? 'live' : 'ожидание'}</p>
+                {teamRow(match.homeTeamId, Boolean(homeWinner))}
+                <div className="mt-1">{teamRow(match.awayTeamId, Boolean(awayWinner))}</div>
               </>
             )
 
             if (match.linkedMatchId) {
               return (
-                <Link
-                  key={match.id}
-                  to={`/matches/${match.linkedMatchId}`}
-                  className="absolute block rounded-lg bg-surface px-2 py-2 shadow-surface"
-                  style={{ left: match.x, top: match.y, width: NODE_W, height: NODE_H }}
-                >
+                <Link key={match.id} to={`/matches/${match.linkedMatchId}`} className={nodeClass} style={{ left: match.x, top: match.y, width: NODE_W, height: NODE_H }}>
                   {content}
                 </Link>
               )
             }
 
-            return (
-              <div
-                key={match.id}
-                className="absolute rounded-lg bg-surface px-2 py-2 shadow-surface"
-                style={{ left: match.x, top: match.y, width: NODE_W, height: NODE_H }}
-              >
-                {content}
-              </div>
-            )
+            return <div key={match.id} className={nodeClass} style={{ left: match.x, top: match.y, width: NODE_W, height: NODE_H }}>{content}</div>
           })}
         </div>
       </div>
