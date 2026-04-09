@@ -7,19 +7,29 @@ import { useTeams } from '../../hooks/data/useTeams'
 import { useMatches } from '../../hooks/data/useMatches'
 import { useEvents } from '../../hooks/data/useEvents'
 
-type SearchType = 'team' | 'player' | 'match' | 'event'
+type SearchType = 'all' | 'team' | 'player' | 'match' | 'event'
+type SortType = 'date_desc' | 'date_asc' | 'name_asc' | 'name_desc'
 
 const typeLabel: Record<SearchType, string> = {
+  all: 'ВСЕ',
   team: 'КОМАНДЫ',
   player: 'ИГРОКИ',
   match: 'МАТЧИ',
   event: 'СОБЫТИЯ',
 }
 
+const sortLabel: Record<SortType, string> = {
+  date_desc: 'По дате ↓',
+  date_asc: 'По дате ↑',
+  name_asc: 'По названию А-Я',
+  name_desc: 'По названию Я-А',
+}
+
 export const SearchPage = () => {
   const [query, setQuery] = useState('')
-  const [activeType, setActiveType] = useState<SearchType>('team')
+  const [activeType, setActiveType] = useState<SearchType>('all')
   const [activeFilter, setActiveFilter] = useState<string>('all')
+  const [sortBy, setSortBy] = useState<SortType>('date_desc')
 
   const { data: teams } = useTeams()
   const { data: players } = usePlayers()
@@ -27,53 +37,59 @@ export const SearchPage = () => {
   const { data: events } = useEvents()
 
   const filters = useMemo(() => {
-    if (activeType === 'team') return ['all', 'A', 'B']
-    if (activeType === 'player') return ['all', 'GK', 'DF', 'MF', 'FW']
-    if (activeType === 'match') return ['all', 'live', 'scheduled', 'finished']
-    return ['all', 'news', 'announcement', 'report']
+    if (activeType === 'team') return ['Все группы', 'A', 'B']
+    if (activeType === 'player') return ['Все позиции', 'GK', 'DF', 'MF', 'FW']
+    if (activeType === 'match') return ['Все статусы', 'live', 'scheduled', 'finished']
+    if (activeType === 'event') return ['Все типы', 'news', 'announcement', 'report']
+    return ['Весь турнир']
   }, [activeType])
+
+  const normalizedFilter = useMemo(() => {
+    const map: Record<string, string> = {
+      'Все группы': 'all',
+      'Все позиции': 'all',
+      'Все статусы': 'all',
+      'Все типы': 'all',
+      'Весь турнир': 'all',
+    }
+    return map[activeFilter] ?? activeFilter
+  }, [activeFilter])
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase()
 
-    if (activeType === 'team') {
-      return (teams ?? [])
-        .filter((team) => (activeFilter === 'all' ? true : team.group === activeFilter))
-        .filter((team) => (q ? `${team.name} ${team.shortName} ${team.city}`.toLowerCase().includes(q) : true))
-        .map((team) => ({ id: team.id, route: `/teams/${team.id}`, title: team.name, subtitle: `${team.shortName} • Группа ${team.group}` }))
-    }
+    const list = [
+      ...(teams ?? []).map((team) => ({ id: team.id, type: 'team' as const, route: `/teams/${team.id}`, title: team.name, subtitle: `${team.shortName} • Группа ${team.group}`, date: '', filter: team.group })),
+      ...(players ?? []).map((player) => ({ id: player.id, type: 'player' as const, route: `/players/${player.id}`, title: player.displayName, subtitle: `#${player.number} • ${player.position}`, date: '', filter: player.position })),
+      ...(matches ?? []).map((match) => ({ id: match.id, type: 'match' as const, route: `/matches/${match.id}`, title: `${match.date} ${match.time}`, subtitle: `${match.venue} • ${match.round}`, date: match.date, filter: match.status })),
+      ...(events ?? []).map((event) => ({ id: event.id, type: 'event' as const, route: `/events/${event.id}`, title: event.title, subtitle: `${event.date} • ${event.author}`, date: event.date, filter: event.category })),
+    ]
 
-    if (activeType === 'player') {
-      return (players ?? [])
-        .filter((player) => (activeFilter === 'all' ? true : player.position === activeFilter))
-        .filter((player) => (q ? `${player.displayName} ${player.position}`.toLowerCase().includes(q) : true))
-        .map((player) => ({ id: player.id, route: `/players/${player.id}`, title: player.displayName, subtitle: `#${player.number} • ${player.position}` }))
-    }
+    const byType = activeType === 'all' ? list : list.filter((item) => item.type === activeType)
+    const byFilter = normalizedFilter === 'all' ? byType : byType.filter((item) => item.filter === normalizedFilter)
+    const byQuery = q ? byFilter.filter((item) => `${item.title} ${item.subtitle}`.toLowerCase().includes(q)) : byFilter
 
-    if (activeType === 'match') {
-      return (matches ?? [])
-        .filter((match) => (activeFilter === 'all' ? true : match.status === activeFilter))
-        .filter((match) => (q ? `${match.round} ${match.venue} ${match.date}`.toLowerCase().includes(q) : true))
-        .map((match) => ({ id: match.id, route: `/matches/${match.id}`, title: `${match.date} ${match.time}`, subtitle: `${match.venue} • ${match.round}` }))
-    }
+    const sorted = [...byQuery].sort((a, b) => {
+      if (sortBy === 'name_asc') return a.title.localeCompare(b.title, 'ru')
+      if (sortBy === 'name_desc') return b.title.localeCompare(a.title, 'ru')
+      if (sortBy === 'date_asc') return a.date.localeCompare(b.date)
+      return b.date.localeCompare(a.date)
+    })
 
-    return (events ?? [])
-      .filter((event) => (activeFilter === 'all' ? true : event.category === activeFilter))
-      .filter((event) => (q ? `${event.title} ${event.text} ${event.author}`.toLowerCase().includes(q) : true))
-      .map((event) => ({ id: event.id, route: `/events/${event.id}`, title: event.title, subtitle: `${event.date} • ${event.author}` }))
-  }, [activeType, activeFilter, events, matches, players, query, teams])
+    return sorted
+  }, [activeType, events, matches, normalizedFilter, players, query, sortBy, teams])
 
   return (
     <PageContainer>
       <SearchField value={query} onChange={setQuery} placeholder="Поиск по турниру" />
 
-      <div className="grid gap-2 sm:grid-cols-4">
-        {(['player', 'team', 'match', 'event'] as SearchType[]).map((type) => (
+      <div className="grid gap-2 sm:grid-cols-5">
+        {(['all', 'player', 'team', 'match', 'event'] as SearchType[]).map((type) => (
           <button
             key={type}
             onClick={() => {
               setActiveType(type)
-              setActiveFilter('all')
+              setActiveFilter(type === 'all' ? 'Весь турнир' : 'all')
             }}
             className={`matte-panel px-3 py-2 text-xs font-semibold transition ${activeType === type ? 'text-textPrimary' : 'text-textMuted'}`}
           >
@@ -82,7 +98,7 @@ export const SearchPage = () => {
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {filters.map((filter) => (
           <button
             key={filter}
@@ -92,11 +108,16 @@ export const SearchPage = () => {
             {filter}
           </button>
         ))}
+        <select value={sortBy} onChange={(event) => setSortBy(event.target.value as SortType)} className="rounded-full bg-elevated px-3 py-1.5 text-xs text-textSecondary outline-none">
+          {(Object.keys(sortLabel) as SortType[]).map((sortKey) => (
+            <option key={sortKey} value={sortKey}>{sortLabel[sortKey]}</option>
+          ))}
+        </select>
       </div>
 
       <div className="space-y-2">
         {results.map((item) => (
-          <Link key={item.id} to={item.route} className="matte-panel block p-3">
+          <Link key={`${item.type}_${item.id}`} to={item.route} className="matte-panel block p-3">
             <p className="text-base font-medium">{item.title}</p>
             <p className="text-sm text-textMuted">{item.subtitle}</p>
           </Link>
