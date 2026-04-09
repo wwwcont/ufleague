@@ -9,13 +9,13 @@ export const SocialLinks = ({ compact = false }: { compact?: boolean }) => {
 
   return (
     <div className="mt-4 flex items-center gap-2">
-      <a href="#" aria-label="Telegram" className={`${size} inline-flex items-center justify-center rounded-full bg-elevated text-textSecondary hover:text-accentYellow`}>
+      <a href="#" aria-label="Telegram" className={`${size} inline-flex items-center justify-center rounded-full border border-borderSubtle bg-panelSoft text-textSecondary hover:border-borderStrong hover:text-accentYellow`}>
         <Send size={14} />
       </a>
-      <a href="#" aria-label="VK" className={`${size} inline-flex items-center justify-center rounded-full bg-elevated text-textSecondary hover:text-accentYellow`}>
+      <a href="#" aria-label="VK" className={`${size} inline-flex items-center justify-center rounded-full border border-borderSubtle bg-panelSoft text-textSecondary hover:border-borderStrong hover:text-accentYellow`}>
         <VkGlyph />
       </a>
-      <a href="#" aria-label="Instagram" className={`${size} inline-flex items-center justify-center rounded-full bg-elevated text-textSecondary hover:text-accentYellow`}>
+      <a href="#" aria-label="Instagram" className={`${size} inline-flex items-center justify-center rounded-full border border-borderSubtle bg-panelSoft text-textSecondary hover:border-borderStrong hover:text-accentYellow`}>
         <Camera size={14} />
       </a>
     </div>
