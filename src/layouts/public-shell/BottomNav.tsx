@@ -1,3 +1,4 @@
+import { CalendarDays, House, Table2, UserRound } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useSession } from '../../app/providers/use-session'
 
@@ -5,22 +6,28 @@ export const BottomNav = () => {
   const { session } = useSession()
 
   const links = [
-    { to: '/', label: 'Главная' },
-    { to: '/table', label: 'Таблица' },
-    { to: '/matches', label: 'Матчи' },
-    { to: session.isAuthenticated ? '/profile' : '/login', label: session.isAuthenticated ? 'Кабинет' : 'Вход' },
+    { to: '/', label: 'Главная', icon: House },
+    { to: '/table', label: 'Таблица', icon: Table2 },
+    { to: '/matches', label: 'Матчи', icon: CalendarDays },
+    { to: session.isAuthenticated ? '/profile' : '/login', label: session.isAuthenticated ? 'Кабинет' : 'Вход', icon: UserRound },
   ]
 
   return (
-    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-50 border-t border-borderSubtle bg-panelBg/95 backdrop-blur-md">
+    <nav className="safe-bottom fixed inset-x-0 bottom-0 z-50 border-t border-borderSubtle bg-panelBg/92 backdrop-blur-md">
       <div className="mx-auto grid h-20 max-w-5xl grid-cols-4 gap-1 px-2 py-2">
-        {links.map(({ to, label }) => (
+        {links.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to + label}
             to={to}
-            className={({ isActive }) => `flex items-center justify-center rounded-xl text-[11px] font-semibold tracking-[0.04em] transition ${isActive ? 'bg-panelSoft text-accentYellow' : 'text-textSecondary hover:bg-panelSoft/60'}`}
+            aria-label={label}
+            className={({ isActive }) => `group flex items-center justify-center rounded-xl transition ${isActive ? 'bg-panelSoft/90' : 'hover:bg-panelSoft/60'}`}
           >
-            {label}
+            {({ isActive }) => (
+              <>
+                <Icon size={20} className={isActive ? 'text-accentYellow' : 'text-textSecondary'} />
+                <span className="sr-only">{label}</span>
+              </>
+            )}
           </NavLink>
         ))}
       </div>
