@@ -5,6 +5,12 @@ import { useMatchDetails } from '../../hooks/data/useMatchDetails'
 import { useTeams } from '../../hooks/data/useTeams'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { SectionHeader } from '../../components/ui/SectionHeader'
+import { SocialLinks } from '../../components/ui/SocialLinks'
+
+const formatKickoff = (date: string, time: string) => {
+  const [year, month, day] = date.split('-')
+  return `${day}.${month}.${year} ${time}`
+}
 
 export const MatchDetailsPage = () => {
   const { matchId } = useParams()
@@ -16,12 +22,20 @@ export const MatchDetailsPage = () => {
 
   return (
     <PageContainer>
-      <Scoreboard match={match} home={teamMap[match.homeTeamId]} away={teamMap[match.awayTeamId]} />
+      <div className="matte-panel p-5">
+        <div className="mb-3 rounded-2xl bg-app/80 px-4 py-5">
+          <p className="text-lg font-semibold tabular-nums text-textPrimary">{formatKickoff(match.date, match.time)}</p>
+          <p className="mt-1 text-base text-textSecondary">{match.venue}</p>
+        </div>
+        <Scoreboard match={match} home={teamMap[match.homeTeamId]} away={teamMap[match.awayTeamId]} />
+        <SocialLinks compact />
+      </div>
+
       <SectionHeader title="Переходы" />
-      <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
-        <Link className="border-b border-accentYellow/60 px-3 py-2 text-center font-medium text-textSecondary hover:border-accentYellow hover:text-textPrimary" to={`/teams/${match.homeTeamId}`}>Команда хозяев</Link>
-        <Link className="border-b border-accentYellow/60 px-3 py-2 text-center font-medium text-textSecondary hover:border-accentYellow hover:text-textPrimary" to={`/teams/${match.awayTeamId}`}>Команда гостей</Link>
-        <Link className="border-b border-accentYellow/60 px-3 py-2 text-center font-medium text-textSecondary hover:border-accentYellow hover:text-textPrimary" to="/table">Таблица</Link>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <Link className="matte-panel px-4 py-3 text-center text-sm font-medium text-textSecondary hover:text-textPrimary" to={`/teams/${match.homeTeamId}`}>Команда хозяев</Link>
+        <Link className="matte-panel px-4 py-3 text-center text-sm font-medium text-textSecondary hover:text-textPrimary" to={`/teams/${match.awayTeamId}`}>Команда гостей</Link>
+        <Link className="matte-panel px-4 py-3 text-center text-sm font-medium text-textSecondary hover:text-textPrimary" to="/table">Таблица</Link>
       </div>
     </PageContainer>
   )

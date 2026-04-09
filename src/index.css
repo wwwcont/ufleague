@@ -27,6 +27,44 @@ body {
   .typing-cursor {
     animation: typingBlink 1s steps(1, end) infinite;
   }
+
+  .bg-orb {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(55px);
+    opacity: 0.16;
+    pointer-events: none;
+    animation: orbFloat 18s ease-in-out infinite alternate;
+  }
+
+  .bg-orb-a {
+    width: 220px;
+    height: 220px;
+    left: -40px;
+    top: 18%;
+    background: #e8c547;
+    animation-duration: 19s;
+  }
+
+  .bg-orb-b {
+    width: 260px;
+    height: 260px;
+    right: -70px;
+    top: 36%;
+    background: #d9b742;
+    animation-duration: 24s;
+    animation-delay: -5s;
+  }
+
+  .bg-orb-c {
+    width: 180px;
+    height: 180px;
+    left: 35%;
+    bottom: -45px;
+    background: #cfad39;
+    animation-duration: 17s;
+    animation-delay: -9s;
+  }
 }
 
 @keyframes typingBlink {
@@ -37,6 +75,18 @@ body {
   46%,
   100% {
     opacity: 0;
+  }
+}
+
+@keyframes orbFloat {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(22px, -18px, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(-16px, 20px, 0) scale(0.95);
   }
 }
 
