@@ -11,8 +11,8 @@ export const TablePage = () => {
 
   return (
     <PageContainer>
-      <SectionHeader title="Standings" />
-      <p className="mb-4 text-sm text-textSecondary">Table sorted by points with goal-difference superscript formatting.</p>
+      <SectionHeader title="Турнирная таблица" />
+      <p className="mb-4 text-sm text-textSecondary">Сортировка по очкам и разнице мячей.</p>
       {rows && <StandingsTable rows={rows} teamMap={teamMap} />}
     </PageContainer>
   )

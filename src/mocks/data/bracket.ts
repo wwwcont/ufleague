@@ -1,9 +1,9 @@
 import type { BracketMatch, BracketRound } from '../../domain/entities/types'
 
 export const bracketRounds: BracketRound[] = [
-  { id: 'r1', label: 'Quarter-finals', order: 1 },
-  { id: 'r2', label: 'Semi-finals', order: 2 },
-  { id: 'r3', label: 'Final', order: 3 },
+  { id: 'r1', label: 'Четвертьфинал', order: 1 },
+  { id: 'r2', label: 'Полуфинал', order: 2 },
+  { id: 'r3', label: 'Финал', order: 3 },
 ]
 
 export const bracketMatches: BracketMatch[] = [

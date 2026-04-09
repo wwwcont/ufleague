@@ -13,17 +13,17 @@ export const SearchPage = () => {
   return (
     <PageContainer>
       <SearchField value={query} onChange={setQuery} />
-      <SectionHeader title="Results" />
-      {loading && <p className="text-sm text-textMuted">Searching...</p>}
+      <SectionHeader title="Результаты" />
+      {loading && <p className="text-sm text-textMuted">Поиск...</p>}
       <div className="space-y-2">
         {results.map((r) => (
-          <Link key={r.id} to={r.route} className="block rounded-lg border border-borderSubtle bg-surface p-3">
+          <Link key={r.id} to={r.route} className="block border-b border-accentYellow/50 p-3">
             <p className="text-sm font-medium">{r.title}</p>
-            <p className="text-xs text-textMuted">{r.subtitle} • {r.type}</p>
+            <p className="text-xs text-textMuted">{r.subtitle} • {{ team: 'команда', player: 'игрок', match: 'матч' }[r.type]}</p>
           </Link>
         ))}
       </div>
-      {!loading && query && results.length === 0 && <EmptyState title="No results" subtitle="Try another keyword" />}
+      {!loading && query && results.length === 0 && <EmptyState title="Ничего не найдено" subtitle="Попробуйте другой запрос" />}
     </PageContainer>
   )
 }
