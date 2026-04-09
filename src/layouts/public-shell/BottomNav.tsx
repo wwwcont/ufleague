@@ -14,17 +14,17 @@ export const BottomNav = () => {
 
   return (
     <nav className="safe-bottom fixed inset-x-0 bottom-0 z-50 border-t border-borderSubtle bg-panelBg/92 backdrop-blur-md">
-      <div className="mx-auto grid h-20 max-w-5xl grid-cols-4 gap-1 px-2 py-2">
+      <div className="mx-auto grid h-16 max-w-5xl grid-cols-4 gap-1 px-2 py-1.5">
         {links.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to + label}
             to={to}
             aria-label={label}
-            className={({ isActive }) => `group flex items-center justify-center rounded-xl transition ${isActive ? 'bg-panelSoft/90' : 'hover:bg-panelSoft/60'}`}
+            className="flex items-center justify-center"
           >
             {({ isActive }) => (
               <>
-                <Icon size={20} className={isActive ? 'text-accentYellow' : 'text-textSecondary'} />
+                <Icon size={22} className={isActive ? 'text-accentYellow' : 'text-textSecondary'} />
                 <span className="sr-only">{label}</span>
               </>
             )}
