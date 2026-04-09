@@ -23,7 +23,7 @@ export const MatchCard = ({ match, home, away }: { match: Match; home: Team; awa
         <span className="truncate text-xs font-semibold uppercase tracking-[0.06em] text-textPrimary sm:text-sm">{home.shortName}</span>
       </div>
 
-      <div className="z-10 rounded-xl border border-borderStrong bg-mutedBg px-2 py-1 text-center text-2xl font-bold leading-none tabular-nums text-textPrimary">
+      <div className="z-10 px-1 text-center text-2xl font-bold leading-none tabular-nums text-textPrimary">
         {match.score.home}<span className="mx-1 text-accentYellow">:</span>{match.score.away}
       </div>
 

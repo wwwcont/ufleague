@@ -8,27 +8,32 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 const roleOrder: UserRole[] = ['guest', 'player', 'captain', 'admin', 'superadmin']
 
-const blocksByRole: Record<UserRole, Array<{ title: string; items: string[] }>> = {
+interface CabinetBlock {
+  title: string
+  items: Array<{ label: string; route?: string }>
+}
+
+const blocksByRole: Record<UserRole, CabinetBlock[]> = {
   guest: [
-    { title: 'Базовый профиль', items: ['Никнейм, telegram handle (placeholder)', 'Публичный статус аккаунта'] },
-    { title: 'Моя активность', items: ['Мои комментарии (placeholder)', 'Мои реакции и ответы (placeholder)'] },
-    { title: 'Доступные права', items: ['Комментирование', 'Reply / delete own / like-dislike'] },
+    { title: 'Базовый профиль', items: [{ label: 'Никнейм, telegram handle (placeholder)' }, { label: 'Публичный статус аккаунта' }] },
+    { title: 'Моя активность', items: [{ label: 'Мои комментарии и реакции', route: '/profile/activity' }] },
+    { title: 'Доступные права', items: [{ label: 'Комментирование' }, { label: 'Reply / delete own / like-dislike' }] },
   ],
   player: [
-    { title: 'Editable profile', items: ['Редактирование карточки игрока (placeholder)', 'Фото/био/social links (placeholder)'] },
-    { title: 'Связь с командой', items: ['Текущая команда', 'Роль внутри команды'] },
+    { title: 'Editable profile', items: [{ label: 'Редактирование карточки игрока', route: '/profile/edit' }, { label: 'Фото/био/social links (placeholder)' }] },
+    { title: 'Связь с командой', items: [{ label: 'Текущая команда', route: '/profile/team' }, { label: 'Роль внутри команды' }] },
   ],
   captain: [
-    { title: 'Моя команда', items: ['Управление составом (placeholder)', 'Приглашения игроков (placeholder)'] },
-    { title: 'События команды', items: ['Создать/редактировать event (placeholder)', 'Командная лента событий'] },
+    { title: 'Моя команда', items: [{ label: 'Управление составом', route: '/profile/team' }, { label: 'Приглашения игроков', route: '/profile/team' }] },
+    { title: 'События команды', items: [{ label: 'Создать/редактировать event', route: '/profile/moderation' }] },
   ],
   admin: [
-    { title: 'Быстрые действия', items: ['Создать матч', 'Создать событие', 'Создать команду'] },
-    { title: 'Moderation / tournament actions', items: ['Модерация контента (placeholder)', 'Управление турнирными сущностями (placeholder)'] },
+    { title: 'Быстрые действия', items: [{ label: 'Создать матч', route: '/profile/moderation' }, { label: 'Создать событие', route: '/profile/moderation' }, { label: 'Создать команду', route: '/profile/moderation' }] },
+    { title: 'Moderation / tournament actions', items: [{ label: 'Панель модерации', route: '/profile/moderation' }] },
   ],
   superadmin: [
-    { title: 'Rights management', items: ['Управление правами и ролями (placeholder)'] },
-    { title: 'Global settings', items: ['Глобальные настройки платформы (placeholder)', 'Advanced actions (placeholder)'] },
+    { title: 'Rights management', items: [{ label: 'Управление ролями и правами', route: '/profile/permissions' }] },
+    { title: 'Global settings', items: [{ label: 'Глобальные настройки платформы', route: '/profile/settings' }, { label: 'Advanced actions', route: '/profile/settings' }] },
   ],
 }
 
@@ -69,7 +74,11 @@ export const ProfilePage = () => {
               {block.title}
             </h3>
             <ul className="space-y-1 text-sm text-textSecondary">
-              {block.items.map((item) => <li key={item}>• {item}</li>)}
+              {block.items.map((item) => (
+                <li key={item.label}>
+                  {item.route ? <Link to={item.route} className="text-accentYellow hover:underline">• {item.label}</Link> : <span>• {item.label}</span>}
+                </li>
+              ))}
             </ul>
           </section>
         ))}

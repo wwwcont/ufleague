@@ -10,6 +10,7 @@ import { MatchesPage } from '../../pages/matches/MatchesPage'
 import { PlayerDetailsPage } from '../../pages/players/PlayerDetailsPage'
 import { PlayersPage } from '../../pages/players/PlayersPage'
 import { ProfilePage } from '../../pages/profile/ProfilePage'
+import { CabinetSectionPage } from '../../pages/profile/CabinetSectionPage'
 import { SearchPage } from '../../pages/search/SearchPage'
 import { TablePage } from '../../pages/table/TablePage'
 import { TeamDetailsPage } from '../../pages/teams/TeamDetailsPage'
@@ -34,6 +35,7 @@ export const router = createBrowserRouter([
       { path: 'events/:eventId', element: <EventDetailsPage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'profile', element: <ProfilePage /> },
+      { path: 'profile/:section', element: <CabinetSectionPage /> },
     ],
   },
 ])

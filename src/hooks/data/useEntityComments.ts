@@ -18,6 +18,24 @@ const removeFromTree = (items: CommentNode[], commentId: string): CommentNode[] 
       replies: removeFromTree(item.replies, commentId),
     }))
 
+const findComment = (items: CommentNode[], commentId: string): CommentNode | null => {
+  for (const item of items) {
+    if (item.id === commentId) return item
+    const nested = findComment(item.replies, commentId)
+    if (nested) return nested
+  }
+  return null
+}
+
+const findThreadRootId = (items: CommentNode[], commentId: string): string | null => {
+  for (const item of items) {
+    if (item.id === commentId) return item.parentId ?? item.id
+    const nested = findThreadRootId(item.replies, commentId)
+    if (nested) return nested
+  }
+  return null
+}
+
 interface UseEntityCommentsResult {
   comments: CommentNode[]
   isLoading: boolean
@@ -90,16 +108,23 @@ export const useEntityComments = (entityType: CommentEntityType, entityId?: stri
   const appendComment = useCallback((text: string, parentId: string | null) => {
     if (!author || !entityId) return
 
+    const targetComment = parentId ? findComment(comments, parentId) : null
+    const threadRootId = parentId ? findThreadRootId(comments, parentId) : null
+
+    const normalizedText = targetComment
+      ? (text.trim().startsWith(`@${targetComment.authorName}`) ? text : `@${targetComment.authorName} ${text}`)
+      : text
+
     const payload: CommentNode = {
       id: `local_${Date.now()}`,
       entityType,
       entityId,
-      parentId,
+      parentId: threadRootId,
       authorName: author.name,
       authorRole: author.role,
       isOwn: true,
       createdAt: nowStamp(),
-      text,
+      text: normalizedText,
       reactions: { likes: 0, dislikes: 0, userReaction: null },
       canReply: true,
       canDelete: true,
@@ -107,14 +132,14 @@ export const useEntityComments = (entityType: CommentEntityType, entityId?: stri
     }
 
     setComments((prev) => {
-      if (!parentId) return [...prev, payload]
-      return updateCommentTree(prev, parentId, (comment) => ({ ...comment, replies: [...comment.replies, payload] }))
+      if (!threadRootId) return [...prev, payload]
+      return updateCommentTree(prev, threadRootId, (comment) => ({ ...comment, replies: [...comment.replies, payload] }))
     })
 
     setLastSentAt(new Date().getTime())
     setNowTs(new Date().getTime())
     setActiveReplyTo(null)
-  }, [author, entityId, entityType])
+  }, [author, comments, entityId, entityType])
 
   const addComment = useCallback((text: string) => appendComment(text, null), [appendComment])
   const addReply = useCallback((parentId: string, text: string) => appendComment(text, parentId), [appendComment])

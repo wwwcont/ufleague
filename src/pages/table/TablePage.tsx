@@ -6,6 +6,13 @@ import { useBracket } from '../../hooks/data/useBracket'
 import { useStandings } from '../../hooks/data/useStandings'
 import { useTeams } from '../../hooks/data/useTeams'
 
+const ModeSwitch = ({ mode, setMode }: { mode: 'table' | 'bracket'; setMode: (mode: 'table' | 'bracket') => void }) => (
+  <div className="matte-panel mb-3 flex p-1">
+    <button className={`w-1/2 rounded-xl py-2 text-sm font-medium ${mode === 'table' ? 'text-accentYellow' : 'text-textMuted'}`} onClick={() => setMode('table')}>Таблица</button>
+    <button className={`w-1/2 rounded-xl py-2 text-sm font-medium ${mode === 'bracket' ? 'text-accentYellow' : 'text-textMuted'}`} onClick={() => setMode('bracket')}>Сетка</button>
+  </div>
+)
+
 export const TablePage = () => {
   const [mode, setMode] = useState<'table' | 'bracket'>('table')
   const { data: rows } = useStandings()
@@ -27,12 +34,8 @@ export const TablePage = () => {
 
   if (mode === 'bracket') {
     return (
-      <div className="px-4 pb-20 pt-20 md:px-6">
-        <div className="matte-panel relative mb-3 flex p-1">
-          <span className="absolute top-1 h-[calc(100%-8px)] w-[calc(50%-4px)] rounded-xl bg-panelSoft transition-transform duration-300 translate-x-full" />
-          <button className="relative z-10 w-1/2 rounded-xl py-2 text-sm font-medium text-textMuted" onClick={() => setMode('table')}>Таблица</button>
-          <button className="relative z-10 w-1/2 rounded-xl py-2 text-sm font-medium text-textPrimary" onClick={() => setMode('bracket')}>Сетка</button>
-        </div>
+      <div className="px-4 pb-20 pt-6 md:px-6">
+        <ModeSwitch mode={mode} setMode={setMode} />
         {bracket && <BracketView rounds={bracket.rounds} matches={bracket.matches} teamMap={teamMap} fullScreen />}
       </div>
     )
@@ -40,11 +43,7 @@ export const TablePage = () => {
 
   return (
     <PageContainer>
-      <div className="matte-panel relative flex p-1">
-        <span className="absolute top-1 h-[calc(100%-8px)] w-[calc(50%-4px)] rounded-xl bg-panelSoft transition-transform duration-300 translate-x-0" />
-        <button className="relative z-10 w-1/2 rounded-xl py-2 text-sm font-medium text-textPrimary" onClick={() => setMode('table')}>Таблица</button>
-        <button className="relative z-10 w-1/2 rounded-xl py-2 text-sm font-medium text-textMuted" onClick={() => setMode('bracket')}>Сетка</button>
-      </div>
+      <ModeSwitch mode={mode} setMode={setMode} />
       {rows && <StandingsTable rows={rows} teamMap={teamMap} />}
     </PageContainer>
   )

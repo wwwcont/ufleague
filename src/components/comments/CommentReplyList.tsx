@@ -20,6 +20,7 @@ export const CommentReplyList = ({ replies, onReply, onDelete, onReact }: Commen
           onReply={onReply}
           onDelete={onDelete}
           onReact={onReact}
+          isThreadChild
         />
       ))}
     </ul>

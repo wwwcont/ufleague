@@ -20,7 +20,7 @@ export const Scoreboard = ({ match, home, away, tournamentLogoUrl }: ScoreboardP
     <div className="pointer-events-none absolute bottom-0 left-10 right-10 h-px bg-gradient-to-r from-accentYellow/0 via-accentYellowSoft to-accentYellow/0" />
 
     <div className="mb-5 flex items-center justify-between gap-3 text-xs text-textSecondary sm:text-sm">
-      <span className="rounded-lg border border-borderSubtle bg-mutedBg px-2.5 py-1 font-medium">{match.round}</span>
+      <span className="font-medium uppercase tracking-[0.08em]">{match.round}</span>
       <StatusBadge status={match.status} />
     </div>
 

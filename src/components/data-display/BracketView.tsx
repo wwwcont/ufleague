@@ -4,9 +4,9 @@ import { CircleHelp } from 'lucide-react'
 import type { BracketMatch, BracketRound, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
 
-const NODE_W = 190
-const NODE_H = 74
-const ROUND_GAP = 230
+const NODE_W = 184
+const NODE_H = 72
+const ROUND_GAP = 198
 const FIRST_ROUND_GAP = 58
 const PADDING_X = 48
 const PADDING_Y = 44
@@ -140,15 +140,11 @@ export const BracketView = ({ rounds, matches, teamMap, fullScreen = false }: { 
       >
         <div className="absolute left-0 top-0 origin-top-left" style={{ width, height, transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }}>
           <svg width={width} height={height} className="absolute left-0 top-0">
-            <defs>
-              <marker id="bracket-arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="strokeWidth">
-                <path d="M0,0 L8,4 L0,8 z" fill="rgba(232,197,71,0.7)" />
-              </marker>
-            </defs>
             {connectors.map((line, index) => {
-              const middleX = (line.fromX + line.toX) / 2
-              const path = `M ${line.fromX} ${line.fromY} L ${middleX} ${line.fromY} L ${middleX} ${line.toY} L ${line.toX} ${line.toY}`
-              return <path key={index} d={path} fill="none" stroke="rgba(232,197,71,0.62)" strokeWidth="1.4" markerEnd="url(#bracket-arrow)" />
+              const c1x = line.fromX + 30
+              const c2x = line.toX - 30
+              const path = `M ${line.fromX} ${line.fromY} C ${c1x} ${line.fromY}, ${c2x} ${line.toY}, ${line.toX} ${line.toY}`
+              return <path key={index} d={path} fill="none" stroke="rgba(227,193,75,0.76)" strokeWidth="2" strokeLinecap="round" />
             })}
           </svg>
 
