@@ -1,33 +1,36 @@
 import { Link } from 'react-router-dom'
 import type { Match, Team } from '../../domain/entities/types'
-import { resolveTeamLogo } from '../../domain/services/logoResolver'
-import { tournament } from '../../mocks/data/tournament'
 import { StatusBadge } from './StatusBadge'
+import { TeamAvatar } from '../ui/TeamAvatar'
 
-export const MatchCard = ({ match, home, away }: { match: Match; home: Team; away: Team }) => {
-  const homeLogo = resolveTeamLogo(home.logoUrl, tournament.logoUrl, tournament.fallbackLogoUrl)
-  const awayLogo = resolveTeamLogo(away.logoUrl, tournament.logoUrl, tournament.fallbackLogoUrl)
+export const MatchCard = ({ match, home, away }: { match: Match; home: Team; away: Team }) => (
+  <Link
+    to={`/matches/${match.id}`}
+    className="group block rounded-2xl bg-gradient-to-r from-accentYellow/15 to-transparent px-3 py-3 transition hover:from-accentYellow/20"
+  >
+    <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-textMuted">
+      <span>{match.round}</span>
+      <StatusBadge status={match.status} />
+    </div>
 
-  return (
-    <Link to={`/matches/${match.id}`} className="group block border-b border-accentYellow/70 px-1 py-4 transition hover:border-accentYellow">
-      <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-[0.12em] text-textMuted">
-        <span>{match.round}</span>
-        <StatusBadge status={match.status} />
+    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-textPrimary">
+      <div className="flex min-w-0 items-center gap-2">
+        <TeamAvatar team={home} size="sm" />
+        <span className="truncate">{home.shortName}</span>
       </div>
 
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-sm font-semibold uppercase tracking-[0.08em] text-textPrimary">
-        <div className="flex items-center gap-2">
-          <img src={homeLogo} alt={`Логотип ${home.name}`} className="h-6 w-6" />
-          <span>{home.shortName}</span>
-        </div>
-        <div className="text-center text-base text-accentYellow">:</div>
-        <div className="flex items-center justify-end gap-2">
-          <span>{away.shortName}</span>
-          <img src={awayLogo} alt={`Логотип ${away.name}`} className="h-6 w-6" />
-        </div>
+      <div className="px-2 text-sm text-accentYellow">
+        {match.score.home}:{match.score.away}
       </div>
 
-      <p className="mt-2 text-xs text-textSecondary">{match.score.home}:{match.score.away} • {match.date} • {match.time} • {match.venue}</p>
-    </Link>
-  )
-}
+      <div className="flex min-w-0 items-center justify-end gap-2">
+        <span className="truncate">{away.shortName}</span>
+        <TeamAvatar team={away} size="sm" />
+      </div>
+    </div>
+
+    <p className="mt-2 text-[11px] text-textSecondary">
+      {match.date} • {match.time} • {match.venue}
+    </p>
+  </Link>
+)

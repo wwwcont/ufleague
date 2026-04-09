@@ -5,19 +5,19 @@ export const useShellMeta = () => {
   const isHome = pathname === '/'
 
   const title = (() => {
-    if (pathname === '/') return 'Кубок UFL'
-    if (pathname.startsWith('/matches/')) return 'Матч'
-    if (pathname === '/matches') return 'Матчи'
-    if (pathname.startsWith('/teams/')) return 'Команда'
-    if (pathname === '/teams') return 'Команды'
-    if (pathname.startsWith('/players/')) return 'Игрок'
-    if (pathname === '/players') return 'Игроки'
-    if (pathname === '/table') return 'Таблица'
-    if (pathname === '/bracket') return 'Сетка'
-    if (pathname === '/search') return 'Поиск'
-    if (pathname === '/login') return 'Вход'
-    if (pathname === '/profile') return 'Профиль'
-    return 'Кубок UFL'
+    if (pathname === '/') return 'UFLEAGUE'
+    if (pathname.startsWith('/matches/')) return 'МАТЧ'
+    if (pathname === '/matches') return 'МАТЧИ'
+    if (pathname.startsWith('/teams/')) return 'КОМАНДА'
+    if (pathname === '/teams') return 'КОМАНДЫ'
+    if (pathname.startsWith('/players/')) return 'ИГРОК'
+    if (pathname === '/players') return 'ИГРОКИ'
+    if (pathname === '/table') return 'ТАБЛИЦА'
+    if (pathname === '/bracket') return 'СЕТКА'
+    if (pathname === '/search') return 'ПОИСК'
+    if (pathname === '/login') return 'ВХОД'
+    if (pathname === '/profile') return 'ЛК'
+    return 'UFLEAGUE'
   })()
 
   return { title, showBack: !isHome }

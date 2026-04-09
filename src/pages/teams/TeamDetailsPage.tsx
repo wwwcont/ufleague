@@ -1,12 +1,11 @@
 import { Link, useParams } from 'react-router-dom'
 import { PageContainer } from '../../layouts/containers/PageContainer'
-import { resolveTeamLogo } from '../../domain/services/logoResolver'
-import { tournament } from '../../mocks/data/tournament'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
 import { usePlayers } from '../../hooks/data/usePlayers'
 import { PlayerRow } from '../../components/data-display/PlayerRow'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { SectionHeader } from '../../components/ui/SectionHeader'
+import { TeamAvatar } from '../../components/ui/TeamAvatar'
 
 export const TeamDetailsPage = () => {
   const { teamId } = useParams()
@@ -15,14 +14,11 @@ export const TeamDetailsPage = () => {
 
   if (!team) return <PageContainer><EmptyState title="Команда не найдена" /></PageContainer>
 
-  const logo = resolveTeamLogo(team.logoUrl, tournament.logoUrl, tournament.fallbackLogoUrl)
-
   return (
     <PageContainer>
-      <div className="border-y border-accentYellow/70 p-4">
-        <div className="mb-2 h-px w-10 bg-accentYellow" />
+      <div className="rounded-2xl bg-gradient-to-r from-accentYellow/15 to-transparent p-4">
         <div className="mb-2 flex items-center gap-3">
-          <img src={logo} alt={`Логотип ${team.name}`} className="h-10 w-10" />
+          <TeamAvatar team={team} size="lg" />
           <h2 className="text-xl font-bold">{team.name}</h2>
         </div>
         <p className="text-sm text-textSecondary">{team.city} • Тренер: {team.coach}</p>

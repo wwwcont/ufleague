@@ -1,29 +1,23 @@
-import { Home, Search, Shield, Table, Trophy } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
 const links = [
-  { to: '/', label: 'Главная', icon: Home },
-  { to: '/matches', label: 'Матчи', icon: Trophy },
-  { to: '/teams', label: 'Команды', icon: Shield },
-  { to: '/table', label: 'Таблица', icon: Table },
-  { to: '/search', label: 'Поиск', icon: Search },
+  { to: '/', label: 'ГЛАВНАЯ' },
+  { to: '/matches', label: 'МАТЧИ' },
+  { to: '/table', label: 'ТАБЛИЦА' },
+  { to: '/teams', label: 'КОМАНДЫ' },
+  { to: '/profile', label: 'ЛК' },
 ]
 
 export const BottomNav = () => (
-  <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-accentYellow/70 bg-app">
+  <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 bg-[#0B0D12]/95 backdrop-blur-sm">
     <div className="mx-auto grid h-16 max-w-5xl grid-cols-5 px-1">
-      {links.map(({ to, label, icon: Icon }) => (
+      {links.map(({ to, label }) => (
         <NavLink
           key={to}
           to={to}
-          className={({ isActive }) => `flex flex-col items-center justify-center gap-1 text-xs ${isActive ? 'text-textPrimary' : 'text-textMuted'}`}
+          className={({ isActive }) => `flex items-center justify-center text-[10px] font-semibold tracking-[0.08em] ${isActive ? 'text-accentYellow' : 'text-textSecondary'}`}
         >
-          {({ isActive }) => (
-            <>
-              <Icon size={18} />
-              <span className={isActive ? 'border-t border-accentYellow pt-0.5' : ''}>{label}</span>
-            </>
-          )}
+          {label}
         </NavLink>
       ))}
     </div>
