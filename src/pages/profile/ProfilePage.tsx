@@ -3,7 +3,8 @@ import { PageContainer } from '../../layouts/containers/PageContainer'
 
 export const ProfilePage = () => (
   <PageContainer>
-    <section className="rounded-2xl bg-gradient-to-r from-accentYellow/20 to-transparent p-5">
+    <section className="matte-panel p-5">
+      <div className="accent-line mb-3 w-14" />
       <h2 className="text-base font-semibold uppercase tracking-[0.1em]">Личный кабинет</h2>
       <p className="mt-2 text-sm text-textSecondary">Скоро здесь появится профиль. Пока доступен только вход или регистрация.</p>
       <div className="mt-4 flex gap-2">

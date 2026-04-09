@@ -10,12 +10,22 @@
 
 body {
   margin: 0;
-  background: radial-gradient(circle at top, rgba(232, 197, 71, 0.08), transparent 40%), #10131a;
+  background: #10131a;
   color: #f5f7fa;
 }
 
 * {
   box-sizing: border-box;
+}
+
+@layer components {
+  .matte-panel {
+    @apply rounded-2xl bg-surface/95 shadow-surface;
+  }
+
+  .accent-line {
+    @apply h-px bg-accentYellow/70;
+  }
 }
 
 .safe-top {

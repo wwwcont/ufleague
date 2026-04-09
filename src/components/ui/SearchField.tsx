@@ -1,7 +1,7 @@
 import { Search, X } from 'lucide-react'
 
 export const SearchField = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
-  <div className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-accentYellow/20 to-transparent px-3">
+  <div className="matte-panel flex items-center gap-2 px-3">
     <Search size={16} className="text-textMuted" />
     <input
       value={value}

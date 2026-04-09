@@ -18,9 +18,12 @@ export const HomePage = () => {
     <PageContainer>
       <HomeSummary />
 
-      <Link to="/search" className="mt-4 flex w-full items-center gap-2 rounded-2xl bg-gradient-to-r from-accentYellow/20 to-transparent px-4 py-3 text-sm font-medium text-textSecondary hover:text-textPrimary">
-        <Search size={16} className="text-accentYellow" />
-        ПОИСК КОМАНД, ИГРОКОВ И МАТЧЕЙ
+      <Link to="/search" className="matte-panel mt-4 block px-4 py-3 text-sm font-medium text-textSecondary hover:text-textPrimary">
+        <div className="accent-line mb-2 w-10" />
+        <div className="flex items-center gap-2">
+          <Search size={16} className="text-accentYellow" />
+          ПОИСК КОМАНД, ИГРОКОВ И МАТЧЕЙ
+        </div>
       </Link>
 
       <SectionHeader title="LIVE / ПРЕДСТОЯЩИЕ" />
