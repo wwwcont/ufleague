@@ -7,6 +7,7 @@ import { useMatches } from '../../hooks/data/useMatches'
 import { useTeams } from '../../hooks/data/useTeams'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { useEvents } from '../../hooks/data/useEvents'
+import { PageIntro } from '../../components/ui/PageIntro'
 
 export const HomePage = () => {
   const { data: matchList } = useMatches()
@@ -28,6 +29,7 @@ export const HomePage = () => {
 
       <PageContainer>
         <div className="h-12" />
+        <PageIntro title="Главная" subtitle="Сводка турнира и живые обновления" />
 
         <SectionHeader title="События / Новости" action={<Link to="/events" className="text-sm text-accentYellow">ВСЕ</Link>} />
         <div className="space-y-2">
