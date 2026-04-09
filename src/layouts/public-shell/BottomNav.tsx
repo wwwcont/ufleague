@@ -4,13 +4,12 @@ const links = [
   { to: '/', label: 'Главная' },
   { to: '/table', label: 'Таблица' },
   { to: '/matches', label: 'Матчи' },
-  { to: '/search', label: 'Поиск' },
   { to: '/profile', label: 'Профиль' },
 ]
 
 export const BottomNav = () => (
   <nav className="safe-bottom fixed inset-x-0 bottom-0 z-50 bg-[#0D0D0D]/95 backdrop-blur-md">
-    <div className="mx-auto grid h-20 max-w-5xl grid-cols-5 gap-1 px-2 py-2">
+    <div className="mx-auto grid h-20 max-w-5xl grid-cols-4 gap-1 px-2 py-2">
       {links.map(({ to, label }) => (
         <NavLink
           key={to}
