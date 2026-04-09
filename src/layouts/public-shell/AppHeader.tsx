@@ -10,7 +10,7 @@ export const AppHeader = () => {
   const goBack = useBackNavigation()
 
   return (
-    <header className="safe-top fixed inset-x-0 top-0 z-50 border-b border-borderSubtle bg-panelBg/92 backdrop-blur-md">
+    <header className="safe-top sticky top-0 z-50 border-b border-borderSubtle bg-panelBg/92 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 md:px-6">
         <div className="w-10">{showBack ? <BackButton onClick={goBack} /> : <Circle size={16} className="text-textMuted" />}</div>
         <h1 className={`text-center ${isHome ? 'text-[13px]' : 'text-sm'} font-bold uppercase tracking-[0.12em] ${isHome ? 'bg-gradient-to-b from-white via-zinc-300 to-zinc-500 bg-clip-text text-transparent' : 'text-textPrimary'}`}>{title}</h1>
