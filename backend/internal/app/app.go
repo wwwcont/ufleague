@@ -12,7 +12,6 @@ import (
 	"football_ui/backend/internal/platform/config"
 	"football_ui/backend/internal/platform/logger"
 	"football_ui/backend/internal/platform/postgres"
-	"football_ui/backend/internal/platform/telegram"
 	"football_ui/backend/internal/repository"
 	cabinetadmin "football_ui/backend/internal/service/cabinetadmin"
 	commentservice "football_ui/backend/internal/service/comments"
@@ -44,8 +43,7 @@ func Run(ctx context.Context, cfg config.Config) error {
 	cabinetSvc := cabinetadmin.NewService(cabinetRepo)
 	notificationsRepo := repository.NewNotificationsRepository(dbPool)
 	notificationsSvc := notifservice.NewService(notificationsRepo)
-	tgValidator := telegram.StubValidator{}
-	telegramAuthSvc := telegramauth.NewService(authRepo, tgValidator, cfg.Telegram.MiniAppAuthURL)
+	telegramAuthSvc := telegramauth.NewService(authRepo, cfg.Telegram.MiniAppAuthURL, cfg.Features.TelegramMockLoginEnabled, cfg.Features.TelegramMockCode)
 	sessionManager := session.NewManager(cfg.Session.CookieName, cfg.Session.TTL, cfg.Session.Secure, cfg.Session.Domain)
 
 	srv := &http.Server{

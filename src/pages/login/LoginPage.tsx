@@ -1,112 +1,64 @@
 import { useState } from 'react'
-import { ExternalLink, Lock, MessageCircle, ShieldCheck } from 'lucide-react'
+import { Lock, MessageCircle, ShieldCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useSession } from '../../app/providers/use-session'
-
-type LoginStep = 'entry' | 'code'
+import type { UserRole } from '../../domain/entities/types'
 
 export const LoginPage = () => {
-  const { isLoading, startTelegramLogin, completeTelegramLoginWithCode } = useSession()
-  const [step, setStep] = useState<LoginStep>('entry')
-  const [code, setCode] = useState('')
-  const [botUrl, setBotUrl] = useState('https://t.me/ufleague_auth_bot')
+  const { isLoading, loginAsDevRole } = useSession()
+  const [selectedRole, setSelectedRole] = useState<UserRole>('player')
   const [error, setError] = useState<string | null>(null)
+  const expiresAt: string | null = null
   const navigate = useNavigate()
 
   return (
     <PageContainer>
       <section className="rounded-2xl border border-borderStrong bg-panelBg p-4 shadow-matte">
-        <h2 className="text-xl font-bold text-textPrimary">Вход в UFL через Telegram</h2>
-        <p className="mt-2 text-sm text-textSecondary">Авторизация выполняется через backend session cookie и проверяется через /api/auth/me.</p>
+        <h2 className="text-xl font-bold text-textPrimary">Вход в UFL через Telegram (dev fallback v2)</h2>
+        <p className="mt-2 text-sm text-textSecondary">Интеграция Telegram bot еще не подключена. Этот поток будет активирован следующим этапом.</p>
+        <button
+          type="button"
+          onClick={() => setError('Telegram login пока отключен. Используйте тестовые кнопки входа по ролям ниже.')}
+          disabled={isLoading}
+          className="mt-4 inline-flex rounded-lg bg-accentYellow px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-app disabled:opacity-60"
+        >
+          Войти через Telegram
+        </button>
+        {error && <p className="mt-2 text-xs text-rose-300">{error}</p>}
+      </section>
 
-        {step === 'entry' ? (
-          <div className="mt-4">
+      <section className="mt-4 rounded-2xl border border-borderStrong bg-panelBg p-4 shadow-matte">
+        <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-textPrimary">Тестовый вход (обход Telegram)</h3>
+        <p className="mt-1 text-xs text-textSecondary">Использует тестовые учетные записи в БД до подключения реального бота.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {(['player', 'captain', 'admin', 'superadmin'] as UserRole[]).map((role) => (
             <button
+              key={role}
               type="button"
               onClick={async () => {
+                setSelectedRole(role)
                 setError(null)
                 try {
-                  const data = await startTelegramLogin()
-                  setBotUrl(data.authUrl)
-                  setStep('code')
+                  await loginAsDevRole(role)
+                  navigate('/profile')
                 } catch {
-                  setError('Не удалось запустить вход через Telegram. Попробуйте еще раз.')
+                  setError(`Не удалось выполнить тестовый вход под ролью ${role}.`)
                 }
               }}
               disabled={isLoading}
-              className="inline-flex rounded-lg bg-accentYellow px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-app disabled:opacity-60"
+              className={`rounded-lg border px-3 py-2 text-xs uppercase ${selectedRole === role ? 'border-accentYellow text-accentYellow' : 'border-borderSubtle text-textSecondary'} disabled:opacity-60`}
             >
-              Войти через Telegram
+              Войти как {role}
             </button>
-            {error && <p className="mt-2 text-xs text-rose-300">{error}</p>}
-          </div>
-        ) : (
-          <div className="mt-4 space-y-3">
-            <div className="rounded-xl border border-dashed border-borderStrong bg-mutedBg p-3 text-sm text-textSecondary">
-              <p>1) Перейдите в Telegram</p>
-              <p>2) Откройте бота авторизации</p>
-              <p>3) Получите код входа и введите его ниже</p>
-            </div>
-
-            <a
-              href={botUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary hover:border-borderStrong"
-            >
-              Открыть бота <ExternalLink size={12} />
-            </a>
-
-            <form
-              className="space-y-3"
-              onSubmit={async (event) => {
-                event.preventDefault()
-                setError(null)
-                try {
-                  await completeTelegramLoginWithCode(code)
-                  navigate('/profile')
-                } catch {
-                  setError('Неверный или просроченный код входа. Попробуйте снова.')
-                }
-              }}
-            >
-              <input
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-                placeholder="Введите код из Telegram"
-                className="w-full rounded-xl border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary outline-none focus:border-borderStrong"
-              />
-              {error && <p className="text-xs text-rose-300">{error}</p>}
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  disabled={isLoading || !code.trim()}
-                  className="inline-flex rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-app disabled:opacity-60"
-                >
-                  {isLoading ? 'Проверяем...' : 'Подтвердить код'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCode('')
-                    setError(null)
-                    setStep('entry')
-                  }}
-                  className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary"
-                >
-                  Назад
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
+          ))}
+        </div>
       </section>
 
-      <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary shadow-soft">
-        <p className="flex items-center gap-2"><MessageCircle size={14} className="text-accentYellow" /> Telegram login flow реализован как dev mock adapter.</p>
-        <p className="mt-1 flex items-center gap-2"><ShieldCheck size={14} className="text-accentYellow" /> После успешного входа backend устанавливает реальную session cookie.</p>
-        <p className="mt-1 flex items-center gap-2"><Lock size={14} className="text-accentYellow" /> Реальный bot handshake будет подключен следующим этапом без смены UX-структуры экрана.</p>
+      <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary shadow-soft" data-expiry-placeholder={expiresAt ?? ''}>
+        <p className="flex items-center gap-2"><MessageCircle size={14} className="text-accentYellow" /> Telegram bot auth запланирован, но временно отключен в UI.</p>
+        <p className="mt-1 flex items-center gap-2"><ShieldCheck size={14} className="text-accentYellow" /> Тестовый вход создает реальную backend session cookie.</p>
+        <p className="mt-1 flex items-center gap-2"><Lock size={14} className="text-accentYellow" /> Доступ и функциональность страниц зависят от выбранной роли.</p>
       </section>
     </PageContainer>
   )
