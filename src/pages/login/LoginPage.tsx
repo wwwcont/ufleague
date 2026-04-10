@@ -11,6 +11,7 @@ export const LoginPage = () => {
   const [error, setError] = useState<string | null>(null)
   const expiresAt: string | null = null
   const navigate = useNavigate()
+  const isExpired = Boolean(expiresAt && new Date(expiresAt).getTime() < Date.now())
 
   return (
     <PageContainer>
