@@ -65,8 +65,8 @@ export interface EventsRepository {
 
 export interface SessionRepository {
   getSession(): Promise<AuthSession>
-  startTelegramLogin(): Promise<{ authUrl: string }>
-  completeTelegramLoginWithCode(code: string): Promise<AuthSession>
+  startTelegramLogin(role?: UserRole): Promise<{ authUrl: string; requestId: string; expiresAt: string }>
+  completeTelegramLoginWithCode(requestId: string, code: string): Promise<AuthSession>
   loginAsDevRole?(role: UserRole): Promise<AuthSession>
   logout(): Promise<void>
 }

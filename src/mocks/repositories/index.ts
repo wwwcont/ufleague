@@ -105,7 +105,7 @@ export const sessionRepository: SessionRepository = {
     return inMemorySession
   },
   async startTelegramLogin() {
-    return { authUrl: 'https://t.me/ufleague_auth_bot' }
+    return { authUrl: 'https://t.me/ufleague_auth_bot', requestId: 'mock_request', expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString() }
   },
   async completeTelegramLoginWithCode() {
     inMemorySession = makeSessionByRole('superadmin')
