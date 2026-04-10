@@ -319,16 +319,30 @@ export const sessionRepository: SessionRepository = {
       return guestSession
     }
   },
-  async startTelegramLogin() {
-    const data = await api<{ auth_url?: string; authUrl?: string }>('/api/auth/telegram/start', { method: 'POST' })
-    return { authUrl: data.authUrl ?? data.auth_url ?? 'https://t.me/ufleague_auth_bot' }
+  async startTelegramLogin(role) {
+    const data = await api<{ auth_url?: string; authUrl?: string; request_id?: string; requestId?: string; expires_at?: string; expiresAt?: string }>('/api/auth/telegram/start', {
+      method: 'POST',
+      body: JSON.stringify(role ? { role } : {}),
+    })
+    return {
+      authUrl: data.authUrl ?? data.auth_url ?? 'https://t.me/ufleague_auth_bot',
+      requestId: data.requestId ?? data.request_id ?? '',
+      expiresAt: data.expiresAt ?? data.expires_at ?? new Date().toISOString(),
+    }
   },
-  async completeTelegramLoginWithCode(code: string) {
-    const me = await api<BackendMeDTO>('/api/auth/telegram/mock-code-login', { method: 'POST', body: JSON.stringify({ code }) })
+  async completeTelegramLoginWithCode(requestId: string, code: string) {
+    const me = await api<BackendMeDTO>('/api/auth/telegram/complete-code', { method: 'POST', body: JSON.stringify({ request_id: requestId, code }) })
     return mapMeToSession(me)
   },
   async loginAsDevRole(role) {
-    const me = await api<any>('/api/auth/dev-login', { method: 'POST', body: JSON.stringify({ username: `dev_${role}`, display_name: `Dev ${role}`, roles: [role] }) })
+    const seeds: Record<string, { username: string; displayName: string }> = {
+      player: { username: 'player_test', displayName: 'Player Test' },
+      captain: { username: 'captain_alpha', displayName: 'Captain Alpha' },
+      admin: { username: 'admin_test', displayName: 'Admin Test' },
+      superadmin: { username: 'superadmin', displayName: 'Super Admin' },
+    }
+    const seed = seeds[role] ?? { username: `dev_${role}`, displayName: `Dev ${role}` }
+    const me = await api<any>('/api/auth/dev-login', { method: 'POST', body: JSON.stringify({ username: seed.username, display_name: seed.displayName, roles: [role] }) })
     return { isAuthenticated: true, user: { id: String(me.user.id), displayName: me.user.display_name, role }, permissions: [], lastLoginAt: me.session?.created_at }
   },
   async logout() {

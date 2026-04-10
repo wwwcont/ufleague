@@ -52,13 +52,13 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     void refreshSession()
   }, [refreshSession])
 
-  const startTelegramLogin = useCallback(async () => {
-    return sessionRepository.startTelegramLogin()
+  const startTelegramLogin = useCallback(async (role?: UserRole) => {
+    return sessionRepository.startTelegramLogin(role)
   }, [sessionRepository])
 
-  const completeTelegramLoginWithCode = useCallback(async (code: string) => {
+  const completeTelegramLoginWithCode = useCallback(async (requestId: string, code: string) => {
     setStatus('loading')
-    const next = await sessionRepository.completeTelegramLoginWithCode(code)
+    const next = await sessionRepository.completeTelegramLoginWithCode(requestId, code)
     applySession(next)
   }, [applySession, sessionRepository])
 
