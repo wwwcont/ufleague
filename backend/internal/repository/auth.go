@@ -1,0 +1,220 @@
+package repository
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"football_ui/backend/internal/domain"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+var ErrSessionNotFound = errors.New("session not found")
+
+type SessionWithUser struct {
+	Session domain.Session
+	User    domain.User
+}
+
+type CreateSessionParams struct {
+	UserID    int64
+	TokenHash []byte
+	UserAgent string
+	IPAddress string
+	ExpiresAt string
+}
+
+type AuthRepository struct {
+	pool *pgxpool.Pool
+}
+
+func NewAuthRepository(pool *pgxpool.Pool) *AuthRepository {
+	return &AuthRepository{pool: pool}
+}
+
+func (r *AuthRepository) UpsertDevUser(ctx context.Context, req domain.DevLoginRequest) (domain.User, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return domain.User{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var user domain.User
+	err = tx.QueryRow(ctx, `
+		INSERT INTO users (username, display_name)
+		VALUES ($1, $2)
+		ON CONFLICT (username)
+		DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW()
+		RETURNING id, username, display_name, is_active, created_at
+	`, req.Username, req.DisplayName).Scan(&user.ID, &user.Username, &user.DisplayName, &user.IsActive, &user.CreatedAt)
+	if err != nil {
+		return domain.User{}, err
+	}
+
+	if _, err = tx.Exec(ctx, `DELETE FROM user_roles WHERE user_id = $1`, user.ID); err != nil {
+		return domain.User{}, err
+	}
+
+	for _, role := range req.Roles {
+		if _, err = tx.Exec(ctx, `
+			INSERT INTO user_roles (user_id, role_id)
+			SELECT $1, id FROM roles WHERE code = $2
+		`, user.ID, role); err != nil {
+			return domain.User{}, err
+		}
+	}
+
+	if _, err = tx.Exec(ctx, `DELETE FROM user_permissions WHERE user_id = $1`, user.ID); err != nil {
+		return domain.User{}, err
+	}
+	for _, permission := range req.Permissions {
+		if _, err = tx.Exec(ctx, `
+			INSERT INTO user_permissions (user_id, permission)
+			VALUES ($1, $2)
+			ON CONFLICT (user_id, permission) DO NOTHING
+		`, user.ID, permission); err != nil {
+			return domain.User{}, err
+		}
+	}
+
+	if _, err = tx.Exec(ctx, `DELETE FROM user_restrictions WHERE user_id = $1`, user.ID); err != nil {
+		return domain.User{}, err
+	}
+	for _, restriction := range req.Restrictions {
+		if _, err = tx.Exec(ctx, `
+			INSERT INTO user_restrictions (user_id, restriction)
+			VALUES ($1, $2)
+			ON CONFLICT (user_id, restriction) DO NOTHING
+		`, user.ID, restriction); err != nil {
+			return domain.User{}, err
+		}
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return domain.User{}, err
+	}
+
+	return r.GetUserByID(ctx, user.ID)
+}
+
+func (r *AuthRepository) GetUserByID(ctx context.Context, userID int64) (domain.User, error) {
+	var user domain.User
+	err := r.pool.QueryRow(ctx, `
+		SELECT id, username, display_name, is_active, created_at
+		FROM users WHERE id = $1
+	`, userID).Scan(&user.ID, &user.Username, &user.DisplayName, &user.IsActive, &user.CreatedAt)
+	if err != nil {
+		return domain.User{}, err
+	}
+
+	roles, err := queryStrings(ctx, r.pool, `
+		SELECT r.code
+		FROM user_roles ur
+		JOIN roles r ON r.id = ur.role_id
+		WHERE ur.user_id = $1
+		ORDER BY r.code
+	`, userID)
+	if err != nil {
+		return domain.User{}, err
+	}
+	user.Roles = make([]domain.Role, 0, len(roles))
+	for _, role := range roles {
+		user.Roles = append(user.Roles, domain.Role(role))
+	}
+
+	if user.Permissions, err = queryStrings(ctx, r.pool, `SELECT permission FROM user_permissions WHERE user_id = $1 ORDER BY permission`, userID); err != nil {
+		return domain.User{}, err
+	}
+	if user.Restrictions, err = queryStrings(ctx, r.pool, `SELECT restriction FROM user_restrictions WHERE user_id = $1 ORDER BY restriction`, userID); err != nil {
+		return domain.User{}, err
+	}
+
+	return user, nil
+}
+
+func (r *AuthRepository) CreateSession(ctx context.Context, params CreateSessionParams) (domain.Session, error) {
+	var sess domain.Session
+	err := r.pool.QueryRow(ctx, `
+		INSERT INTO sessions (user_id, token_hash, user_agent, ip, expires_at)
+		VALUES ($1, $2, $3, NULLIF($4, '')::inet, $5::timestamptz)
+		RETURNING id::text, user_id, expires_at, created_at
+	`, params.UserID, params.TokenHash, params.UserAgent, params.IPAddress, params.ExpiresAt).Scan(&sess.ID, &sess.UserID, &sess.ExpiresAt, &sess.CreatedAt)
+	return sess, err
+}
+
+func (r *AuthRepository) GetSessionWithUserByHash(ctx context.Context, tokenHash []byte) (SessionWithUser, error) {
+	var out SessionWithUser
+	err := r.pool.QueryRow(ctx, `
+		SELECT s.id::text, s.user_id, s.expires_at, s.created_at,
+		       u.id, u.username, u.display_name, u.is_active, u.created_at
+		FROM sessions s
+		JOIN users u ON u.id = s.user_id
+		WHERE s.token_hash = $1
+		  AND s.revoked_at IS NULL
+		  AND s.expires_at > NOW()
+	`, tokenHash).Scan(
+		&out.Session.ID,
+		&out.Session.UserID,
+		&out.Session.ExpiresAt,
+		&out.Session.CreatedAt,
+		&out.User.ID,
+		&out.User.Username,
+		&out.User.DisplayName,
+		&out.User.IsActive,
+		&out.User.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return SessionWithUser{}, ErrSessionNotFound
+	}
+	if err != nil {
+		return SessionWithUser{}, err
+	}
+
+	user, err := r.GetUserByID(ctx, out.User.ID)
+	if err != nil {
+		return SessionWithUser{}, err
+	}
+	out.User = user
+
+	_, _ = r.pool.Exec(ctx, `UPDATE sessions SET last_seen_at = NOW() WHERE id = $1::uuid`, out.Session.ID)
+
+	return out, nil
+}
+
+func (r *AuthRepository) RevokeSessionByHash(ctx context.Context, tokenHash []byte) error {
+	ct, err := r.pool.Exec(ctx, `
+		UPDATE sessions
+		SET revoked_at = NOW()
+		WHERE token_hash = $1 AND revoked_at IS NULL
+	`, tokenHash)
+	if err != nil {
+		return err
+	}
+	if ct.RowsAffected() == 0 {
+		return ErrSessionNotFound
+	}
+	return nil
+}
+
+func queryStrings(ctx context.Context, pool *pgxpool.Pool, query string, args ...any) ([]string, error) {
+	rows, err := pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]string, 0)
+	for rows.Next() {
+		var value string
+		if err = rows.Scan(&value); err != nil {
+			return nil, err
+		}
+		out = append(out, value)
+	}
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("iterate rows: %w", rows.Err())
+	}
+	return out, nil
+}
