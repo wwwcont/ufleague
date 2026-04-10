@@ -2,7 +2,7 @@ export type ID = string
 export type MatchStatus = 'scheduled' | 'live' | 'half_time' | 'finished'
 export type PlayerPosition = 'GK' | 'DF' | 'MF' | 'FW'
 export type FormResult = 'W' | 'D' | 'L'
-export type SearchEntityType = 'team' | 'player' | 'match'
+export type SearchEntityType = 'team' | 'player' | 'match' | 'event'
 
 export interface Tournament {
   id: ID

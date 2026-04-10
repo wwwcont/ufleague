@@ -44,8 +44,8 @@ const mapTeam = (t: any): Team => ({
   name: t.name,
   shortName: t.name?.slice(0, 3)?.toUpperCase() ?? 'TBD',
   logoUrl: t.logo_url || null,
-  city: t.description || 'UFL',
-  coach: t.socials?.coach ?? 'TBD',
+  city: t.description || 'UFL Development',
+  coach: t.socials?.coach ?? t.socials?.captain ?? 'TBD',
   group: 'A',
   form: ['D', 'D', 'D', 'D', 'D'],
   statsSummary: { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, goalDiff: 0, points: 0 },
@@ -57,23 +57,23 @@ const mapPlayer = (p: any): Player => ({
   displayName: p.full_name,
   number: p.shirt_number ?? 0,
   position: (p.position || 'MF') as Player['position'],
-  age: 18,
+  age: 21,
   avatar: p.avatar_url || null,
-  stats: { goals: 0, assists: 0, appearances: 0 },
+  stats: { goals: 0, assists: 0, appearances: Number(p.appearances ?? 0) },
 })
 
 const mapMatch = (m: any): Match => ({
   id: String(m.id),
-  round: 'Round 1',
+  round: `Round ${new Date(m.start_at).toISOString().slice(0, 10)}`,
   date: new Date(m.start_at).toISOString().slice(0, 10),
   time: new Date(m.start_at).toISOString().slice(11, 16),
   venue: m.venue || 'TBD',
-  status: m.status,
+  status: (m.status === 'live' || m.status === 'half_time' || m.status === 'finished' ? m.status : 'scheduled') as Match['status'],
   homeTeamId: String(m.home_team_id),
   awayTeamId: String(m.away_team_id),
   score: { home: m.home_score ?? 0, away: m.away_score ?? 0 },
   events: [],
-  featured: false,
+  featured: m.status === 'live',
 })
 
 const mapEvent = (e: any): PublicEvent => ({
@@ -83,7 +83,7 @@ const mapEvent = (e: any): PublicEvent => ({
   text: e.body,
   timestamp: e.created_at,
   source: 'backend',
-  authorName: `user:${e.author_user_id}`,
+  authorName: e.author_name || `user:${e.author_user_id}`,
   category: 'news',
   entityType: e.scope_type,
   entityId: e.scope_id ? String(e.scope_id) : undefined,
@@ -254,7 +254,7 @@ export const bracketRepository: BracketRepository = {
       homeTeamId: match.home_team_id ? String(match.home_team_id) : null,
       awayTeamId: match.away_team_id ? String(match.away_team_id) : null,
       winnerTeamId: match.winner_team_id ? String(match.winner_team_id) : null,
-      status: match.status,
+      status: (match.status === 'live' || match.status === 'half_time' || match.status === 'finished' ? match.status : 'scheduled') as Match['status'],
       linkedMatchId: match.linked_match_id,
       score: match.home_score !== undefined && match.away_score !== undefined ? { home: match.home_score, away: match.away_score } : undefined,
     }))
@@ -406,7 +406,13 @@ export const sessionRepository: SessionRepository = {
     }
   },
   async completeTelegramLoginWithCode(requestId: string, code: string) {
-    const me = await api<BackendMeDTO>('/api/auth/telegram/complete-code', { method: 'POST', body: JSON.stringify({ request_id: requestId, code }) })
+    const me = await api<BackendMeDTO>('/api/auth/telegram/mock-code-login', {
+      method: 'POST',
+      body: JSON.stringify({ request_id: requestId, code }),
+    }).catch(async () => api<BackendMeDTO>('/api/auth/telegram/complete-code', {
+      method: 'POST',
+      body: JSON.stringify({ request_id: requestId, code }),
+    }))
     return mapMeToSession(me)
   },
   async loginAsDevRole(role) {

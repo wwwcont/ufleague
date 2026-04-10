@@ -16,6 +16,7 @@ const roleRank: Record<UserRole, number> = {
 
 const sectionRoles: Record<string, UserRole> = {
   profile: 'guest',
+  edit: 'guest',
   activity: 'guest',
   reactions: 'guest',
   permissions: 'guest',
@@ -32,7 +33,7 @@ const sectionRoles: Record<string, UserRole> = {
   roles: 'superadmin',
   rbac: 'superadmin',
   restrictions: 'superadmin',
-  settings: 'superadmin',
+  settings: 'guest',
 }
 
 const parseCSV = (raw: string) => raw.split(',').map((item) => item.trim()).filter(Boolean)
@@ -134,7 +135,81 @@ export const CabinetSectionPage = () => {
         <p className="mt-1 text-sm text-textSecondary">Раздел подключен к backend action handlers.</p>
       </section>
 
-      {section === 'profile' && (
+      {section === 'activity' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-3">
+          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 text-sm text-textSecondary">
+            <p className="font-semibold text-textPrimary">Комментарии и реакции</p>
+            <p className="mt-1">Откройте comments у любой сущности (team/player/match/event), чтобы создать comment, reply, like/dislike и проверить ограничения 403/429.</p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <Link to="/events" className="rounded-lg border border-borderSubtle px-3 py-2">К событиям</Link>
+            <Link to="/teams" className="rounded-lg border border-borderSubtle px-3 py-2">К командам</Link>
+            <Link to="/matches" className="rounded-lg border border-borderSubtle px-3 py-2">К матчам</Link>
+          </div>
+        </section>
+      )}
+
+      {(section === 'profile' || section === 'edit') && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          <p className="text-xs text-textMuted">Редактирование базового профиля пользователя.</p>
+          <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs" onClick={async () => {
+            try {
+              const profile = await cabinetRepository.getMyProfile()
+              setDisplayName(profile.displayName)
+              setBio(profile.bio)
+              setAvatarUrl(profile.avatarUrl)
+              setSocialsRaw(Object.entries(profile.socials).map(([k, v]) => `${k}=${v}`).join(', '))
+              setStatus('ok: profile loaded')
+            } catch (error) {
+              setStatus(`error: ${(error as Error).message}`)
+            }
+          }}>Load profile</button>
+          <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="display name" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="avatar url" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="bio" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <textarea value={socialsRaw} onChange={(e) => setSocialsRaw(e.target.value)} placeholder="telegram=https://... , instagram=https://..." className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <button type="button" disabled={roleRank[session.user.role] < roleRank.superadmin} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
+            try {
+              await cabinetRepository.updateMyProfile({ displayName, bio, avatarUrl, socials })
+              setStatus('ok: profile updated')
+            } catch (error) {
+              setStatus(`error: ${(error as Error).message}`)
+            }
+          }}>Save profile</button>
+        </section>
+      )}
+
+      {section === 'team' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 text-sm text-textSecondary">
+            <p className="font-semibold text-textPrimary">Team workspace</p>
+            <p className="mt-1">Captain/Admin/Superadmin инструменты вынесены прямо в team detail page, здесь — быстрый переход и общие операции.</p>
+          </div>
+          <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="team id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <div className="flex flex-wrap gap-2 text-xs">
+            <Link to={teamId ? `/teams/${teamId}` : '/teams'} className="rounded-lg border border-borderSubtle px-3 py-2">Открыть team context</Link>
+            <Link to="/teams" className="rounded-lg border border-borderSubtle px-3 py-2">Список команд</Link>
+          </div>
+        </section>
+      )}
+
+      {section === 'permissions' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 text-sm">
+            <p className="font-semibold text-textPrimary">Доступы текущей роли</p>
+            <p className="mt-1 text-textSecondary">Role: <span className="text-textPrimary">{session.user.role}</span></p>
+            <p className="mt-1 text-textSecondary">Permissions count: <span className="text-textPrimary">{session.permissions.length}</span></p>
+          </div>
+          <div className="grid gap-2 text-xs sm:grid-cols-2">
+            <Link to="/teams" className="rounded-lg border border-borderSubtle px-3 py-2">Team actions</Link>
+            <Link to="/players" className="rounded-lg border border-borderSubtle px-3 py-2">Player actions</Link>
+            <Link to="/matches" className="rounded-lg border border-borderSubtle px-3 py-2">Match actions</Link>
+            <Link to="/events" className="rounded-lg border border-borderSubtle px-3 py-2">Events/comments</Link>
+          </div>
+        </section>
+      )}
+
+      {section === 'profile-legacy' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
           <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs" onClick={async () => {
             try {
@@ -375,6 +450,11 @@ export const CabinetSectionPage = () => {
 
       {section === 'settings' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          {roleRank[session.user.role] < roleRank.superadmin && (
+            <div className="rounded-xl border border-dashed border-borderStrong bg-mutedBg p-3 text-xs text-textSecondary">
+              Personal settings mode: глобальные platform settings доступны только superadmin.
+            </div>
+          )}
           <input value={settingKey} onChange={(e) => setSettingKey(e.target.value)} placeholder="setting key" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <textarea value={settingValueRaw} onChange={(e) => setSettingValueRaw(e.target.value)} placeholder='{"key":"value"}' className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
@@ -395,7 +475,7 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {!['profile', 'invites', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
+      {!['profile', 'edit', 'activity', 'team', 'permissions', 'invites', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
           Раздел синхронизирован по правам доступа и готов к расширению бизнес-формами.
         </section>

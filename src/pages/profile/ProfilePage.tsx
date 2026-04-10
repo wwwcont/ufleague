@@ -17,9 +17,8 @@ interface CabinetEntry {
 
 const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
   guest: [
-    { title: 'Профиль', description: 'Базовые настройки аккаунта и публичный статус.', route: '/profile/profile', icon: 'user' },
+    { title: 'Профиль', description: 'Базовый профиль, имя и Telegram статус.', route: '/profile/edit', icon: 'user' },
     { title: 'Мои комментарии', description: 'Лента ваших сообщений, веток и ответов.', route: '/profile/activity', icon: 'user' },
-    { title: 'Мои реакции', description: 'Контроль лайков/дизлайков по сущностям.', route: '/profile/reactions', icon: 'user' },
     { title: 'Доступные действия', description: 'Что разрешено вашей роли прямо сейчас.', route: '/profile/permissions', icon: 'shield' },
   ],
   player: [
@@ -37,6 +36,7 @@ const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
     { title: 'Быстрые действия турнира', description: 'Команды/игроки/матчи в одном месте.', route: '/profile/tournament', icon: 'crown' },
     { title: 'Модерация', description: 'Review comments/events и действия модератора.', route: '/profile/moderation', icon: 'crown' },
     { title: 'Блокировки комментариев', description: 'Comment blocks и ограничения пользователей.', route: '/profile/comment-blocks', icon: 'crown' },
+    { title: 'Настройки', description: 'Сервисные настройки и operational controls.', route: '/profile/settings', icon: 'crown' },
   ],
   superadmin: [
     { title: 'Управление ролями', description: 'Assign roles и аудит критичных изменений.', route: '/profile/roles', icon: 'crown' },
@@ -83,7 +83,7 @@ export const ProfilePage = () => {
     <PageContainer>
       <section className="rounded-2xl border border-borderStrong bg-panelBg p-4 shadow-matte">
         <div className="flex items-start gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-mutedBg text-lg font-bold text-textPrimary">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-mutedBg text-lg font-bold text-textPrimary">
             {session.user.displayName.slice(0, 1).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
@@ -91,7 +91,7 @@ export const ProfilePage = () => {
               <h2 className="text-xl font-bold text-textPrimary">{session.user.displayName}</h2>
               <span className={`rounded-full border px-2 py-0.5 text-[11px] uppercase tracking-[0.08em] ${badgeTone[session.user.role]}`}>{roleLabel[session.user.role]}</span>
             </div>
-            <p className="mt-1 text-xs text-textMuted">{statusLabel}</p>
+            <p className="mt-1 text-xs text-textMuted">{statusLabel} · backend session truth</p>
           </div>
           <span className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-[11px] text-textMuted">id: {session.user.id}</span>
         </div>
@@ -121,10 +121,10 @@ export const ProfilePage = () => {
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-base font-semibold text-textPrimary">Мои разделы кабинета</h3>
+          <h3 className="text-base font-semibold text-textPrimary">Role-aware control panels</h3>
           <span className="text-xs text-textMuted">role-aware</span>
         </div>
-        <div className="space-y-2">
+        <div className="grid gap-2 sm:grid-cols-2">
           {visibleSections.map((item) => (
             <Link key={item.route} to={item.route} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3 transition hover:border-borderStrong">
               <div className="flex items-center gap-2 text-textPrimary">
@@ -139,10 +139,11 @@ export const ProfilePage = () => {
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
         <h3 className="text-base font-semibold text-textPrimary">Активность комментариев и реакций</h3>
-        <p className="mt-1 text-xs text-textMuted">Блок связан с comments feature: история действий доступна через разделы «Мои комментарии» и «Мои реакции».</p>
+        <p className="mt-1 text-xs text-textMuted">Comments/reactions/moderation идут через backend endpoints и ограничения ролей.</p>
         <div className="mt-3 flex gap-2">
           <Link to="/profile/activity" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary">Открыть комментарии</Link>
-          <Link to="/profile/reactions" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary">Открыть реакции</Link>
+          <Link to="/profile/moderation" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary">Модерация</Link>
+          <Link to="/profile/team" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary">Моя команда</Link>
         </div>
       </section>
 
