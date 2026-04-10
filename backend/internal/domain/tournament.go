@@ -1,0 +1,77 @@
+package domain
+
+import "time"
+
+type Team struct {
+	ID            int64             `json:"id"`
+	Name          string            `json:"name"`
+	Slug          string            `json:"slug"`
+	Description   string            `json:"description,omitempty"`
+	LogoURL       string            `json:"logo_url,omitempty"`
+	Socials       map[string]string `json:"socials"`
+	CaptainUserID *int64            `json:"captain_user_id,omitempty"`
+	CreatedAt     time.Time         `json:"created_at"`
+	UpdatedAt     time.Time         `json:"updated_at"`
+}
+
+type Player struct {
+	ID          int64             `json:"id"`
+	TeamID      *int64            `json:"team_id,omitempty"`
+	FullName    string            `json:"full_name"`
+	Nickname    string            `json:"nickname,omitempty"`
+	AvatarURL   string            `json:"avatar_url,omitempty"`
+	Socials     map[string]string `json:"socials"`
+	Position    string            `json:"position,omitempty"`
+	ShirtNumber *int              `json:"shirt_number,omitempty"`
+	CreatedAt   time.Time         `json:"created_at"`
+	UpdatedAt   time.Time         `json:"updated_at"`
+}
+
+type Match struct {
+	ID         int64          `json:"id"`
+	HomeTeamID int64          `json:"home_team_id"`
+	AwayTeamID int64          `json:"away_team_id"`
+	StartAt    time.Time      `json:"start_at"`
+	Status     string         `json:"status"`
+	HomeScore  int            `json:"home_score"`
+	AwayScore  int            `json:"away_score"`
+	ExtraTime  map[string]any `json:"extra_time"`
+	Venue      string         `json:"venue,omitempty"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+}
+
+type CreateTeamRequest struct {
+	Name        string            `json:"name"`
+	Slug        string            `json:"slug"`
+	Description string            `json:"description"`
+	LogoURL     string            `json:"logo_url"`
+	Socials     map[string]string `json:"socials"`
+}
+
+type UpdateTeamRequest = CreateTeamRequest
+
+type CreatePlayerRequest struct {
+	TeamID      *int64            `json:"team_id"`
+	FullName    string            `json:"full_name"`
+	Nickname    string            `json:"nickname"`
+	AvatarURL   string            `json:"avatar_url"`
+	Socials     map[string]string `json:"socials"`
+	Position    string            `json:"position"`
+	ShirtNumber *int              `json:"shirt_number"`
+}
+
+type UpdatePlayerRequest = CreatePlayerRequest
+
+type CreateMatchRequest struct {
+	HomeTeamID int64          `json:"home_team_id"`
+	AwayTeamID int64          `json:"away_team_id"`
+	StartAt    time.Time      `json:"start_at"`
+	Status     string         `json:"status"`
+	HomeScore  int            `json:"home_score"`
+	AwayScore  int            `json:"away_score"`
+	ExtraTime  map[string]any `json:"extra_time"`
+	Venue      string         `json:"venue"`
+}
+
+type UpdateMatchRequest = CreateMatchRequest
