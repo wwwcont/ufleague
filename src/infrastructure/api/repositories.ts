@@ -335,7 +335,14 @@ export const sessionRepository: SessionRepository = {
     return mapMeToSession(me)
   },
   async loginAsDevRole(role) {
-    const me = await api<any>('/api/auth/dev-login', { method: 'POST', body: JSON.stringify({ username: `dev_${role}`, display_name: `Dev ${role}`, roles: [role] }) })
+    const seeds: Record<string, { username: string; displayName: string }> = {
+      player: { username: 'player_test', displayName: 'Player Test' },
+      captain: { username: 'captain_alpha', displayName: 'Captain Alpha' },
+      admin: { username: 'admin_test', displayName: 'Admin Test' },
+      superadmin: { username: 'superadmin', displayName: 'Super Admin' },
+    }
+    const seed = seeds[role] ?? { username: `dev_${role}`, displayName: `Dev ${role}` }
+    const me = await api<any>('/api/auth/dev-login', { method: 'POST', body: JSON.stringify({ username: seed.username, display_name: seed.displayName, roles: [role] }) })
     return { isAuthenticated: true, user: { id: String(me.user.id), displayName: me.user.display_name, role }, permissions: [], lastLoginAt: me.session?.created_at }
   },
   async logout() {
