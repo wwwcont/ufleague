@@ -120,6 +120,18 @@ const mapAuthorState = (payload: any): CommentAuthorState => ({
 export const teamsRepository: TeamsRepository = {
   async getTeams() { return (await api<any[]>('/api/teams')).map(mapTeam) },
   async getTeamById(teamId) { try { return mapTeam(await api<any>(`/api/teams/${teamId}`)) } catch { return null } },
+  async createTeam(input) {
+    await api('/api/teams', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: input.name,
+        slug: input.slug,
+        description: input.description,
+        logo_url: input.logoUrl ?? '',
+        socials: {},
+      }),
+    })
+  },
   async updateTeam(teamId, patch) {
     const current = await api<any>(`/api/teams/${teamId}`)
     await api(`/api/teams/${teamId}`, {
@@ -149,6 +161,20 @@ export const teamsRepository: TeamsRepository = {
 export const playersRepository: PlayersRepository = {
   async getPlayers(teamId) { const list = (await api<any[]>('/api/players')).map(mapPlayer); return teamId ? list.filter((p) => p.teamId === teamId) : list },
   async getPlayerById(playerId) { try { return mapPlayer(await api<any>(`/api/players/${playerId}`)) } catch { return null } },
+  async createPlayer(input) {
+    await api('/api/players', {
+      method: 'POST',
+      body: JSON.stringify({
+        team_id: Number(input.teamId),
+        full_name: input.fullName,
+        nickname: '',
+        avatar_url: input.avatarUrl ?? '',
+        socials: {},
+        position: input.position,
+        shirt_number: input.shirtNumber,
+      }),
+    })
+  },
   async updatePlayer(playerId, patch) {
     const current = await api<any>(`/api/players/${playerId}`)
     await api(`/api/players/${playerId}`, {
@@ -168,6 +194,21 @@ export const playersRepository: PlayersRepository = {
 export const matchesRepository: MatchesRepository = {
   async getMatches() { return (await api<any[]>('/api/matches')).map(mapMatch) },
   async getMatchById(matchId) { try { return mapMatch(await api<any>(`/api/matches/${matchId}`)) } catch { return null } },
+  async createMatch(input) {
+    await api('/api/matches', {
+      method: 'POST',
+      body: JSON.stringify({
+        home_team_id: Number(input.homeTeamId),
+        away_team_id: Number(input.awayTeamId),
+        start_at: input.startAt,
+        status: input.status,
+        home_score: 0,
+        away_score: 0,
+        extra_time: {},
+        venue: input.venue,
+      }),
+    })
+  },
   async updateMatch(matchId, patch) {
     const current = await api<any>(`/api/matches/${matchId}`)
     await api(`/api/matches/${matchId}`, {
@@ -251,6 +292,23 @@ export const eventsRepository: EventsRepository = {
         is_pinned: false,
       }),
     })
+  },
+  async updateEventForScope(input) {
+    await api(`/api/events/${input.eventId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        scope_type: input.scopeType,
+        scope_id: input.scopeId ? Number(input.scopeId) : null,
+        title: input.title,
+        body: input.body,
+        metadata: {},
+        visibility: 'public',
+        is_pinned: false,
+      }),
+    })
+  },
+  async deleteEvent(eventId) {
+    await api(`/api/events/${eventId}`, { method: 'DELETE' })
   },
 }
 export const commentsRepository: CommentsRepository = {

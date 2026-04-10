@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2 } from 'lucide-react'
-import type { UserRole } from '../../domain/entities/types'
+import type { Match, UserRole } from '../../domain/entities/types'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
@@ -42,7 +42,7 @@ const statusTone = (status: string) => status.startsWith('ok:') ? 'text-emerald-
 export const CabinetSectionPage = () => {
   const { section } = useParams()
   const { session } = useSession()
-  const { cabinetRepository, teamsRepository } = useRepositories()
+  const { cabinetRepository, teamsRepository, playersRepository, matchesRepository, eventsRepository } = useRepositories()
 
   const [status, setStatus] = useState('')
 
@@ -54,7 +54,10 @@ export const CabinetSectionPage = () => {
   const [teamId, setTeamId] = useState('')
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
+  const [eventId, setEventId] = useState('')
   const [username, setUsername] = useState('')
+  const [playerId, setPlayerId] = useState('')
+  const [visible, setVisible] = useState(true)
   const [teamSocialsRaw, setTeamSocialsRaw] = useState('telegram=https://t.me/')
 
   const [commentId, setCommentId] = useState('')
@@ -69,6 +72,17 @@ export const CabinetSectionPage = () => {
   const [restrictionsRaw, setRestrictionsRaw] = useState('comments:banned')
   const [settingKey, setSettingKey] = useState('ui.flags')
   const [settingValueRaw, setSettingValueRaw] = useState('{"newCabinet":true}')
+  const [newTeamName, setNewTeamName] = useState('')
+  const [newTeamSlug, setNewTeamSlug] = useState('')
+  const [newTeamDescription, setNewTeamDescription] = useState('')
+  const [newPlayerName, setNewPlayerName] = useState('')
+  const [newPlayerPosition, setNewPlayerPosition] = useState('MF')
+  const [newPlayerNumber, setNewPlayerNumber] = useState('10')
+  const [matchHomeTeamId, setMatchHomeTeamId] = useState('')
+  const [matchAwayTeamId, setMatchAwayTeamId] = useState('')
+  const [matchStartAt, setMatchStartAt] = useState('')
+  const [matchStatus, setMatchStatus] = useState<Match['status']>('scheduled')
+  const [matchVenue, setMatchVenue] = useState('')
 
   const minRole = section ? sectionRoles[section] : null
   const allowed = minRole ? roleRank[session.user.role] >= roleRank[minRole] : false
@@ -178,19 +192,106 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {section === 'team-events' && (
+      {section === 'roster' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
           <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="team id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="event title" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="event body" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input value={playerId} onChange={(e) => setPlayerId(e.target.value)} placeholder="player id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <label className="text-xs text-textSecondary flex items-center gap-2"><input type="checkbox" checked={visible} onChange={(e) => setVisible(e.target.checked)} /> visible in roster</label>
           <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
             try {
-              await cabinetRepository.createTeamEvent({ teamId, title, body })
-              setStatus('ok: team event created')
+              await teamsRepository.captainSetRosterVisibility?.(teamId, playerId, visible)
+              setStatus('ok: roster visibility updated')
             } catch (error) {
               setStatus(`error: ${(error as Error).message}`)
             }
-          }}>Create team event</button>
+          }}>Apply roster visibility</button>
+        </section>
+      )}
+
+      {section === 'team-events' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="team id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input value={eventId} onChange={(e) => setEventId(e.target.value)} placeholder="event id (for update/delete)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="event title" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="event body" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
+              try {
+                await cabinetRepository.createTeamEvent({ teamId, title, body })
+                setStatus('ok: team event created')
+              } catch (error) {
+                setStatus(`error: ${(error as Error).message}`)
+              }
+            }}>Create team event</button>
+            <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary" onClick={async () => {
+              try {
+                await eventsRepository.updateEventForScope?.({ eventId, scopeType: 'team', scopeId: teamId, title, body })
+                setStatus('ok: team event updated')
+              } catch (error) {
+                setStatus(`error: ${(error as Error).message}`)
+              }
+            }}>Update event</button>
+            <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary" onClick={async () => {
+              try {
+                await eventsRepository.deleteEvent?.(eventId)
+                setStatus('ok: event deleted')
+              } catch (error) {
+                setStatus(`error: ${(error as Error).message}`)
+              }
+            }}>Delete event</button>
+          </div>
+        </section>
+      )}
+
+      {section === 'tournament' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-3">
+          <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
+            <p className="text-xs text-textMuted">Create team</p>
+            <input value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="team name" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input value={newTeamSlug} onChange={(e) => setNewTeamSlug(e.target.value)} placeholder="team slug" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input value={newTeamDescription} onChange={(e) => setNewTeamDescription(e.target.value)} placeholder="team description" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
+              try {
+                await teamsRepository.createTeam?.({ name: newTeamName, slug: newTeamSlug, description: newTeamDescription })
+                setStatus('ok: team created')
+              } catch (error) {
+                setStatus(`error: ${(error as Error).message}`)
+              }
+            }}>Create team</button>
+          </div>
+
+          <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
+            <p className="text-xs text-textMuted">Create player</p>
+            <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="team id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input value={newPlayerName} onChange={(e) => setNewPlayerName(e.target.value)} placeholder="full name" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input value={newPlayerPosition} onChange={(e) => setNewPlayerPosition(e.target.value)} placeholder="position" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input value={newPlayerNumber} onChange={(e) => setNewPlayerNumber(e.target.value)} placeholder="shirt number" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
+              try {
+                await playersRepository.createPlayer?.({ teamId, fullName: newPlayerName, position: newPlayerPosition, shirtNumber: Number(newPlayerNumber) || 0 })
+                setStatus('ok: player created')
+              } catch (error) {
+                setStatus(`error: ${(error as Error).message}`)
+              }
+            }}>Create player</button>
+          </div>
+
+          <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
+            <p className="text-xs text-textMuted">Create match</p>
+            <input value={matchHomeTeamId} onChange={(e) => setMatchHomeTeamId(e.target.value)} placeholder="home team id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input value={matchAwayTeamId} onChange={(e) => setMatchAwayTeamId(e.target.value)} placeholder="away team id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input value={matchStartAt} onChange={(e) => setMatchStartAt(e.target.value)} placeholder="start_at RFC3339" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input value={matchStatus} onChange={(e) => setMatchStatus(e.target.value as typeof matchStatus)} placeholder="status" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input value={matchVenue} onChange={(e) => setMatchVenue(e.target.value)} placeholder="venue" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
+              try {
+                await matchesRepository.createMatch?.({ homeTeamId: matchHomeTeamId, awayTeamId: matchAwayTeamId, startAt: matchStartAt, status: matchStatus, venue: matchVenue })
+                setStatus('ok: match created')
+              } catch (error) {
+                setStatus(`error: ${(error as Error).message}`)
+              }
+            }}>Create match</button>
+          </div>
         </section>
       )}
 
@@ -292,7 +393,7 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {!['profile', 'invites', 'team-socials', 'team-events', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
+      {!['profile', 'invites', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
           Раздел синхронизирован по правам доступа и готов к расширению бизнес-формами.
         </section>

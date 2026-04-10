@@ -26,6 +26,9 @@ export const teamsRepository: TeamsRepository = {
   async getTeamById(teamId) {
     return teams.find((t) => t.id === teamId) ?? null
   },
+  async createTeam() {
+    return
+  },
 }
 
 export const playersRepository: PlayersRepository = {
@@ -35,6 +38,9 @@ export const playersRepository: PlayersRepository = {
   async getPlayerById(playerId) {
     return players.find((p) => p.id === playerId) ?? null
   },
+  async createPlayer() {
+    return
+  },
 }
 
 export const matchesRepository: MatchesRepository = {
@@ -43,6 +49,9 @@ export const matchesRepository: MatchesRepository = {
   },
   async getMatchById(matchId) {
     return matches.find((m) => m.id === matchId) ?? null
+  },
+  async createMatch() {
+    return
   },
 }
 
@@ -68,6 +77,15 @@ export const eventsRepository: EventsRepository = {
   },
   async getEventById(eventId) {
     return events.find((event) => event.id === eventId) ?? null
+  },
+  async createEventForScope() {
+    return
+  },
+  async updateEventForScope() {
+    return
+  },
+  async deleteEvent() {
+    return
   },
 }
 
