@@ -1,6 +1,9 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { PublicShell } from '../../layouts/public-shell/PublicShell'
 import { BracketPage } from '../../pages/bracket/BracketPage'
+import { EventDetailsPage } from '../../pages/events/EventDetailsPage'
+import { EventsPage } from '../../pages/events/EventsPage'
+import { CommentsPage } from '../../pages/comments/CommentsPage'
 import { HomePage } from '../../pages/home/HomePage'
 import { LoginPage } from '../../pages/login/LoginPage'
 import { MatchDetailsPage } from '../../pages/matches/MatchDetailsPage'
@@ -8,6 +11,7 @@ import { MatchesPage } from '../../pages/matches/MatchesPage'
 import { PlayerDetailsPage } from '../../pages/players/PlayerDetailsPage'
 import { PlayersPage } from '../../pages/players/PlayersPage'
 import { ProfilePage } from '../../pages/profile/ProfilePage'
+import { CabinetSectionPage } from '../../pages/profile/CabinetSectionPage'
 import { SearchPage } from '../../pages/search/SearchPage'
 import { TablePage } from '../../pages/table/TablePage'
 import { TeamDetailsPage } from '../../pages/teams/TeamDetailsPage'
@@ -28,8 +32,12 @@ export const router = createBrowserRouter([
       { path: 'table', element: <TablePage /> },
       { path: 'bracket', element: <BracketPage /> },
       { path: 'search', element: <SearchPage /> },
+      { path: 'events', element: <EventsPage /> },
+      { path: 'events/:eventId', element: <EventDetailsPage /> },
+      { path: 'comments/:entityType/:entityId', element: <CommentsPage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'profile', element: <ProfilePage /> },
+      { path: 'profile/:section', element: <CabinetSectionPage /> },
     ],
   },
 ])

@@ -116,3 +116,115 @@ export interface UserSession {
   isAuthenticated: boolean
   displayName?: string
 }
+
+
+export type CommentEntityType = 'match' | 'team' | 'player' | 'event'
+export type CommentReactionType = 'like' | 'dislike' | null
+
+export interface CommentReactions {
+  likes: number
+  dislikes: number
+  userReaction: CommentReactionType
+}
+
+export interface CommentNode {
+  id: ID
+  entityType: CommentEntityType
+  entityId: ID
+  parentId: ID | null
+  authorName: string
+  authorRole: 'guest' | 'captain' | 'admin'
+  isOwn: boolean
+  createdAt: string
+  text: string
+  reactions: CommentReactions
+  canReply: boolean
+  canDelete: boolean
+  replies: CommentNode[]
+}
+
+export interface CommentAuthorState {
+  id: ID
+  name: string
+  role: 'guest' | 'captain' | 'admin'
+  isGuest: boolean
+  canComment: boolean
+  cooldownSeconds: number
+  blockedReason?: string
+}
+
+
+export type EventEntityType = 'global' | 'team' | 'player' | 'match'
+export type EventCategory = 'news' | 'announcement' | 'report' | 'injury' | 'discipline' | 'tactical'
+
+export interface PublicEvent {
+  id: ID
+  title: string
+  summary: string
+  text: string
+  timestamp: string
+  source: string
+  authorName: string
+  category: EventCategory
+  entityType: EventEntityType
+  entityId?: ID
+  imageUrl?: string
+  canEdit?: boolean
+  canDelete?: boolean
+}
+
+
+export type UserRole = 'guest' | 'player' | 'captain' | 'admin' | 'superadmin'
+
+export type PermissionKey =
+  | 'comment.create'
+  | 'comment.delete.own'
+  | 'comment.reply'
+  | 'comment.react'
+  | 'event.create'
+  | 'event.edit'
+  | 'event.delete'
+  | 'team.squad.manage'
+  | 'team.invite.manage'
+  | 'tournament.match.create'
+  | 'tournament.team.create'
+  | 'tournament.moderate'
+  | 'rbac.manage'
+  | 'settings.global.manage'
+
+export interface SessionUser {
+  id: ID
+  displayName: string
+  role: UserRole
+  teamId?: ID
+  telegramHandle?: string
+}
+
+export interface AuthSession {
+  isAuthenticated: boolean
+  user: SessionUser
+  permissions: PermissionKey[]
+  lastLoginAt?: string
+}
+
+export interface RolePermissionProfile {
+  role: UserRole
+  permissions: PermissionKey[]
+}
+
+export interface TelegramAuthStartDTO {
+  authUrl: string
+  requestId: string
+  expiresAt: string
+}
+
+export interface TelegramAuthFinalizeDTO {
+  requestId: string
+  code: string
+}
+
+export interface AuthSessionDTO {
+  accessToken: string
+  refreshToken: string
+  session: AuthSession
+}
