@@ -3,18 +3,18 @@ package domain
 import "time"
 
 type TelegramAuthStartResponse struct {
-	State   string    `json:"state"`
-	AuthURL string    `json:"auth_url"`
-	Expires time.Time `json:"expires_at"`
+	RequestID string    `json:"request_id"`
+	AuthURL   string    `json:"auth_url"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
-type TelegramAuthCompleteRequest struct {
-	State    string `json:"state"`
-	InitData string `json:"init_data"`
+type TelegramAuthStartRequest struct {
+	Role *Role `json:"role,omitempty"`
 }
 
 type TelegramCodeLoginRequest struct {
-	Code string `json:"code"`
+	RequestID string `json:"request_id"`
+	Code      string `json:"code"`
 }
 
 type TelegramIdentity struct {
@@ -22,4 +22,15 @@ type TelegramIdentity struct {
 	Username   string
 	FirstName  string
 	LastName   string
+}
+
+type TelegramLoginCode struct {
+	SessionID        string
+	CodeHash         []byte
+	TelegramUserID   int64
+	TelegramUsername string
+	Role             Role
+	ExpiresAt        time.Time
+	IssuedBy         string
+	ConsumedAt       *time.Time
 }

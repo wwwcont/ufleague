@@ -42,6 +42,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 	h := Handler{healthRepo: healthRepo, authRepo: authRepo, tournament: tournamentSvc, events: eventsSvc, comments: commentsSvc, notifications: notificationsSvc, telegramAuth: telegramAuthSvc, cabinet: cabinetSvc, session: sessionManager, cfg: cfg}
 	r := chi.NewRouter()
 	sec := middleware.NewSecurityMiddleware()
+	r.Use(sec.CORS)
 	r.Use(sec.RateLimit)
 	r.Use(sec.BodyLimit)
 	r.Use(sec.CSRFSimple)
@@ -55,9 +56,9 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 			r.Post("/dev-login", h.DevLogin)
 		}
 		r.Post("/telegram/start", h.TelegramAuthStart)
-		r.Post("/telegram/complete", h.TelegramAuthComplete)
+		r.Post("/telegram/complete-code", h.TelegramCodeLogin)
 		if cfg.Features.TelegramMockLoginEnabled {
-			r.Post("/telegram/mock-code-login", h.TelegramMockCodeLogin)
+			r.Post("/telegram/mock-code-login", h.TelegramCodeLogin)
 		}
 	})
 
@@ -163,28 +164,23 @@ func (h Handler) DevLogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, domain.MeResponse{User: user, Session: sess})
 }
 
-func (h Handler) TelegramMockCodeLogin(w http.ResponseWriter, r *http.Request) {
+func (h Handler) TelegramCodeLogin(w http.ResponseWriter, r *http.Request) {
 	var req domain.TelegramCodeLoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "bad request", 400)
 		return
 	}
-	if strings.TrimSpace(req.Code) == "" {
-		http.Error(w, "code is required", 400)
+	if strings.TrimSpace(req.Code) == "" || strings.TrimSpace(req.RequestID) == "" {
+		http.Error(w, "request_id and code are required", 400)
 		return
 	}
-	if req.Code != h.cfg.Features.TelegramMockCode {
-		http.Error(w, "invalid code", 401)
-		return
-	}
-
-	user, err := h.authRepo.UpsertDevUser(r.Context(), domain.DevLoginRequest{
-		Username:    "telegram_superadmin_mock",
-		DisplayName: "Telegram Superadmin",
-		Roles:       []domain.Role{domain.RoleSuperadmin},
-	})
+	user, err := h.telegramAuth.CompleteCode(r.Context(), req)
 	if err != nil {
-		http.Error(w, "failed to upsert user", 500)
+		if errors.Is(err, telegramauth.ErrExpiredCode) {
+			http.Error(w, "expired code", 410)
+			return
+		}
+		http.Error(w, "invalid code", 401)
 		return
 	}
 	rawToken, tokenHash, err := h.session.GenerateToken()
@@ -208,37 +204,16 @@ func (h Handler) TelegramMockCodeLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h Handler) TelegramAuthStart(w http.ResponseWriter, r *http.Request) {
-	resp, err := h.telegramAuth.Start(r.Context())
+	var req domain.TelegramAuthStartRequest
+	if r.ContentLength > 0 {
+		_ = json.NewDecoder(r.Body).Decode(&req)
+	}
+	resp, err := h.telegramAuth.Start(r.Context(), req)
 	if err != nil {
 		http.Error(w, "failed to start telegram auth", 500)
 		return
 	}
 	writeJSON(w, 200, resp)
-}
-
-func (h Handler) TelegramAuthComplete(w http.ResponseWriter, r *http.Request) {
-	var req domain.TelegramAuthCompleteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "bad request", 400)
-		return
-	}
-	user, err := h.telegramAuth.Complete(r.Context(), req)
-	if err != nil {
-		http.Error(w, "telegram auth failed", 401)
-		return
-	}
-	rawToken, tokenHash, err := h.session.GenerateToken()
-	if err != nil {
-		http.Error(w, "failed to create session", 500)
-		return
-	}
-	sess, err := h.authRepo.CreateSession(r.Context(), repository.CreateSessionParams{UserID: user.ID, TokenHash: tokenHash, UserAgent: r.UserAgent(), IPAddress: clientIP(r), ExpiresAt: time.Now().UTC().Add(h.session.TTL()).Format(time.RFC3339)})
-	if err != nil {
-		http.Error(w, "failed to create session", 500)
-		return
-	}
-	setSessionCookie(w, h.session, rawToken, sess.ExpiresAt)
-	writeJSON(w, 200, domain.MeResponse{User: user, Session: sess})
 }
 func (h Handler) ListTeams(w http.ResponseWriter, r *http.Request) {
 	items, err := h.tournament.ListTeams(r.Context())

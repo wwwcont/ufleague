@@ -16,11 +16,13 @@ import { SearchPage } from '../../pages/search/SearchPage'
 import { TablePage } from '../../pages/table/TablePage'
 import { TeamDetailsPage } from '../../pages/teams/TeamDetailsPage'
 import { TeamsPage } from '../../pages/teams/TeamsPage'
+import { AppRouteError } from './AppRouteError'
 
 export const router = createBrowserRouter([
   {
     path: '/',
     element: <PublicShell />,
+    errorElement: <AppRouteError />,
     children: [
       { index: true, element: <HomePage /> },
       { path: 'matches', element: <MatchesPage /> },
