@@ -70,3 +70,15 @@ export interface SessionRepository {
   loginAsDevRole?(role: UserRole): Promise<AuthSession>
   logout(): Promise<void>
 }
+
+export interface CabinetRepository {
+  getMyProfile(): Promise<{ userId: string; username: string; displayName: string; bio: string; avatarUrl: string; socials: Record<string, string> }>
+  updateMyProfile(input: { displayName: string; bio: string; avatarUrl: string; socials: Record<string, string> }): Promise<void>
+  createTeamEvent(input: { teamId: string; title: string; body: string }): Promise<void>
+  adminModerateComment(commentId: string): Promise<void>
+  adminBlockComments(input: { userId: string; permanent: boolean; untilUnix: number; reason: string }): Promise<void>
+  superadminAssignRoles(input: { userId: string; roles: UserRole[] }): Promise<void>
+  superadminAssignPermissions(input: { userId: string; permissions: string[] }): Promise<void>
+  superadminAssignRestrictions(input: { userId: string; restrictions: string[] }): Promise<void>
+  superadminSetGlobalSetting(input: { key: string; value: Record<string, unknown> }): Promise<void>
+}

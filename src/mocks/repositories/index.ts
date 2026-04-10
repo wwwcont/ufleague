@@ -1,4 +1,5 @@
 import type {
+  CabinetRepository,
   BracketRepository,
   CommentsRepository,
   EventsRepository,
@@ -141,6 +142,45 @@ export const searchRepository: SearchRepository = {
   },
 }
 
+let mockProfile = {
+  userId: '1',
+  username: 'mock_user',
+  displayName: 'Mock User',
+  bio: '',
+  avatarUrl: '',
+  socials: {} as Record<string, string>,
+}
+
+export const cabinetRepository: CabinetRepository = {
+  async getMyProfile() {
+    return mockProfile
+  },
+  async updateMyProfile(input) {
+    mockProfile = { ...mockProfile, ...input }
+  },
+  async createTeamEvent() {
+    return
+  },
+  async adminModerateComment() {
+    return
+  },
+  async adminBlockComments() {
+    return
+  },
+  async superadminAssignRoles() {
+    return
+  },
+  async superadminAssignPermissions() {
+    return
+  },
+  async superadminAssignRestrictions() {
+    return
+  },
+  async superadminSetGlobalSetting() {
+    return
+  },
+}
+
 export const repositories = {
   teamsRepository,
   playersRepository,
@@ -151,4 +191,5 @@ export const repositories = {
   commentsRepository,
   eventsRepository,
   sessionRepository,
+  cabinetRepository,
 }
