@@ -47,8 +47,8 @@ func (r *AuthRepository) UpsertDevUser(ctx context.Context, req domain.DevLoginR
 		VALUES ($1, $2)
 		ON CONFLICT (username)
 		DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW()
-		RETURNING id, username, display_name, is_active, created_at
-	`, req.Username, req.DisplayName).Scan(&user.ID, &user.Username, &user.DisplayName, &user.IsActive, &user.CreatedAt)
+		RETURNING id, telegram_id, username, display_name, is_active, created_at
+	`, req.Username, req.DisplayName).Scan(&user.ID, &user.TelegramID, &user.Username, &user.DisplayName, &user.IsActive, &user.CreatedAt)
 	if err != nil {
 		return domain.User{}, err
 	}
@@ -120,9 +120,9 @@ func replaceUserRolesTx(ctx context.Context, tx pgx.Tx, userID int64, roles []do
 func (r *AuthRepository) GetUserByID(ctx context.Context, userID int64) (domain.User, error) {
 	var user domain.User
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, username, display_name, is_active, created_at
+		SELECT id, telegram_id, username, display_name, is_active, created_at
 		FROM users WHERE id = $1
-	`, userID).Scan(&user.ID, &user.Username, &user.DisplayName, &user.IsActive, &user.CreatedAt)
+	`, userID).Scan(&user.ID, &user.TelegramID, &user.Username, &user.DisplayName, &user.IsActive, &user.CreatedAt)
 	if err != nil {
 		return domain.User{}, err
 	}
@@ -175,7 +175,7 @@ func (r *AuthRepository) GetSessionWithUserByHash(ctx context.Context, tokenHash
 	var out SessionWithUser
 	err := r.pool.QueryRow(ctx, `
 		SELECT s.id::text, s.user_id, s.expires_at, s.created_at,
-		       u.id, u.username, u.display_name, u.is_active, u.created_at
+		       u.id, u.telegram_id, u.username, u.display_name, u.is_active, u.created_at
 		FROM sessions s
 		JOIN users u ON u.id = s.user_id
 		WHERE s.token_hash = $1
@@ -187,6 +187,7 @@ func (r *AuthRepository) GetSessionWithUserByHash(ctx context.Context, tokenHash
 		&out.Session.ExpiresAt,
 		&out.Session.CreatedAt,
 		&out.User.ID,
+		&out.User.TelegramID,
 		&out.User.Username,
 		&out.User.DisplayName,
 		&out.User.IsActive,

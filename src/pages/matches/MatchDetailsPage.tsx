@@ -17,6 +17,7 @@ import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { ApiError } from '../../infrastructure/api/repositories'
 import { canManageMatch } from '../../domain/services/accessControl'
+import { formatMatchMetaMsk } from '../../lib/date-time'
 
 const statusLabel: Record<string, string> = {
   scheduled: 'По расписанию',
@@ -37,11 +38,6 @@ const eventTypeTone: Record<string, string> = {
   yellow_card: 'text-yellow-300',
   red_card: 'text-red-400',
   substitution: 'text-textSecondary',
-}
-
-const formatMatchDate = (date: string, time: string) => {
-  const [year, month, day] = date.split('-')
-  return `${day}.${month}.${year} • ${time}`
 }
 
 const EventRow = ({
@@ -282,7 +278,7 @@ export const MatchDetailsPage = () => {
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary shadow-soft">
         <p>Матч: <span className="text-textPrimary">{home.shortName} vs {away.shortName}</span></p>
-        <p className="mt-1">Дата и время: <span className="text-textPrimary">{formatMatchDate(match.date, match.time)}</span></p>
+        <p className="mt-1">Дата и время: <span className="text-textPrimary">{formatMatchMetaMsk(match.date, match.time)}</span></p>
         <div className="mt-2 flex gap-3 text-xs">
           <Link to={`/teams/${home.id}`} className="text-accentYellow hover:underline">Команда {home.shortName}</Link>
           <Link to={`/teams/${away.id}`} className="text-accentYellow hover:underline">Команда {away.shortName}</Link>

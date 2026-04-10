@@ -75,6 +75,10 @@ const mapMatch = (m: any): Match => ({
   score: { home: m.home_score ?? 0, away: m.away_score ?? 0 },
   events: [],
   featured: m.status === 'live',
+  bracketPosition: {
+    stageSlotColumn: m.stage_slot_column ?? null,
+    stageSlotRow: m.stage_slot_row ?? null,
+  },
 })
 
 const mapEvent = (e: any): PublicEvent => ({
@@ -380,6 +384,8 @@ const mapMeToSession = (me: BackendMeDTO): AuthSession => {
       id: String(me.user.id),
       displayName: me.user.display_name,
       role,
+      telegramHandle: me.user.username ? `@${String(me.user.username).replace(/^@/, '')}` : undefined,
+      telegramId: me.user.telegram_id ? String(me.user.telegram_id) : undefined,
     },
     permissions: permissions as AuthSession['permissions'],
     lastLoginAt: me.session.created_at,
@@ -425,7 +431,18 @@ export const sessionRepository: SessionRepository = {
     }
     const seed = seeds[role] ?? { username: `dev_${role}`, displayName: `Dev ${role}` }
     const me = await api<any>('/api/auth/dev-login', { method: 'POST', body: JSON.stringify({ username: seed.username, display_name: seed.displayName, roles: [role] }) })
-    return { isAuthenticated: true, user: { id: String(me.user.id), displayName: me.user.display_name, role }, permissions: [], lastLoginAt: me.session?.created_at }
+    return {
+      isAuthenticated: true,
+      user: {
+        id: String(me.user.id),
+        displayName: me.user.display_name,
+        role,
+        telegramHandle: me.user.username ? `@${String(me.user.username).replace(/^@/, '')}` : undefined,
+        telegramId: me.user.telegram_id ? String(me.user.telegram_id) : undefined,
+      },
+      permissions: [],
+      lastLoginAt: me.session?.created_at,
+    }
   },
   async logout() {
     await api('/api/auth/logout', { method: 'POST' }).catch(() => undefined)

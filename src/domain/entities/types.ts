@@ -71,6 +71,10 @@ export interface Match {
   score: { home: number; away: number }
   events: MatchEvent[]
   featured: boolean
+  bracketPosition?: {
+    stageSlotColumn: number | null
+    stageSlotRow: number | null
+  }
 }
 
 export interface StandingRow {
@@ -200,6 +204,7 @@ export interface SessionUser {
   role: UserRole
   teamId?: ID
   telegramHandle?: string
+  telegramId?: string
 }
 
 export interface AuthSession {
