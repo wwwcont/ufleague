@@ -42,6 +42,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 	h := Handler{healthRepo: healthRepo, authRepo: authRepo, tournament: tournamentSvc, events: eventsSvc, comments: commentsSvc, notifications: notificationsSvc, telegramAuth: telegramAuthSvc, cabinet: cabinetSvc, session: sessionManager, cfg: cfg}
 	r := chi.NewRouter()
 	sec := middleware.NewSecurityMiddleware()
+	r.Use(sec.CORS)
 	r.Use(sec.RateLimit)
 	r.Use(sec.BodyLimit)
 	r.Use(sec.CSRFSimple)

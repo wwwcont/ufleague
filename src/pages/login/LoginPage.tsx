@@ -43,8 +43,9 @@ export const LoginPage = () => {
                 try {
                   await loginAsDevRole(role)
                   navigate('/profile')
-                } catch {
-                  setError(`Не удалось выполнить тестовый вход под ролью ${role}.`)
+                } catch (err) {
+                  const msg = err instanceof Error ? err.message : 'unknown error'
+                  setError(`Не удалось выполнить тестовый вход под ролью ${role}: ${msg}`)
                 }
               }}
               disabled={isLoading}
