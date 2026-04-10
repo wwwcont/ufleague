@@ -3,6 +3,7 @@ import { ExternalLink, Lock, MessageCircle, ShieldCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useSession } from '../../app/providers/use-session'
+import type { UserRole } from '../../domain/entities/types'
 
 type LoginStep = 'entry' | 'code'
 
@@ -11,8 +12,12 @@ export const LoginPage = () => {
   const [step, setStep] = useState<LoginStep>('entry')
   const [code, setCode] = useState('')
   const [botUrl, setBotUrl] = useState('https://t.me/ufleague_auth_bot')
+  const [requestId, setRequestId] = useState('')
+  const [expiresAt, setExpiresAt] = useState<string | null>(null)
+  const [selectedRole, setSelectedRole] = useState<UserRole>('player')
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
+  const isExpired = Boolean(expiresAt && new Date(expiresAt).getTime() < Date.now())
 
   return (
     <PageContainer>
@@ -27,8 +32,10 @@ export const LoginPage = () => {
               onClick={async () => {
                 setError(null)
                 try {
-                  const data = await startTelegramLogin()
+                  const data = await startTelegramLogin(selectedRole)
                   setBotUrl(data.authUrl)
+                  setRequestId(data.requestId)
+                  setExpiresAt(data.expiresAt)
                   setStep('code')
                 } catch {
                   setError('Не удалось запустить вход через Telegram. Попробуйте еще раз.')
@@ -39,6 +46,18 @@ export const LoginPage = () => {
             >
               Войти через Telegram
             </button>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(['player', 'captain', 'admin', 'superadmin'] as UserRole[]).map((role) => (
+                <button
+                  key={role}
+                  type="button"
+                  onClick={() => setSelectedRole(role)}
+                  className={`rounded-lg border px-3 py-1 text-xs uppercase ${selectedRole === role ? 'border-accentYellow text-accentYellow' : 'border-borderSubtle text-textSecondary'}`}
+                >
+                  {role}
+                </button>
+              ))}
+            </div>
             {error && <p className="mt-2 text-xs text-rose-300">{error}</p>}
           </div>
         ) : (
@@ -63,8 +82,12 @@ export const LoginPage = () => {
               onSubmit={async (event) => {
                 event.preventDefault()
                 setError(null)
+                if (isExpired) {
+                  setError('Сессия входа истекла. Запустите вход заново.')
+                  return
+                }
                 try {
-                  await completeTelegramLoginWithCode(code)
+                  await completeTelegramLoginWithCode(requestId, code)
                   navigate('/profile')
                 } catch {
                   setError('Неверный или просроченный код входа. Попробуйте снова.')
@@ -77,6 +100,8 @@ export const LoginPage = () => {
                 placeholder="Введите код из Telegram"
                 className="w-full rounded-xl border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary outline-none focus:border-borderStrong"
               />
+              {expiresAt && <p className="text-xs text-textSecondary">Код действует до: {new Date(expiresAt).toLocaleTimeString()}</p>}
+              {isExpired && <p className="text-xs text-rose-300">Срок действия сессии входа истек.</p>}
               {error && <p className="text-xs text-rose-300">{error}</p>}
               <div className="flex gap-2">
                 <button

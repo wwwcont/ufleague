@@ -319,12 +319,19 @@ export const sessionRepository: SessionRepository = {
       return guestSession
     }
   },
-  async startTelegramLogin() {
-    const data = await api<{ auth_url?: string; authUrl?: string }>('/api/auth/telegram/start', { method: 'POST' })
-    return { authUrl: data.authUrl ?? data.auth_url ?? 'https://t.me/ufleague_auth_bot' }
+  async startTelegramLogin(role) {
+    const data = await api<{ auth_url?: string; authUrl?: string; request_id?: string; requestId?: string; expires_at?: string; expiresAt?: string }>('/api/auth/telegram/start', {
+      method: 'POST',
+      body: JSON.stringify(role ? { role } : {}),
+    })
+    return {
+      authUrl: data.authUrl ?? data.auth_url ?? 'https://t.me/ufleague_auth_bot',
+      requestId: data.requestId ?? data.request_id ?? '',
+      expiresAt: data.expiresAt ?? data.expires_at ?? new Date().toISOString(),
+    }
   },
-  async completeTelegramLoginWithCode(code: string) {
-    const me = await api<BackendMeDTO>('/api/auth/telegram/mock-code-login', { method: 'POST', body: JSON.stringify({ code }) })
+  async completeTelegramLoginWithCode(requestId: string, code: string) {
+    const me = await api<BackendMeDTO>('/api/auth/telegram/complete-code', { method: 'POST', body: JSON.stringify({ request_id: requestId, code }) })
     return mapMeToSession(me)
   },
   async loginAsDevRole(role) {
