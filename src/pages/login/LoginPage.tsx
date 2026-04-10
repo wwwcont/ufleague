@@ -15,7 +15,7 @@ export const LoginPage = () => {
   return (
     <PageContainer>
       <section className="rounded-2xl border border-borderStrong bg-panelBg p-4 shadow-matte">
-        <h2 className="text-xl font-bold text-textPrimary">Вход в UFL через Telegram</h2>
+        <h2 className="text-xl font-bold text-textPrimary">Вход в UFL через Telegram (dev fallback v2)</h2>
         <p className="mt-2 text-sm text-textSecondary">Интеграция Telegram bot еще не подключена. Этот поток будет активирован следующим этапом.</p>
         <button
           type="button"
