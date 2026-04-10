@@ -9,9 +9,7 @@ export const LoginPage = () => {
   const { isLoading, loginAsDevRole } = useSession()
   const [selectedRole, setSelectedRole] = useState<UserRole>('player')
   const [error, setError] = useState<string | null>(null)
-  const expiresAt: string | null = null
   const navigate = useNavigate()
-  const isExpired = Boolean(expiresAt && new Date(expiresAt).getTime() < Date.now())
 
   return (
     <PageContainer>
@@ -57,7 +55,7 @@ export const LoginPage = () => {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary shadow-soft" data-expiry-placeholder={expiresAt ?? ''}>
+      <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary shadow-soft">
         <p className="flex items-center gap-2"><MessageCircle size={14} className="text-accentYellow" /> Telegram bot auth запланирован, но временно отключен в UI.</p>
         <p className="mt-1 flex items-center gap-2"><ShieldCheck size={14} className="text-accentYellow" /> Тестовый вход создает реальную backend session cookie.</p>
         <p className="mt-1 flex items-center gap-2"><Lock size={14} className="text-accentYellow" /> Доступ и функциональность страниц зависят от выбранной роли.</p>

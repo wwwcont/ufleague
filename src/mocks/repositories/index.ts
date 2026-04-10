@@ -1,4 +1,5 @@
 import type {
+  CabinetRepository,
   BracketRepository,
   CommentsRepository,
   EventsRepository,
@@ -25,6 +26,9 @@ export const teamsRepository: TeamsRepository = {
   async getTeamById(teamId) {
     return teams.find((t) => t.id === teamId) ?? null
   },
+  async createTeam() {
+    return
+  },
 }
 
 export const playersRepository: PlayersRepository = {
@@ -34,6 +38,9 @@ export const playersRepository: PlayersRepository = {
   async getPlayerById(playerId) {
     return players.find((p) => p.id === playerId) ?? null
   },
+  async createPlayer() {
+    return
+  },
 }
 
 export const matchesRepository: MatchesRepository = {
@@ -42,6 +49,9 @@ export const matchesRepository: MatchesRepository = {
   },
   async getMatchById(matchId) {
     return matches.find((m) => m.id === matchId) ?? null
+  },
+  async createMatch() {
+    return
   },
 }
 
@@ -67,6 +77,15 @@ export const eventsRepository: EventsRepository = {
   },
   async getEventById(eventId) {
     return events.find((event) => event.id === eventId) ?? null
+  },
+  async createEventForScope() {
+    return
+  },
+  async updateEventForScope() {
+    return
+  },
+  async deleteEvent() {
+    return
   },
 }
 
@@ -141,6 +160,45 @@ export const searchRepository: SearchRepository = {
   },
 }
 
+let mockProfile = {
+  userId: '1',
+  username: 'mock_user',
+  displayName: 'Mock User',
+  bio: '',
+  avatarUrl: '',
+  socials: {} as Record<string, string>,
+}
+
+export const cabinetRepository: CabinetRepository = {
+  async getMyProfile() {
+    return mockProfile
+  },
+  async updateMyProfile(input) {
+    mockProfile = { ...mockProfile, ...input }
+  },
+  async createTeamEvent() {
+    return
+  },
+  async adminModerateComment() {
+    return
+  },
+  async adminBlockComments() {
+    return
+  },
+  async superadminAssignRoles() {
+    return
+  },
+  async superadminAssignPermissions() {
+    return
+  },
+  async superadminAssignRestrictions() {
+    return
+  },
+  async superadminSetGlobalSetting() {
+    return
+  },
+}
+
 export const repositories = {
   teamsRepository,
   playersRepository,
@@ -151,4 +209,5 @@ export const repositories = {
   commentsRepository,
   eventsRepository,
   sessionRepository,
+  cabinetRepository,
 }

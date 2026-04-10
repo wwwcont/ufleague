@@ -1,4 +1,5 @@
 import type {
+  CabinetRepository,
   BracketRepository,
   CommentsRepository,
   EventsRepository,
@@ -119,6 +120,18 @@ const mapAuthorState = (payload: any): CommentAuthorState => ({
 export const teamsRepository: TeamsRepository = {
   async getTeams() { return (await api<any[]>('/api/teams')).map(mapTeam) },
   async getTeamById(teamId) { try { return mapTeam(await api<any>(`/api/teams/${teamId}`)) } catch { return null } },
+  async createTeam(input) {
+    await api('/api/teams', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: input.name,
+        slug: input.slug,
+        description: input.description,
+        logo_url: input.logoUrl ?? '',
+        socials: {},
+      }),
+    })
+  },
   async updateTeam(teamId, patch) {
     const current = await api<any>(`/api/teams/${teamId}`)
     await api(`/api/teams/${teamId}`, {
@@ -148,6 +161,20 @@ export const teamsRepository: TeamsRepository = {
 export const playersRepository: PlayersRepository = {
   async getPlayers(teamId) { const list = (await api<any[]>('/api/players')).map(mapPlayer); return teamId ? list.filter((p) => p.teamId === teamId) : list },
   async getPlayerById(playerId) { try { return mapPlayer(await api<any>(`/api/players/${playerId}`)) } catch { return null } },
+  async createPlayer(input) {
+    await api('/api/players', {
+      method: 'POST',
+      body: JSON.stringify({
+        team_id: Number(input.teamId),
+        full_name: input.fullName,
+        nickname: '',
+        avatar_url: input.avatarUrl ?? '',
+        socials: {},
+        position: input.position,
+        shirt_number: input.shirtNumber,
+      }),
+    })
+  },
   async updatePlayer(playerId, patch) {
     const current = await api<any>(`/api/players/${playerId}`)
     await api(`/api/players/${playerId}`, {
@@ -167,6 +194,21 @@ export const playersRepository: PlayersRepository = {
 export const matchesRepository: MatchesRepository = {
   async getMatches() { return (await api<any[]>('/api/matches')).map(mapMatch) },
   async getMatchById(matchId) { try { return mapMatch(await api<any>(`/api/matches/${matchId}`)) } catch { return null } },
+  async createMatch(input) {
+    await api('/api/matches', {
+      method: 'POST',
+      body: JSON.stringify({
+        home_team_id: Number(input.homeTeamId),
+        away_team_id: Number(input.awayTeamId),
+        start_at: input.startAt,
+        status: input.status,
+        home_score: 0,
+        away_score: 0,
+        extra_time: {},
+        venue: input.venue,
+      }),
+    })
+  },
   async updateMatch(matchId, patch) {
     const current = await api<any>(`/api/matches/${matchId}`)
     await api(`/api/matches/${matchId}`, {
@@ -251,6 +293,23 @@ export const eventsRepository: EventsRepository = {
       }),
     })
   },
+  async updateEventForScope(input) {
+    await api(`/api/events/${input.eventId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        scope_type: input.scopeType,
+        scope_id: input.scopeId ? Number(input.scopeId) : null,
+        title: input.title,
+        body: input.body,
+        metadata: {},
+        visibility: 'public',
+        is_pinned: false,
+      }),
+    })
+  },
+  async deleteEvent(eventId) {
+    await api(`/api/events/${eventId}`, { method: 'DELETE' })
+  },
 }
 export const commentsRepository: CommentsRepository = {
   async getComments(entityType, entityId) {
@@ -294,8 +353,24 @@ export const commentsRepository: CommentsRepository = {
 
 const guestSession: AuthSession = { isAuthenticated: false, user: { id: '0', displayName: 'Guest', role: 'guest' }, permissions: [] }
 
+const rolePriority: Record<UserRole, number> = {
+  guest: 0,
+  player: 1,
+  captain: 2,
+  admin: 3,
+  superadmin: 4,
+}
+
+const pickPrimaryRole = (roles: unknown): UserRole => {
+  if (!Array.isArray(roles) || roles.length === 0) return 'guest'
+  return roles
+    .map((role) => String(role))
+    .filter((role): role is UserRole => role in rolePriority)
+    .sort((a, b) => rolePriority[b] - rolePriority[a])[0] ?? 'guest'
+}
+
 const mapMeToSession = (me: BackendMeDTO): AuthSession => {
-  const role = (me.user.roles?.[0] ?? 'guest') as UserRole
+  const role = pickPrimaryRole(me.user.roles)
   const permissions = Array.isArray(me.user.permissions) ? me.user.permissions : []
 
   return {
@@ -350,4 +425,69 @@ export const sessionRepository: SessionRepository = {
   },
 }
 
-export const repositories = { teamsRepository, playersRepository, matchesRepository, standingsRepository, bracketRepository, searchRepository, commentsRepository, eventsRepository, sessionRepository }
+const mapProfile = (payload: any) => ({
+  userId: String(payload.user_id),
+  username: String(payload.username ?? ''),
+  displayName: String(payload.display_name ?? ''),
+  bio: String(payload.bio ?? ''),
+  avatarUrl: String(payload.avatar_url ?? ''),
+  socials: (payload.socials ?? {}) as Record<string, string>,
+})
+
+export const cabinetRepository: CabinetRepository = {
+  async getMyProfile() {
+    return mapProfile(await api<any>('/api/me/profile'))
+  },
+  async updateMyProfile(input) {
+    await api('/api/me/profile', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        display_name: input.displayName,
+        bio: input.bio,
+        avatar_url: input.avatarUrl,
+        socials: input.socials,
+      }),
+    })
+  },
+  async createTeamEvent(input) {
+    await api('/api/events', {
+      method: 'POST',
+      body: JSON.stringify({
+        scope_type: 'team',
+        scope_id: Number(input.teamId),
+        title: input.title,
+        body: input.body,
+        metadata: {},
+        visibility: 'public',
+        is_pinned: false,
+      }),
+    })
+  },
+  async adminModerateComment(commentId) {
+    await api(`/api/admin/comments/${commentId}/moderate-delete`, { method: 'POST' })
+  },
+  async adminBlockComments(input) {
+    await api(`/api/admin/users/${input.userId}/comment-block`, {
+      method: 'POST',
+      body: JSON.stringify({
+        permanent: input.permanent,
+        until_unix: input.untilUnix,
+        reason: input.reason,
+      }),
+    })
+  },
+  async superadminAssignRoles(input) {
+    await api(`/api/superadmin/users/${input.userId}/roles`, { method: 'POST', body: JSON.stringify({ roles: input.roles }) })
+  },
+  async superadminAssignPermissions(input) {
+    await api(`/api/superadmin/users/${input.userId}/permissions`, { method: 'POST', body: JSON.stringify({ permissions: input.permissions }) })
+  },
+  async superadminAssignRestrictions(input) {
+    await api(`/api/superadmin/users/${input.userId}/restrictions`, { method: 'POST', body: JSON.stringify({ restrictions: input.restrictions }) })
+  },
+  async superadminSetGlobalSetting(input) {
+    await api(`/api/superadmin/settings/${encodeURIComponent(input.key)}`, { method: 'PUT', body: JSON.stringify({ value: input.value }) })
+  },
+}
+
+export const repositories = { teamsRepository, playersRepository, matchesRepository, standingsRepository, bracketRepository, searchRepository, commentsRepository, eventsRepository, sessionRepository, cabinetRepository }
