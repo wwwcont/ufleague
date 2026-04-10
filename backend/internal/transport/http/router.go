@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -41,12 +42,20 @@ type Handler struct {
 func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *repository.AuthRepository, tournamentSvc tournament.Service, eventsSvc eventsservice.Service, commentsSvc commentservice.Service, notificationsSvc notifservice.Service, telegramAuthSvc telegramauth.Service, cabinetSvc cabinetadmin.Service, sessionManager session.Manager) http.Handler {
 	h := Handler{healthRepo: healthRepo, authRepo: authRepo, tournament: tournamentSvc, events: eventsSvc, comments: commentsSvc, notifications: notificationsSvc, telegramAuth: telegramAuthSvc, cabinet: cabinetSvc, session: sessionManager, cfg: cfg}
 	r := chi.NewRouter()
-	sec := middleware.NewSecurityMiddleware()
+	obs := middleware.NewObservabilityMiddleware()
+	sec := middleware.NewSecurityMiddleware(cfg)
+	r.Use(obs.RequestID)
+	r.Use(obs.RequestLogger)
+	r.Use(sec.SecurityHeaders)
 	r.Use(sec.CORS)
 	r.Use(sec.RateLimit)
 	r.Use(sec.BodyLimit)
 	r.Use(sec.CSRFSimple)
 	r.Get("/healthz", h.Healthcheck)
+	r.Get("/readyz", h.Readyz)
+	r.Get("/metricsz", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, obs.Snapshot())
+	})
 	sessionMW := middleware.NewSessionMiddleware(authRepo, sessionManager)
 
 	r.Route("/api/auth", func(r chi.Router) {
@@ -115,6 +124,14 @@ func (h Handler) Healthcheck(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, domain.HealthStatus{Status: "ok"})
 }
+
+func (h Handler) Readyz(w http.ResponseWriter, r *http.Request) {
+	if err := h.healthRepo.Ping(r.Context()); err != nil {
+		writeJSON(w, 503, map[string]string{"status": "not_ready"})
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ready"})
+}
 func (h Handler) Me(w http.ResponseWriter, r *http.Request) {
 	current, ok := middleware.CurrentSession(r.Context())
 	if !ok {
@@ -132,8 +149,12 @@ func (h Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"status": "ok"})
 }
 func (h Handler) DevLogin(w http.ResponseWriter, r *http.Request) {
+	if !h.cfg.Features.DevLoginEnabled || h.cfg.IsProduction() {
+		http.NotFound(w, r)
+		return
+	}
 	var req domain.DevLoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSONStrict(r, &req); err != nil {
 		http.Error(w, "invalid json body", 400)
 		return
 	}
@@ -166,7 +187,7 @@ func (h Handler) DevLogin(w http.ResponseWriter, r *http.Request) {
 
 func (h Handler) TelegramCodeLogin(w http.ResponseWriter, r *http.Request) {
 	var req domain.TelegramCodeLoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSONStrict(r, &req); err != nil {
 		http.Error(w, "bad request", 400)
 		return
 	}
@@ -204,8 +225,12 @@ func (h Handler) TelegramCodeLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h Handler) TelegramMockCodeLogin(w http.ResponseWriter, r *http.Request) {
+	if !h.cfg.Features.TelegramMockLoginEnabled || h.cfg.IsProduction() {
+		http.NotFound(w, r)
+		return
+	}
 	var req domain.TelegramMockCodeLoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSONStrict(r, &req); err != nil {
 		http.Error(w, "bad request", 400)
 		return
 	}
@@ -1173,4 +1198,16 @@ func clientIP(r *http.Request) string {
 		return parts[0]
 	}
 	return ""
+}
+
+func decodeJSONStrict(r *http.Request, dst any) error {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(dst); err != nil {
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return errors.New("unexpected trailing json")
+	}
+	return nil
 }

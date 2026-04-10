@@ -145,3 +145,41 @@ make migrate-up
 npm run dev
 npm run build
 ```
+
+---
+
+## 7) Production readiness essentials
+
+### Auth/security mode split
+- `APP_ENV=production` включает strict config validation.
+- В production запрещены:
+  - `DEV_LOGIN_ENABLED=true`
+  - `TELEGRAM_MOCK_LOGIN_ENABLED=true`
+- В production обязательно:
+  - `SESSION_SECURE=true`
+  - `CORS_ALLOWED_ORIGINS` с явным allowlist.
+
+Если конфиг нарушает правила, backend завершится с ошибкой на старте.
+
+### Security middleware (production-grade baseline)
+- Proxy-aware IP extraction (`X-Forwarded-For` / `X-Real-IP`) только для `TRUSTED_PROXIES`.
+- CORS по explicit allowlist (`CORS_ALLOWED_ORIGINS`).
+- CSRF cookie + header check (`X-CSRF-Token`) для mutating requests.
+- Rate limiting per-IP (`RATE_LIMIT_PER_MINUTE`), body limit (`BODY_LIMIT_BYTES`).
+- Secure headers (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, etc.).
+
+### Observability baseline
+- Request ID (`X-Request-ID`).
+- Structured request logs (`http_request`).
+- Health endpoints:
+  - `/healthz`
+  - `/readyz`
+  - `/metricsz` (lightweight process counters).
+
+### CI quality gate
+- Added GitHub Actions pipeline:
+  - frontend build
+  - backend tests/build
+
+### Runbook
+Production deploy details вынесены в: `docs/production-runbook.md`.
