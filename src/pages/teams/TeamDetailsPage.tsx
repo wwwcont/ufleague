@@ -18,6 +18,7 @@ import { EventFeedSection } from '../../components/events'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { ApiError } from '../../infrastructure/api/repositories'
+import { canManageTeam, isAtLeastRole, isTeamCaptain } from '../../domain/services/accessControl'
 
 const formLabel: Record<string, string> = { W: 'В', D: 'Н', L: 'П' }
 
@@ -52,8 +53,9 @@ export const TeamDetailsPage = () => {
   const standing = standings?.find((row) => row.teamId === team.id)
   const teamMatches = (matches ?? []).filter((match) => match.homeTeamId === team.id || match.awayTeamId === team.id).slice(0, 4)
   const teamMap = Object.fromEntries((teams ?? []).map((item) => [item.id, item]))
-  const isCaptain = session.user.role === 'captain'
-  const isAdmin = session.user.role === 'admin' || session.user.role === 'superadmin'
+  const isCaptain = isTeamCaptain(session, team)
+  const isAdmin = isAtLeastRole(session, 'admin')
+  const canManageCurrentTeam = canManageTeam(session, team)
 
   return (
     <PageContainer>
@@ -67,7 +69,7 @@ export const TeamDetailsPage = () => {
               <p className="mt-1 text-xs text-textMuted">Клуб с акцентом на интенсивный прессинг и быстрые вертикальные атаки.</p>
             </div>
           </div>
-          {(isCaptain || isAdmin) && <div className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textMuted">role actions enabled</div>}
+          {canManageCurrentTeam && <div className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textMuted">Вы можете управлять этой командой</div>}
         </div>
 
         <div className="border-t border-borderSubtle pt-2">
@@ -75,9 +77,9 @@ export const TeamDetailsPage = () => {
         </div>
       </section>
 
-      {(isCaptain || isAdmin) && (
+      {canManageCurrentTeam && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
-          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Wrench size={16} className="text-accentYellow" /> Team role actions</h2>
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Wrench size={16} className="text-accentYellow" /> Управление командой</h2>
           <div className="space-y-2 text-xs text-textSecondary">
             {isCaptain && (
               <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 space-y-2">
@@ -218,7 +220,7 @@ export const TeamDetailsPage = () => {
       </section>
 
       <CommentsSection entityType="team" entityId={team.id} title="Team comments" />
-      {(isCaptain || isAdmin) && <p className="text-xs text-textMuted flex items-center gap-1"><ShieldCheck size={12} className="text-accentYellow" /> Backend access rules still enforced (403/validation surfaced as status text).</p>}
+      {canManageCurrentTeam && <p className="text-xs text-textMuted flex items-center gap-1"><ShieldCheck size={12} className="text-accentYellow" /> Права проверяются и в интерфейсе, и на backend.</p>}
     </PageContainer>
   )
 }

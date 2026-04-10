@@ -13,6 +13,7 @@ import { useEvents } from '../../hooks/data/useEvents'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { ApiError } from '../../infrastructure/api/repositories'
+import { canManagePlayer } from '../../domain/services/accessControl'
 
 const getInitials = (name: string) => name.split(' ').map((part) => part[0]).join('').slice(0, 2)
 
@@ -32,8 +33,8 @@ export const PlayerDetailsPage = () => {
 
   if (!player) return <PageContainer><EmptyState title="Игрок не найден" /></PageContainer>
 
-  const canSelfEdit = session.user.role === 'player'
-  const canManage = session.user.role === 'captain' || session.user.role === 'admin' || session.user.role === 'superadmin'
+  const canSelfEdit = session.user.role === 'player' && session.user.id === player.id
+  const canManage = canManagePlayer(session, player, team)
   const actionError = (error: unknown) => {
     if (error instanceof ApiError) {
       if (error.status === 403) return 'Недостаточно прав для изменения игрока (403).'
@@ -67,7 +68,7 @@ export const PlayerDetailsPage = () => {
               <p className="text-xs text-textMuted">#{player.number} · {player.position} · {player.age} лет</p>
             </div>
           </div>
-          {(canSelfEdit || canManage) && <div className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textMuted">player actions enabled</div>}
+          {(canSelfEdit || canManage) && <div className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textMuted">Редактирование доступно</div>}
         </div>
 
         <SocialLinks compact links={{ telegram: 'https://t.me/ufleague' }} />

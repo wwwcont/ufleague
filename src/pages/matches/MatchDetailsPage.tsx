@@ -16,6 +16,7 @@ import { EntityReactions } from '../../components/ui/EntityReactions'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { ApiError } from '../../infrastructure/api/repositories'
+import { canManageMatch } from '../../domain/services/accessControl'
 
 const statusLabel: Record<string, string> = {
   scheduled: 'По расписанию',
@@ -105,7 +106,7 @@ export const MatchDetailsPage = () => {
     )
   }
 
-  const isAdmin = session.user.role === 'admin' || session.user.role === 'superadmin'
+  const isAdmin = canManageMatch(session)
   const actionError = (error: unknown) => {
     if (error instanceof ApiError) {
       if (error.status === 403) return 'Недостаточно прав для admin match actions (403).'
@@ -132,7 +133,7 @@ export const MatchDetailsPage = () => {
 
       {isAdmin && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
-          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Wrench size={15} className="text-accentYellow" /> Admin match actions</h2>
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Wrench size={15} className="text-accentYellow" /> Редактирование матча</h2>
           <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 text-xs text-textSecondary space-y-2">
             <div className="grid grid-cols-3 gap-2">
               <input value={homeScore} onChange={(e) => setHomeScore(e.target.value)} placeholder="home" className="rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
@@ -190,7 +191,7 @@ export const MatchDetailsPage = () => {
           <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Тур:</span> {match.round}</div>
           <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Venue:</span> {match.venue}</div>
           <div className="rounded-lg border border-dashed border-borderStrong bg-mutedBg px-3 py-2"><span className="text-textMuted">Доп. время:</span> +0′ (placeholder)</div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Служебное:</span> match:{match.id}</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">ID матча:</span> {match.id}</div>
         </div>
       </section>
 

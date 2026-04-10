@@ -93,7 +93,7 @@ export const ProfilePage = () => {
             </div>
             <p className="mt-1 text-xs text-textMuted">{statusLabel} · backend session truth</p>
           </div>
-          <span className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-[11px] text-textMuted">id: {session.user.id}</span>
+          <span className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-[11px] text-textMuted">Личный кабинет</span>
         </div>
 
         <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
@@ -121,8 +121,8 @@ export const ProfilePage = () => {
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-base font-semibold text-textPrimary">Role-aware control panels</h3>
-          <span className="text-xs text-textMuted">role-aware</span>
+          <h3 className="text-base font-semibold text-textPrimary">Доступные разделы управления</h3>
+          <span className="text-xs text-textMuted">по вашим правам</span>
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           {visibleSections.map((item) => (
