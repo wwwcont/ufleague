@@ -24,6 +24,9 @@ export $(cat .env | xargs)
 make migrate-up
 ```
 
+> Миграции запускаются локальным Go tool (`go run ./tools/migrate`) и по умолчанию подключаются к `localhost:5432`.
+> Если нужен другой DSN: `make migrate-up MIGRATE_DATABASE_URL="postgres://..."`.
+
 ### Поднять frontend
 ```bash
 cd ..
