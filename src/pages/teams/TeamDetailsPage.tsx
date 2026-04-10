@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
-import { Trophy, Users } from 'lucide-react'
+import { useState } from 'react'
+import { ShieldCheck, Trophy, Users, Wrench } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
 import { usePlayers } from '../../hooks/data/usePlayers'
@@ -14,6 +15,8 @@ import { SocialLinks } from '../../components/ui/SocialLinks'
 import { tournament } from '../../mocks/data/tournament'
 import { CommentsSection } from '../../components/comments'
 import { EventFeedSection } from '../../components/events'
+import { useSession } from '../../app/providers/use-session'
+import { useRepositories } from '../../app/providers/use-repositories'
 
 const formLabel: Record<string, string> = { W: 'В', D: 'Н', L: 'П' }
 
@@ -25,12 +28,21 @@ export const TeamDetailsPage = () => {
   const { data: standings } = useStandings()
   const { data: matches } = useMatches()
   const { data: teams } = useTeams()
+  const { session } = useSession()
+  const { teamsRepository, eventsRepository } = useRepositories()
+
+  const [inviteUsername, setInviteUsername] = useState('')
+  const [socialTelegram, setSocialTelegram] = useState('https://t.me/ufleague')
+  const [transferCaptainId, setTransferCaptainId] = useState('')
+  const [actionStatus, setActionStatus] = useState<string | null>(null)
 
   if (!team) return <PageContainer><EmptyState title="Команда не найдена" /></PageContainer>
 
   const standing = standings?.find((row) => row.teamId === team.id)
   const teamMatches = (matches ?? []).filter((match) => match.homeTeamId === team.id || match.awayTeamId === team.id).slice(0, 4)
   const teamMap = Object.fromEntries((teams ?? []).map((item) => [item.id, item]))
+  const isCaptain = session.user.role === 'captain'
+  const isAdmin = session.user.role === 'admin' || session.user.role === 'superadmin'
 
   return (
     <PageContainer>
@@ -44,13 +56,87 @@ export const TeamDetailsPage = () => {
               <p className="mt-1 text-xs text-textMuted">Клуб с акцентом на интенсивный прессинг и быстрые вертикальные атаки.</p>
             </div>
           </div>
-          <div className="rounded-lg border border-dashed border-borderStrong px-2 py-1 text-xs text-textMuted">captain/admin actions</div>
+          {(isCaptain || isAdmin) && <div className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textMuted">role actions enabled</div>}
         </div>
 
         <div className="border-t border-borderSubtle pt-2">
-          <SocialLinks compact links={{ telegram: 'https://t.me/ufleague' }} />
+          <SocialLinks compact links={{ telegram: socialTelegram }} />
         </div>
       </section>
+
+      {(isCaptain || isAdmin) && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Wrench size={16} className="text-accentYellow" /> Team role actions</h2>
+          <div className="space-y-2 text-xs text-textSecondary">
+            {isCaptain && (
+              <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 space-y-2">
+                <p className="font-semibold text-textPrimary">Captain tools</p>
+                <div className="flex gap-2">
+                  <input value={inviteUsername} onChange={(e) => setInviteUsername(e.target.value)} placeholder="username для invite" className="flex-1 rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
+                  <button
+                    type="button"
+                    className="rounded-lg bg-accentYellow px-2 py-1 font-semibold text-app"
+                    onClick={async () => {
+                      try { await teamsRepository.captainInviteByUsername?.(team.id, inviteUsername); setActionStatus('Invite отправлен') } catch (error) { setActionStatus((error as Error).message) }
+                    }}
+                  >Invite</button>
+                </div>
+                <div className="flex gap-2">
+                  <input value={socialTelegram} onChange={(e) => setSocialTelegram(e.target.value)} placeholder="telegram link" className="flex-1 rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
+                  <button
+                    type="button"
+                    className="rounded-lg border border-borderSubtle px-2 py-1"
+                    onClick={async () => {
+                      try { await teamsRepository.captainUpdateSocials?.(team.id, { telegram: socialTelegram }); setActionStatus('Соцсети обновлены') } catch (error) { setActionStatus((error as Error).message) }
+                    }}
+                  >Update socials</button>
+                </div>
+                {players?.[0] && (
+                  <button
+                    type="button"
+                    className="rounded-lg border border-borderSubtle px-2 py-1"
+                    onClick={async () => {
+                      try { await teamsRepository.captainSetRosterVisibility?.(team.id, players[0].id, true); setActionStatus('Visibility ростера обновлена') } catch (error) { setActionStatus((error as Error).message) }
+                    }}
+                  >Set roster visibility (demo)</button>
+                )}
+                <button
+                  type="button"
+                  className="rounded-lg border border-borderSubtle px-2 py-1"
+                  onClick={async () => {
+                    try { await eventsRepository.createEventForScope?.({ scopeType: 'team', scopeId: team.id, title: `Update ${team.name}`, body: 'Team event placeholder created from details page.' }); setActionStatus('Team event создан') } catch (error) { setActionStatus((error as Error).message) }
+                  }}
+                >Add team event</button>
+              </div>
+            )}
+
+            {isAdmin && (
+              <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 space-y-2">
+                <p className="font-semibold text-textPrimary">Admin / Superadmin tools</p>
+                <div className="flex gap-2">
+                  <input value={transferCaptainId} onChange={(e) => setTransferCaptainId(e.target.value)} placeholder="new captain user id" className="flex-1 rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
+                  <button
+                    type="button"
+                    className="rounded-lg bg-accentYellow px-2 py-1 font-semibold text-app"
+                    onClick={async () => {
+                      try { await teamsRepository.adminTransferCaptain?.(team.id, transferCaptainId); setActionStatus('Капитан переведен') } catch (error) { setActionStatus((error as Error).message) }
+                    }}
+                  >Transfer captain</button>
+                </div>
+                <button
+                  type="button"
+                  className="rounded-lg border border-borderSubtle px-2 py-1"
+                  onClick={async () => {
+                    try { await teamsRepository.updateTeam?.(team.id, { name: `${team.name}*` }); setActionStatus('Team updated') } catch (error) { setActionStatus((error as Error).message) }
+                  }}
+                >Edit team (demo patch)</button>
+                {session.user.role === 'superadmin' && <p className="text-[11px] text-accentYellow">Superadmin note: role/permission actions доступны в cabinet.</p>}
+              </div>
+            )}
+            {actionStatus && <p className="rounded-lg border border-borderSubtle bg-panelBg px-2 py-1">{actionStatus}</p>}
+          </div>
+        </section>
+      )}
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
         <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Trophy size={16} className="text-accentYellow" /> Quick team stats</h2>
@@ -107,6 +193,7 @@ export const TeamDetailsPage = () => {
       </section>
 
       <CommentsSection entityType="team" entityId={team.id} title="Team comments" />
+      {(isCaptain || isAdmin) && <p className="text-xs text-textMuted flex items-center gap-1"><ShieldCheck size={12} className="text-accentYellow" /> Backend access rules still enforced (403/validation surfaced as status text).</p>}
     </PageContainer>
   )
 }

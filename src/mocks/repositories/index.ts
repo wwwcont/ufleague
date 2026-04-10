@@ -82,6 +82,18 @@ export const commentsRepository: CommentsRepository = {
   async getCurrentAuthor() {
     return currentCommentAuthor
   },
+  async createComment() {
+    return
+  },
+  async replyToComment() {
+    return
+  },
+  async deleteComment() {
+    return
+  },
+  async setReaction() {
+    return
+  },
 }
 
 
@@ -92,11 +104,18 @@ export const sessionRepository: SessionRepository = {
   async getSession() {
     return inMemorySession
   },
-  async setSessionByRole(role) {
+  async startTelegramLogin() {
+    return { authUrl: 'https://t.me/ufleague_auth_bot' }
+  },
+  async completeTelegramLoginWithCode() {
+    inMemorySession = makeSessionByRole('superadmin')
+    return inMemorySession
+  },
+  async loginAsDevRole(role) {
     inMemorySession = makeSessionByRole(role)
     return inMemorySession
   },
-  async clearSession() {
+  async logout() {
     inMemorySession = makeSessionByRole('guest')
   },
 }

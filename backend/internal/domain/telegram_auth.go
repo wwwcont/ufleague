@@ -13,6 +13,10 @@ type TelegramAuthCompleteRequest struct {
 	InitData string `json:"init_data"`
 }
 
+type TelegramCodeLoginRequest struct {
+	Code string `json:"code"`
+}
+
 type TelegramIdentity struct {
 	TelegramID int64
 	Username   string

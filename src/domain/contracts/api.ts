@@ -1,6 +1,5 @@
 import type {
   AuthSession,
-  AuthSessionDTO,
   CommentEntityType,
   EventCategory,
   EventEntityType,
@@ -11,7 +10,7 @@ import type {
 
 export interface AuthApiRepository {
   startTelegramAuth(): Promise<TelegramAuthStartDTO>
-  finalizeTelegramAuth(payload: TelegramAuthFinalizeDTO): Promise<AuthSessionDTO>
+  finalizeTelegramAuth(payload: TelegramAuthFinalizeDTO): Promise<AuthSession>
   getCurrentSession(): Promise<AuthSession | null>
   logout(): Promise<void>
 }

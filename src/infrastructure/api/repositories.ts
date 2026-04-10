@@ -9,9 +9,18 @@ import type {
   StandingsRepository,
   TeamsRepository,
 } from '../../domain/repositories/contracts'
-import type { AuthSession, CommentAuthorState, CommentNode, Match, Player, PublicEvent, SearchResult, Team, UserRole } from '../../domain/entities/types'
+import type { AuthSession, BackendMeDTO, BracketMatch, BracketRound, CommentAuthorState, CommentNode, Match, Player, PublicEvent, SearchResult, StandingRow, Team, UserRole } from '../../domain/entities/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
+
+export class ApiError extends Error {
+  status: number
+
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
 
 function getCsrfToken(): string {
   const m = document.cookie.match(/(?:^|; )csrf_token=([^;]+)/)
@@ -21,7 +30,10 @@ function getCsrfToken(): string {
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const isWrite = (init?.method ?? 'GET').toUpperCase() !== 'GET'
   const res = await fetch(`${API_BASE}${path}`, { credentials: 'include', headers: { 'Content-Type': 'application/json', ...(isWrite ? { 'X-CSRF-Token': getCsrfToken() } : {}), ...(init?.headers ?? {}) }, ...init })
-  if (!res.ok) throw new Error(`API ${res.status}`)
+  if (!res.ok) {
+    const message = (await res.text()).trim() || `API ${res.status}`
+    throw new ApiError(res.status, message)
+  }
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
@@ -31,8 +43,8 @@ const mapTeam = (t: any): Team => ({
   name: t.name,
   shortName: t.name?.slice(0, 3)?.toUpperCase() ?? 'TBD',
   logoUrl: t.logo_url || null,
-  city: t.description || 'N/A',
-  coach: 'TBD',
+  city: t.description || 'UFL',
+  coach: t.socials?.coach ?? 'TBD',
   group: 'A',
   form: ['D', 'D', 'D', 'D', 'D'],
   statsSummary: { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, goalDiff: 0, points: 0 },
@@ -81,7 +93,7 @@ const mapComment = (c: any): CommentNode => ({
   entityType: c.entity_type,
   entityId: String(c.entity_id),
   parentId: c.parent_comment_id ? String(c.parent_comment_id) : null,
-  authorName: `user:${c.author_user_id}`,
+  authorName: c.author_name ?? `user:${c.author_user_id}`,
   authorRole: 'guest',
   isOwn: false,
   createdAt: c.created_at,
@@ -92,43 +104,236 @@ const mapComment = (c: any): CommentNode => ({
   replies: [],
 })
 
+const guestAuthor: CommentAuthorState = { id: '0', name: 'Guest', role: 'guest', isGuest: true, canComment: true, cooldownSeconds: 30 }
+
+const mapAuthorState = (payload: any): CommentAuthorState => ({
+  id: String(payload.id ?? '0'),
+  name: payload.name ?? 'Guest',
+  role: (payload.role ?? 'guest') as CommentAuthorState['role'],
+  isGuest: Boolean(payload.is_guest ?? payload.isGuest ?? true),
+  canComment: Boolean(payload.can_comment ?? payload.canComment ?? true),
+  cooldownSeconds: Number(payload.cooldown_seconds ?? payload.cooldownSeconds ?? 0),
+  blockedReason: payload.blocked_reason ?? payload.blockedReason,
+})
+
 export const teamsRepository: TeamsRepository = {
   async getTeams() { return (await api<any[]>('/api/teams')).map(mapTeam) },
   async getTeamById(teamId) { try { return mapTeam(await api<any>(`/api/teams/${teamId}`)) } catch { return null } },
+  async updateTeam(teamId, patch) {
+    const current = await api<any>(`/api/teams/${teamId}`)
+    await api(`/api/teams/${teamId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        name: patch.name ?? current.name,
+        slug: current.slug,
+        description: patch.city ?? current.description ?? '',
+        logo_url: patch.logoUrl ?? current.logo_url ?? '',
+        socials: current.socials ?? {},
+      }),
+    })
+  },
+  async captainInviteByUsername(teamId, username) {
+    await api(`/api/captain/teams/${teamId}/invite`, { method: 'POST', body: JSON.stringify({ username }) })
+  },
+  async captainUpdateSocials(teamId, socials) {
+    await api(`/api/captain/teams/${teamId}/socials`, { method: 'PATCH', body: JSON.stringify({ socials }) })
+  },
+  async captainSetRosterVisibility(teamId, playerId, isVisible) {
+    await api(`/api/captain/teams/${teamId}/roster/${playerId}`, { method: 'PATCH', body: JSON.stringify({ visible: isVisible }) })
+  },
+  async adminTransferCaptain(teamId, newCaptainUserId) {
+    await api(`/api/admin/teams/${teamId}/transfer-captain`, { method: 'POST', body: JSON.stringify({ new_captain_user_id: Number(newCaptainUserId) }) })
+  },
 }
 export const playersRepository: PlayersRepository = {
   async getPlayers(teamId) { const list = (await api<any[]>('/api/players')).map(mapPlayer); return teamId ? list.filter((p) => p.teamId === teamId) : list },
   async getPlayerById(playerId) { try { return mapPlayer(await api<any>(`/api/players/${playerId}`)) } catch { return null } },
+  async updatePlayer(playerId, patch) {
+    const current = await api<any>(`/api/players/${playerId}`)
+    await api(`/api/players/${playerId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        team_id: current.team_id,
+        full_name: patch.displayName ?? current.full_name,
+        nickname: current.nickname ?? '',
+        avatar_url: patch.avatar ?? current.avatar_url ?? '',
+        socials: current.socials ?? {},
+        position: patch.position ?? current.position ?? 'MF',
+        shirt_number: patch.number ?? current.shirt_number ?? 0,
+      }),
+    })
+  },
 }
 export const matchesRepository: MatchesRepository = {
   async getMatches() { return (await api<any[]>('/api/matches')).map(mapMatch) },
   async getMatchById(matchId) { try { return mapMatch(await api<any>(`/api/matches/${matchId}`)) } catch { return null } },
+  async updateMatch(matchId, patch) {
+    const current = await api<any>(`/api/matches/${matchId}`)
+    await api(`/api/matches/${matchId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        home_team_id: current.home_team_id,
+        away_team_id: current.away_team_id,
+        start_at: current.start_at,
+        status: patch.status ?? current.status,
+        home_score: patch.homeScore ?? current.home_score,
+        away_score: patch.awayScore ?? current.away_score,
+        extra_time: current.extra_time ?? {},
+        venue: patch.venue ?? current.venue ?? '',
+      }),
+    })
+  },
 }
-export const standingsRepository: StandingsRepository = { async getStandings() { return [] } }
-export const bracketRepository: BracketRepository = { async getBracket() { return { rounds: [], matches: [] } } }
-export const searchRepository: SearchRepository = { async searchAll(query: string): Promise<SearchResult[]> { return query ? [] : [] } }
+export const standingsRepository: StandingsRepository = {
+  async getStandings() {
+    const rows = await api<any[]>('/api/standings')
+    return rows.map((row): StandingRow => ({
+      position: row.position,
+      teamId: String(row.team_id),
+      played: row.played,
+      won: row.won,
+      drawn: row.drawn,
+      lost: row.lost,
+      goalsFor: row.goals_for,
+      goalsAgainst: row.goals_against,
+      goalDiff: row.goal_diff,
+      points: row.points,
+    }))
+  },
+}
+export const bracketRepository: BracketRepository = {
+  async getBracket() {
+    const data = await api<{ rounds: any[]; matches: any[] }>('/api/bracket')
+    const rounds: BracketRound[] = data.rounds.map((round) => ({ id: round.id, label: round.label, order: round.order }))
+    const matches: BracketMatch[] = data.matches.map((match) => ({
+      id: match.id,
+      roundId: match.round_id,
+      slot: match.slot,
+      homeTeamId: match.home_team_id ? String(match.home_team_id) : null,
+      awayTeamId: match.away_team_id ? String(match.away_team_id) : null,
+      winnerTeamId: match.winner_team_id ? String(match.winner_team_id) : null,
+      status: match.status,
+      linkedMatchId: match.linked_match_id,
+      score: match.home_score !== undefined && match.away_score !== undefined ? { home: match.home_score, away: match.away_score } : undefined,
+    }))
+    return { rounds, matches }
+  },
+}
+export const searchRepository: SearchRepository = {
+  async searchAll(query: string): Promise<SearchResult[]> {
+    const q = query.trim()
+    if (!q) return []
+    const list = await api<any[]>(`/api/search?q=${encodeURIComponent(q)}`)
+    return list.map((item) => ({
+      id: item.id,
+      type: item.type,
+      entityId: item.entity_id,
+      title: item.title,
+      subtitle: item.subtitle,
+      route: item.route,
+    }))
+  },
+}
 export const eventsRepository: EventsRepository = {
   async getEvents() { return (await api<any[]>('/api/events')).map(mapEvent) },
   async getEventById(id) { try { return mapEvent(await api<any>(`/api/events/${id}`)) } catch { return null } },
+  async createEventForScope(input) {
+    await api('/api/events', {
+      method: 'POST',
+      body: JSON.stringify({
+        scope_type: input.scopeType,
+        scope_id: input.scopeId ? Number(input.scopeId) : null,
+        title: input.title,
+        body: input.body,
+        metadata: {},
+        visibility: 'public',
+        is_pinned: false,
+      }),
+    })
+  },
 }
 export const commentsRepository: CommentsRepository = {
   async getComments(entityType, entityId) {
-    const flat = (await api<any[]>(`/api/comments?entityType=${entityType}&entityId=${entityId}`)).map(mapComment)
+    const [flatRaw, author] = await Promise.all([
+      api<any[]>(`/api/comments?entityType=${entityType}&entityId=${entityId}`),
+      api<any>('/api/comments/author-state').catch(() => null),
+    ])
+    const currentAuthor = author ? mapAuthorState(author) : guestAuthor
+    const flat = flatRaw.map((raw) => {
+      const comment = mapComment(raw)
+      const isOwn = String(raw.author_user_id) === currentAuthor.id
+      return {
+        ...comment,
+        isOwn,
+        canDelete: isOwn || currentAuthor.role === 'admin' || currentAuthor.role === 'superadmin',
+      }
+    })
     const roots = flat.filter((c) => c.parentId === null)
     return roots.map((r) => ({ ...r, replies: flat.filter((x) => x.parentId === r.id) }))
   },
-  async getCurrentAuthor(): Promise<CommentAuthorState> { return { id: '0', name: 'You', role: 'guest', isGuest: false, canComment: true, cooldownSeconds: 0 } },
+  async getCurrentAuthor(): Promise<CommentAuthorState> {
+    try {
+      return mapAuthorState(await api<any>('/api/comments/author-state'))
+    } catch {
+      return guestAuthor
+    }
+  },
+  async createComment(entityType, entityId, text) {
+    await api('/api/comments', { method: 'POST', body: JSON.stringify({ entity_type: entityType, entity_id: Number(entityId), body: text }) })
+  },
+  async replyToComment(parentCommentId, text) {
+    await api(`/api/comments/${parentCommentId}/reply`, { method: 'POST', body: JSON.stringify({ body: text }) })
+  },
+  async deleteComment(commentId) {
+    await api(`/api/comments/${commentId}`, { method: 'DELETE' })
+  },
+  async setReaction(commentId, reaction) {
+    await api(`/api/comments/${commentId}/reactions`, { method: 'POST', body: JSON.stringify({ reaction_type: reaction }) })
+  },
 }
 
-let sessionCache: AuthSession = { isAuthenticated: false, user: { id: '0', displayName: 'Guest', role: 'guest' }, permissions: [] }
+const guestSession: AuthSession = { isAuthenticated: false, user: { id: '0', displayName: 'Guest', role: 'guest' }, permissions: [] }
+
+const mapMeToSession = (me: BackendMeDTO): AuthSession => {
+  const role = (me.user.roles?.[0] ?? 'guest') as UserRole
+  const permissions = Array.isArray(me.user.permissions) ? me.user.permissions : []
+
+  return {
+    isAuthenticated: true,
+    user: {
+      id: String(me.user.id),
+      displayName: me.user.display_name,
+      role,
+    },
+    permissions: permissions as AuthSession['permissions'],
+    lastLoginAt: me.session.created_at,
+  }
+}
+
 export const sessionRepository: SessionRepository = {
-  async getSession() { try { const me = await api<any>('/api/auth/me'); const role = (me.user.roles?.[0] ?? 'guest') as UserRole; sessionCache = { isAuthenticated: true, user: { id: String(me.user.id), displayName: me.user.display_name, role }, permissions: [] }; return sessionCache } catch { return sessionCache } },
-  async setSessionByRole(role) {
-    const me = await api<any>('/api/auth/dev-login', { method: 'POST', body: JSON.stringify({ username: `dev_${role}`, display_name: `Dev ${role}`, roles: [role] }) })
-    sessionCache = { isAuthenticated: true, user: { id: String(me.user.id), displayName: me.user.display_name, role }, permissions: [] }
-    return sessionCache
+  async getSession() {
+    try {
+      const me = await api<BackendMeDTO>('/api/auth/me')
+      return mapMeToSession(me)
+    } catch {
+      return guestSession
+    }
   },
-  async clearSession() { await api('/api/auth/logout', { method: 'POST', headers: { 'X-CSRF-Token': 'dev' } }).catch(() => undefined); sessionCache = { isAuthenticated: false, user: { id: '0', displayName: 'Guest', role: 'guest' }, permissions: [] } },
+  async startTelegramLogin() {
+    const data = await api<{ auth_url?: string; authUrl?: string }>('/api/auth/telegram/start', { method: 'POST' })
+    return { authUrl: data.authUrl ?? data.auth_url ?? 'https://t.me/ufleague_auth_bot' }
+  },
+  async completeTelegramLoginWithCode(code: string) {
+    const me = await api<BackendMeDTO>('/api/auth/telegram/mock-code-login', { method: 'POST', body: JSON.stringify({ code }) })
+    return mapMeToSession(me)
+  },
+  async loginAsDevRole(role) {
+    const me = await api<any>('/api/auth/dev-login', { method: 'POST', body: JSON.stringify({ username: `dev_${role}`, display_name: `Dev ${role}`, roles: [role] }) })
+    return { isAuthenticated: true, user: { id: String(me.user.id), displayName: me.user.display_name, role }, permissions: [], lastLoginAt: me.session?.created_at }
+  },
+  async logout() {
+    await api('/api/auth/logout', { method: 'POST' }).catch(() => undefined)
+  },
 }
 
 export const repositories = { teamsRepository, playersRepository, matchesRepository, standingsRepository, bracketRepository, searchRepository, commentsRepository, eventsRepository, sessionRepository }

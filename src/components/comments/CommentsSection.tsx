@@ -17,7 +17,9 @@ export const CommentsSection = ({ entityType, entityId, title = 'Коммент�
     comments,
     author,
     isLoading,
+    isSubmitting,
     composerBlockedReason,
+    feedbackMessage,
     activeReplyTo,
     setActiveReplyTo,
     addComment,
@@ -37,11 +39,13 @@ export const CommentsSection = ({ entityType, entityId, title = 'Коммент�
       <div className="mb-3">
         <CommentComposer
           blockedReason={composerBlockedReason}
+          statusMessage={feedbackMessage}
+          isSubmitting={isSubmitting}
           replyTo={activeReplyTo}
           onCancelReply={() => setActiveReplyTo(null)}
-          onSubmit={(text, replyToId) => {
-            if (replyToId) addReply(replyToId, text)
-            else addComment(text)
+          onSubmit={async (text, replyToId) => {
+            if (replyToId) await addReply(replyToId, text)
+            else await addComment(text)
           }}
         />
       </div>
@@ -52,8 +56,8 @@ export const CommentsSection = ({ entityType, entityId, title = 'Коммент�
         <CommentList
           comments={visibleComments}
           onReply={(commentId, authorName) => setActiveReplyTo({ id: commentId, author: authorName })}
-          onDelete={removeComment}
-          onReact={reactToComment}
+          onDelete={(commentId) => { void removeComment(commentId) }}
+          onReact={(commentId, reaction) => { void reactToComment(commentId, reaction) }}
         />
       )}
       {collapsed && comments.length > 3 && (

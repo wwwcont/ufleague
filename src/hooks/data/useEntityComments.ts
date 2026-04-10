@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { CommentAuthorState, CommentEntityType, CommentNode, CommentReactionType } from '../../domain/entities/types'
 import { useRepositories } from '../../app/providers/use-repositories'
-
-const nowStamp = () => new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+import { ApiError } from '../../infrastructure/api/repositories'
 
 const updateCommentTree = (items: CommentNode[], commentId: string, updater: (comment: CommentNode) => CommentNode): CommentNode[] =>
   items.map((item) => {
@@ -10,44 +9,31 @@ const updateCommentTree = (items: CommentNode[], commentId: string, updater: (co
     return { ...item, replies: updateCommentTree(item.replies, commentId, updater) }
   })
 
-const removeFromTree = (items: CommentNode[], commentId: string): CommentNode[] =>
-  items
-    .filter((item) => item.id !== commentId)
-    .map((item) => ({
-      ...item,
-      replies: removeFromTree(item.replies, commentId),
-    }))
-
-const findComment = (items: CommentNode[], commentId: string): CommentNode | null => {
-  for (const item of items) {
-    if (item.id === commentId) return item
-    const nested = findComment(item.replies, commentId)
-    if (nested) return nested
+const extractUiError = (error: unknown): string => {
+  if (error instanceof ApiError) {
+    if (error.status === 401) return 'Нужна активная session. Сначала выполните вход.'
+    if (error.status === 403 && error.message.includes('restricted')) return 'Ваш аккаунт ограничен: комментирование недоступно.'
+    if (error.status === 403) return 'Недостаточно прав для этого действия.'
+    if (error.status === 429) return 'Слишком часто. Подождите немного и попробуйте снова.'
+    return `Ошибка API (${error.status}): ${error.message}`
   }
-  return null
-}
-
-const findThreadRootId = (items: CommentNode[], commentId: string): string | null => {
-  for (const item of items) {
-    if (item.id === commentId) return item.parentId ?? item.id
-    const nested = findThreadRootId(item.replies, commentId)
-    if (nested) return nested
-  }
-  return null
+  return 'Не удалось выполнить действие с комментариями.'
 }
 
 interface UseEntityCommentsResult {
   comments: CommentNode[]
   isLoading: boolean
+  isSubmitting: boolean
   author: CommentAuthorState | null
   composerBlockedReason: string | null
   cooldownLeft: number
+  feedbackMessage: string | null
   activeReplyTo: { id: string; author: string } | null
   setActiveReplyTo: (reply: { id: string; author: string } | null) => void
-  addComment: (text: string) => void
-  addReply: (parentId: string, text: string) => void
-  removeComment: (commentId: string) => void
-  reactToComment: (commentId: string, reaction: Exclude<CommentReactionType, null>) => void
+  addComment: (text: string) => Promise<void>
+  addReply: (parentId: string, text: string) => Promise<void>
+  removeComment: (commentId: string) => Promise<void>
+  reactToComment: (commentId: string, reaction: Exclude<CommentReactionType, null>) => Promise<void>
 }
 
 export const useEntityComments = (entityType: CommentEntityType, entityId?: string): UseEntityCommentsResult => {
@@ -55,34 +41,38 @@ export const useEntityComments = (entityType: CommentEntityType, entityId?: stri
   const [comments, setComments] = useState<CommentNode[]>([])
   const [author, setAuthor] = useState<CommentAuthorState | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null)
   const [lastSentAt, setLastSentAt] = useState<number | null>(null)
   const [nowTs, setNowTs] = useState(0)
   const [activeReplyTo, setActiveReplyTo] = useState<{ id: string; author: string } | null>(null)
 
-  useEffect(() => {
-    let mounted = true
-    const run = async () => {
-      if (!entityId) {
-        setComments([])
-        setIsLoading(false)
-        return
-      }
-      setIsLoading(true)
+  const load = useCallback(async () => {
+    if (!entityId) {
+      setComments([])
+      setIsLoading(false)
+      return
+    }
+
+    setIsLoading(true)
+    setFeedbackMessage(null)
+    try {
       const [list, currentAuthor] = await Promise.all([
         commentsRepository.getComments(entityType, entityId),
         commentsRepository.getCurrentAuthor(),
       ])
-      if (!mounted) return
       setComments(list)
       setAuthor(currentAuthor)
+    } catch (error) {
+      setFeedbackMessage(extractUiError(error))
+    } finally {
       setIsLoading(false)
     }
-
-    void run()
-    return () => {
-      mounted = false
-    }
   }, [commentsRepository, entityId, entityType])
+
+  useEffect(() => {
+    void load()
+  }, [load])
 
   const cooldownLeft = useMemo(() => {
     if (!author || !lastSentAt || !author.isGuest) return 0
@@ -101,54 +91,60 @@ export const useEntityComments = (entityType: CommentEntityType, entityId?: stri
   const composerBlockedReason = useMemo(() => {
     if (!author) return null
     if (!author.canComment) return author.blockedReason ?? 'Комментирование временно недоступно'
-    if (cooldownLeft > 0) return `Гость может писать раз в 30 секунд. Подождите ${cooldownLeft} c.`
+    if (cooldownLeft > 0) return `Новый комментарий можно отправить через ${cooldownLeft} c.`
     return null
   }, [author, cooldownLeft])
 
-  const appendComment = useCallback((text: string, parentId: string | null) => {
-    if (!author || !entityId) return
-
-    const targetComment = parentId ? findComment(comments, parentId) : null
-    const threadRootId = parentId ? findThreadRootId(comments, parentId) : null
-
-    const normalizedText = targetComment
-      ? (text.trim().startsWith(`@${targetComment.authorName}`) ? text : `@${targetComment.authorName} ${text}`)
-      : text
-
-    const payload: CommentNode = {
-      id: `local_${Date.now()}`,
-      entityType,
-      entityId,
-      parentId: threadRootId,
-      authorName: author.name,
-      authorRole: author.role,
-      isOwn: true,
-      createdAt: nowStamp(),
-      text: normalizedText,
-      reactions: { likes: 0, dislikes: 0, userReaction: null },
-      canReply: true,
-      canDelete: true,
-      replies: [],
+  const addComment = useCallback(async (text: string) => {
+    if (!entityId) return
+    setIsSubmitting(true)
+    setFeedbackMessage(null)
+    try {
+      await commentsRepository.createComment(entityType, entityId, text)
+      setLastSentAt(new Date().getTime())
+      setNowTs(new Date().getTime())
+      await load()
+    } catch (error) {
+      setFeedbackMessage(extractUiError(error))
+    } finally {
+      setIsSubmitting(false)
     }
+  }, [commentsRepository, entityId, entityType, load])
 
-    setComments((prev) => {
-      if (!threadRootId) return [...prev, payload]
-      return updateCommentTree(prev, threadRootId, (comment) => ({ ...comment, replies: [...comment.replies, payload] }))
-    })
+  const addReply = useCallback(async (parentId: string, text: string) => {
+    setIsSubmitting(true)
+    setFeedbackMessage(null)
+    try {
+      await commentsRepository.replyToComment(parentId, text)
+      setLastSentAt(new Date().getTime())
+      setNowTs(new Date().getTime())
+      setActiveReplyTo(null)
+      await load()
+    } catch (error) {
+      setFeedbackMessage(extractUiError(error))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [commentsRepository, load])
 
-    setLastSentAt(new Date().getTime())
-    setNowTs(new Date().getTime())
-    setActiveReplyTo(null)
-  }, [author, comments, entityId, entityType])
+  const removeComment = useCallback(async (commentId: string) => {
+    setIsSubmitting(true)
+    setFeedbackMessage(null)
+    try {
+      await commentsRepository.deleteComment(commentId)
+      setComments((prev) => prev.filter((item) => item.id !== commentId).map((item) => ({ ...item, replies: item.replies.filter((reply) => reply.id !== commentId) })))
+      await load()
+    } catch (error) {
+      setFeedbackMessage(extractUiError(error))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [commentsRepository, load])
 
-  const addComment = useCallback((text: string) => appendComment(text, null), [appendComment])
-  const addReply = useCallback((parentId: string, text: string) => appendComment(text, parentId), [appendComment])
+  const reactToComment = useCallback(async (commentId: string, reaction: Exclude<CommentReactionType, null>) => {
+    const before = comments
+    setFeedbackMessage(null)
 
-  const removeComment = useCallback((commentId: string) => {
-    setComments((prev) => removeFromTree(prev, commentId))
-  }, [])
-
-  const reactToComment = useCallback((commentId: string, reaction: Exclude<CommentReactionType, null>) => {
     const applyReaction = (comment: CommentNode) => {
       const current = comment.reactions.userReaction
       let likes = comment.reactions.likes
@@ -158,29 +154,30 @@ export const useEntityComments = (entityType: CommentEntityType, entityId?: stri
       if (current === 'dislike') dislikes = Math.max(dislikes - 1, 0)
 
       const nextReaction: CommentReactionType = current === reaction ? null : reaction
-
       if (nextReaction === 'like') likes += 1
       if (nextReaction === 'dislike') dislikes += 1
 
-      return {
-        ...comment,
-        reactions: {
-          likes,
-          dislikes,
-          userReaction: nextReaction,
-        },
-      }
+      return { ...comment, reactions: { likes, dislikes, userReaction: nextReaction } }
     }
 
     setComments((prev) => updateCommentTree(prev, commentId, applyReaction))
-  }, [])
+
+    try {
+      await commentsRepository.setReaction(commentId, reaction)
+    } catch (error) {
+      setComments(before)
+      setFeedbackMessage(extractUiError(error))
+    }
+  }, [comments, commentsRepository])
 
   return {
     comments,
     isLoading,
+    isSubmitting,
     author,
     composerBlockedReason,
     cooldownLeft,
+    feedbackMessage,
     activeReplyTo,
     setActiveReplyTo,
     addComment,

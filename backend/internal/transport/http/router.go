@@ -3,7 +3,9 @@ package http
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -54,6 +56,9 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		}
 		r.Post("/telegram/start", h.TelegramAuthStart)
 		r.Post("/telegram/complete", h.TelegramAuthComplete)
+		if cfg.Features.TelegramMockLoginEnabled {
+			r.Post("/telegram/mock-code-login", h.TelegramMockCodeLogin)
+		}
 	})
 
 	r.Route("/api", func(r chi.Router) {
@@ -63,9 +68,13 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.Get("/players/{id}", h.GetPlayer)
 		r.Get("/matches", h.ListMatches)
 		r.Get("/matches/{id}", h.GetMatch)
+		r.Get("/standings", h.GetStandings)
+		r.Get("/bracket", h.GetBracket)
+		r.Get("/search", h.Search)
 		r.Get("/events", h.ListEvents)
 		r.Get("/events/{id}", h.GetEvent)
 		r.Get("/comments", h.ListComments)
+		r.Get("/comments/author-state", h.GetCommentAuthorState)
 
 		r.With(sessionMW.RequireSession).Post("/teams", h.CreateTeam)
 		r.With(sessionMW.RequireSession).Patch("/teams/{id}", h.UpdateTeam)
@@ -146,6 +155,50 @@ func (h Handler) DevLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sess, err := h.authRepo.CreateSession(r.Context(), repository.CreateSessionParams{UserID: user.ID, TokenHash: tokenHash, UserAgent: r.UserAgent(), IPAddress: clientIP(r), ExpiresAt: time.Now().UTC().Add(h.session.TTL()).Format(time.RFC3339)})
+	if err != nil {
+		http.Error(w, "failed to create session", 500)
+		return
+	}
+	setSessionCookie(w, h.session, rawToken, sess.ExpiresAt)
+	writeJSON(w, 200, domain.MeResponse{User: user, Session: sess})
+}
+
+func (h Handler) TelegramMockCodeLogin(w http.ResponseWriter, r *http.Request) {
+	var req domain.TelegramCodeLoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	if strings.TrimSpace(req.Code) == "" {
+		http.Error(w, "code is required", 400)
+		return
+	}
+	if req.Code != h.cfg.Features.TelegramMockCode {
+		http.Error(w, "invalid code", 401)
+		return
+	}
+
+	user, err := h.authRepo.UpsertDevUser(r.Context(), domain.DevLoginRequest{
+		Username:    "telegram_superadmin_mock",
+		DisplayName: "Telegram Superadmin",
+		Roles:       []domain.Role{domain.RoleSuperadmin},
+	})
+	if err != nil {
+		http.Error(w, "failed to upsert user", 500)
+		return
+	}
+	rawToken, tokenHash, err := h.session.GenerateToken()
+	if err != nil {
+		http.Error(w, "failed to create session token", 500)
+		return
+	}
+	sess, err := h.authRepo.CreateSession(r.Context(), repository.CreateSessionParams{
+		UserID:    user.ID,
+		TokenHash: tokenHash,
+		UserAgent: r.UserAgent(),
+		IPAddress: clientIP(r),
+		ExpiresAt: time.Now().UTC().Add(h.session.TTL()).Format(time.RFC3339),
+	})
 	if err != nil {
 		http.Error(w, "failed to create session", 500)
 		return
@@ -332,6 +385,201 @@ func (h Handler) GetMatch(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, item)
 }
+
+func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
+	teams, err := h.tournament.ListTeams(r.Context())
+	if err != nil {
+		http.Error(w, "failed", 500)
+		return
+	}
+	matches, err := h.tournament.ListMatches(r.Context())
+	if err != nil {
+		http.Error(w, "failed", 500)
+		return
+	}
+
+	stats := make(map[int64]*domain.StandingRow, len(teams))
+	for _, team := range teams {
+		stats[team.ID] = &domain.StandingRow{TeamID: team.ID}
+	}
+
+	for _, m := range matches {
+		if m.Status == "scheduled" {
+			continue
+		}
+		home := stats[m.HomeTeamID]
+		away := stats[m.AwayTeamID]
+		if home == nil || away == nil {
+			continue
+		}
+
+		home.Played++
+		away.Played++
+		home.GoalsFor += m.HomeScore
+		home.GoalsAgainst += m.AwayScore
+		away.GoalsFor += m.AwayScore
+		away.GoalsAgainst += m.HomeScore
+
+		switch {
+		case m.HomeScore > m.AwayScore:
+			home.Won++
+			away.Lost++
+			home.Points += 3
+		case m.HomeScore < m.AwayScore:
+			away.Won++
+			home.Lost++
+			away.Points += 3
+		default:
+			home.Drawn++
+			away.Drawn++
+			home.Points++
+			away.Points++
+		}
+	}
+
+	rows := make([]domain.StandingRow, 0, len(stats))
+	for _, row := range stats {
+		row.GoalDiff = row.GoalsFor - row.GoalsAgainst
+		rows = append(rows, *row)
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].Points != rows[j].Points {
+			return rows[i].Points > rows[j].Points
+		}
+		if rows[i].GoalDiff != rows[j].GoalDiff {
+			return rows[i].GoalDiff > rows[j].GoalDiff
+		}
+		if rows[i].GoalsFor != rows[j].GoalsFor {
+			return rows[i].GoalsFor > rows[j].GoalsFor
+		}
+		return rows[i].TeamID < rows[j].TeamID
+	})
+
+	for i := range rows {
+		rows[i].Position = i + 1
+	}
+	writeJSON(w, 200, rows)
+}
+
+func (h Handler) GetBracket(w http.ResponseWriter, r *http.Request) {
+	matches, err := h.tournament.ListMatches(r.Context())
+	if err != nil {
+		http.Error(w, "failed", 500)
+		return
+	}
+	sort.Slice(matches, func(i, j int) bool { return matches[i].StartAt.Before(matches[j].StartAt) })
+
+	roundOrder := map[string]int{}
+	rounds := make([]domain.BracketRound, 0)
+	byRound := map[string]int{}
+	bracketMatches := make([]domain.BracketMatch, 0, len(matches))
+
+	for _, match := range matches {
+		key := match.StartAt.Format("2006-01-02")
+		if _, ok := roundOrder[key]; !ok {
+			order := len(rounds) + 1
+			roundID := fmt.Sprintf("round_%d", order)
+			roundOrder[key] = order
+			rounds = append(rounds, domain.BracketRound{
+				ID:    roundID,
+				Label: match.StartAt.Format("02 Jan"),
+				Order: order,
+			})
+		}
+		order := roundOrder[key]
+		roundID := fmt.Sprintf("round_%d", order)
+		byRound[roundID]++
+		slot := byRound[roundID]
+		homeID, awayID := match.HomeTeamID, match.AwayTeamID
+		out := domain.BracketMatch{
+			ID:          strconv.FormatInt(match.ID, 10),
+			RoundID:     roundID,
+			Slot:        slot,
+			HomeTeamID:  &homeID,
+			AwayTeamID:  &awayID,
+			Status:      match.Status,
+			LinkedMatch: strconv.FormatInt(match.ID, 10),
+			HomeScore:   &match.HomeScore,
+			AwayScore:   &match.AwayScore,
+		}
+		if match.Status == "finished" {
+			if match.HomeScore > match.AwayScore {
+				out.WinnerTeamID = &homeID
+			} else if match.AwayScore > match.HomeScore {
+				out.WinnerTeamID = &awayID
+			}
+		}
+		bracketMatches = append(bracketMatches, out)
+	}
+
+	writeJSON(w, 200, domain.BracketResponse{Rounds: rounds, Matches: bracketMatches})
+}
+
+func (h Handler) Search(w http.ResponseWriter, r *http.Request) {
+	query := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("q")))
+	if query == "" {
+		writeJSON(w, 200, []domain.SearchResult{})
+		return
+	}
+
+	results := make([]domain.SearchResult, 0, 30)
+	teams, _ := h.tournament.ListTeams(r.Context())
+	for _, team := range teams {
+		if strings.Contains(strings.ToLower(team.Name+" "+team.Description), query) {
+			results = append(results, domain.SearchResult{
+				ID:       "team_" + strconv.FormatInt(team.ID, 10),
+				Type:     "team",
+				EntityID: strconv.FormatInt(team.ID, 10),
+				Title:    team.Name,
+				Subtitle: team.Description,
+				Route:    "/teams/" + strconv.FormatInt(team.ID, 10),
+			})
+		}
+	}
+	players, _ := h.tournament.ListPlayers(r.Context())
+	for _, player := range players {
+		if strings.Contains(strings.ToLower(player.FullName+" "+player.Position), query) {
+			results = append(results, domain.SearchResult{
+				ID:       "player_" + strconv.FormatInt(player.ID, 10),
+				Type:     "player",
+				EntityID: strconv.FormatInt(player.ID, 10),
+				Title:    player.FullName,
+				Subtitle: player.Position,
+				Route:    "/players/" + strconv.FormatInt(player.ID, 10),
+			})
+		}
+	}
+	matches, _ := h.tournament.ListMatches(r.Context())
+	for _, match := range matches {
+		raw := strings.ToLower(match.Venue + " " + match.Status + " " + match.StartAt.Format(time.DateOnly))
+		if strings.Contains(raw, query) {
+			results = append(results, domain.SearchResult{
+				ID:       "match_" + strconv.FormatInt(match.ID, 10),
+				Type:     "match",
+				EntityID: strconv.FormatInt(match.ID, 10),
+				Title:    match.StartAt.Format(time.DateTime),
+				Subtitle: match.Venue,
+				Route:    "/matches/" + strconv.FormatInt(match.ID, 10),
+			})
+		}
+	}
+	events, _ := h.events.ListEvents(r.Context())
+	for _, event := range events {
+		if strings.Contains(strings.ToLower(event.Title+" "+event.Body), query) {
+			results = append(results, domain.SearchResult{
+				ID:       "event_" + strconv.FormatInt(event.ID, 10),
+				Type:     "event",
+				EntityID: strconv.FormatInt(event.ID, 10),
+				Title:    event.Title,
+				Subtitle: string(event.ScopeType) + " event",
+				Route:    "/events/" + strconv.FormatInt(event.ID, 10),
+			})
+		}
+	}
+
+	writeJSON(w, 200, results)
+}
 func (h Handler) CreateMatch(w http.ResponseWriter, r *http.Request) {
 	current, ok := middleware.CurrentSession(r.Context())
 	if !ok {
@@ -467,6 +715,47 @@ func (h Handler) ListComments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, items)
+}
+
+func (h Handler) GetCommentAuthorState(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		writeJSON(w, 200, domain.CommentAuthorState{
+			ID:             0,
+			Name:           "Guest",
+			Role:           domain.RoleGuest,
+			IsGuest:        true,
+			CanComment:     true,
+			CooldownSecond: int(h.cfg.Features.CommentsCooldown.Seconds()),
+		})
+		return
+	}
+
+	role := domain.RoleGuest
+	if len(current.User.Roles) > 0 {
+		role = current.User.Roles[0]
+	}
+
+	state := domain.CommentAuthorState{
+		ID:             current.User.ID,
+		Name:           current.User.DisplayName,
+		Role:           role,
+		IsGuest:        role == domain.RoleGuest,
+		CanComment:     true,
+		CooldownSecond: 0,
+	}
+
+	for _, restriction := range current.User.Restrictions {
+		if strings.HasPrefix(restriction, "comments:banned") {
+			state.CanComment = false
+			state.BlockedReason = "Комментарии временно отключены для вашего аккаунта"
+		}
+	}
+	if state.IsGuest {
+		state.CooldownSecond = int(h.cfg.Features.CommentsCooldown.Seconds())
+	}
+
+	writeJSON(w, 200, state)
 }
 func (h Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	current, ok := middleware.CurrentSession(r.Context())

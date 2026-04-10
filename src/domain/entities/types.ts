@@ -117,6 +117,7 @@ export interface UserSession {
   displayName?: string
 }
 
+export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
 
 export type CommentEntityType = 'match' | 'team' | 'player' | 'event'
 export type CommentReactionType = 'like' | 'dislike' | null
@@ -133,7 +134,7 @@ export interface CommentNode {
   entityId: ID
   parentId: ID | null
   authorName: string
-  authorRole: 'guest' | 'captain' | 'admin'
+  authorRole: UserRole
   isOwn: boolean
   createdAt: string
   text: string
@@ -146,7 +147,7 @@ export interface CommentNode {
 export interface CommentAuthorState {
   id: ID
   name: string
-  role: 'guest' | 'captain' | 'admin'
+  role: UserRole
   isGuest: boolean
   canComment: boolean
   cooldownSeconds: number
@@ -207,6 +208,10 @@ export interface AuthSession {
   lastLoginAt?: string
 }
 
+export interface AuthenticatedUser extends SessionUser {
+  role: Exclude<UserRole, 'guest'>
+}
+
 export interface RolePermissionProfile {
   role: UserRole
   permissions: PermissionKey[]
@@ -223,8 +228,20 @@ export interface TelegramAuthFinalizeDTO {
   code: string
 }
 
-export interface AuthSessionDTO {
-  accessToken: string
-  refreshToken: string
-  session: AuthSession
+export interface BackendMeDTO {
+  user: {
+    id: number | string
+    username: string
+    display_name: string
+    roles: UserRole[]
+    permissions: PermissionKey[] | string[]
+    restrictions?: string[]
+    telegram_id?: number | null
+  }
+  session: {
+    id: string
+    user_id: number | string
+    expires_at: string
+    created_at: string
+  }
 }
