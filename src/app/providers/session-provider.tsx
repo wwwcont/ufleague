@@ -1,62 +1,95 @@
 import type { ReactNode } from 'react'
-import { useCallback, useEffect, useState } from 'react'
-import type { AuthSession, UserRole } from '../../domain/entities/types'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { AuthSession, AuthStatus, UserRole } from '../../domain/entities/types'
 import { useRepositories } from './use-repositories'
 import { SessionContext } from './session-context'
 
 const STORAGE_KEY = 'ufl_session_v1'
 
-const parseStored = (raw: string | null): AuthSession | null => {
-  if (!raw) return null
-  try {
-    return JSON.parse(raw) as AuthSession
-  } catch {
-    return null
-  }
+const guestSession: AuthSession = {
+  isAuthenticated: false,
+  user: { id: 'u_guest', displayName: 'Guest', role: 'guest' },
+  permissions: [],
+}
+
+const persistSession = (session: AuthSession) => {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session))
+}
+
+const clearPersistedSession = () => {
+  window.localStorage.removeItem(STORAGE_KEY)
 }
 
 export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const { sessionRepository } = useRepositories()
-  const [session, setSession] = useState<AuthSession>({
-    isAuthenticated: false,
-    user: { id: 'u_guest', displayName: 'Guest_42', role: 'guest' },
-    permissions: [],
-  })
-  const [isLoading, setIsLoading] = useState(true)
+  const [session, setSession] = useState<AuthSession>(guestSession)
+  const [status, setStatus] = useState<AuthStatus>('loading')
+
+  const applySession = useCallback((next: AuthSession) => {
+    setSession(next)
+    setStatus(next.isAuthenticated ? 'authenticated' : 'unauthenticated')
+
+    if (next.isAuthenticated) {
+      persistSession(next)
+      return
+    }
+
+    clearPersistedSession()
+  }, [])
+
+  const refreshSession = useCallback(async () => {
+    setStatus('loading')
+
+    try {
+      const next = await sessionRepository.getSession()
+      applySession(next)
+    } catch {
+      applySession(guestSession)
+    }
+  }, [applySession, sessionRepository])
 
   useEffect(() => {
-    let mounted = true
-    const run = async () => {
-      const stored = parseStored(window.localStorage.getItem(STORAGE_KEY))
-      if (stored && mounted) {
-        setSession(stored)
-        setIsLoading(false)
-        return
-      }
-      const base = await sessionRepository.getSession()
-      if (!mounted) return
-      setSession(base)
-      setIsLoading(false)
-    }
+    void refreshSession()
+  }, [refreshSession])
 
-    void run()
-    return () => {
-      mounted = false
-    }
+  const startTelegramLogin = useCallback(async () => {
+    return sessionRepository.startTelegramLogin()
   }, [sessionRepository])
 
-  const loginAsRole = useCallback(async (role: UserRole) => {
-    const next = await sessionRepository.setSessionByRole(role)
-    setSession(next)
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-  }, [sessionRepository])
+  const completeTelegramLoginWithCode = useCallback(async (code: string) => {
+    setStatus('loading')
+    const next = await sessionRepository.completeTelegramLoginWithCode(code)
+    applySession(next)
+  }, [applySession, sessionRepository])
+
+  const loginAsDevRole = useCallback(async (role: UserRole) => {
+    if (!sessionRepository.loginAsDevRole) {
+      return
+    }
+
+    setStatus('loading')
+    const next = await sessionRepository.loginAsDevRole(role)
+    applySession(next)
+  }, [applySession, sessionRepository])
 
   const logout = useCallback(async () => {
-    await sessionRepository.clearSession()
-    const next = await sessionRepository.getSession()
-    setSession(next)
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-  }, [sessionRepository])
+    setStatus('loading')
+    await sessionRepository.logout()
+    applySession(guestSession)
+  }, [applySession, sessionRepository])
 
-  return <SessionContext.Provider value={{ session, isLoading, loginAsRole, logout }}>{children}</SessionContext.Provider>
+  const isLoading = status === 'loading'
+
+  const value = useMemo(() => ({
+    session,
+    status,
+    isLoading,
+    startTelegramLogin,
+    completeTelegramLoginWithCode,
+    loginAsDevRole,
+    refreshSession,
+    logout,
+  }), [completeTelegramLoginWithCode, isLoading, loginAsDevRole, logout, refreshSession, session, startTelegramLogin, status])
+
+  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
 }

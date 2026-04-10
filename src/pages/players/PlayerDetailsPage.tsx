@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
-import { UserCircle2 } from 'lucide-react'
+import { useState } from 'react'
+import { UserCircle2, Wrench } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { usePlayerDetails } from '../../hooks/data/usePlayerDetails'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
@@ -9,6 +10,8 @@ import { SocialLinks } from '../../components/ui/SocialLinks'
 import { CommentsSection } from '../../components/comments'
 import { EventFeedSection } from '../../components/events'
 import { useEvents } from '../../hooks/data/useEvents'
+import { useSession } from '../../app/providers/use-session'
+import { useRepositories } from '../../app/providers/use-repositories'
 
 const getInitials = (name: string) => name.split(' ').map((part) => part[0]).join('').slice(0, 2)
 
@@ -18,8 +21,17 @@ export const PlayerDetailsPage = () => {
   const { data: team } = useTeamDetails(player?.teamId)
   const { data: matches } = useMatches()
   const { data: playerFeed } = useEvents({ entityType: 'player', entityId: playerId, limit: 4 })
+  const { session } = useSession()
+  const { playersRepository } = useRepositories()
+
+  const [displayName, setDisplayName] = useState('')
+  const [avatar, setAvatar] = useState('')
+  const [status, setStatus] = useState<string | null>(null)
 
   if (!player) return <PageContainer><EmptyState title="Игрок не найден" /></PageContainer>
+
+  const canSelfEdit = session.user.role === 'player'
+  const canManage = session.user.role === 'captain' || session.user.role === 'admin' || session.user.role === 'superadmin'
 
   const matchPlayerEvents = (matches ?? [])
     .flatMap((match) =>
@@ -46,11 +58,38 @@ export const PlayerDetailsPage = () => {
               <p className="text-xs text-textMuted">#{player.number} · {player.position} · {player.age} лет</p>
             </div>
           </div>
-          <div className="rounded-lg border border-dashed border-borderStrong px-2 py-1 text-xs text-textMuted">self-edit / captain/admin</div>
+          {(canSelfEdit || canManage) && <div className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textMuted">player actions enabled</div>}
         </div>
 
         <SocialLinks compact links={{ telegram: 'https://t.me/ufleague' }} />
       </section>
+
+      {(canSelfEdit || canManage) && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Wrench size={15} className="text-accentYellow" /> Player role actions</h2>
+          <div className="space-y-2 rounded-xl border border-borderSubtle bg-mutedBg p-3 text-xs text-textSecondary">
+            {canSelfEdit && <p className="font-semibold text-textPrimary">Player self-edit profile</p>}
+            {canManage && <p className="font-semibold text-textPrimary">Captain/Admin manage player</p>}
+            <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="новое имя" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
+            <input value={avatar} onChange={(e) => setAvatar(e.target.value)} placeholder="avatar url" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
+            <button
+              type="button"
+              className="rounded-lg bg-accentYellow px-3 py-1 font-semibold text-app"
+              onClick={async () => {
+                try {
+                  await playersRepository.updatePlayer?.(player.id, { displayName: displayName || player.displayName, avatar: avatar || player.avatar })
+                  setStatus('Данные игрока обновлены')
+                } catch (error) {
+                  setStatus((error as Error).message)
+                }
+              }}
+            >
+              Save player data
+            </button>
+            {status && <p className="rounded-lg border border-borderSubtle bg-panelBg px-2 py-1">{status}</p>}
+          </div>
+        </section>
+      )}
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
         <h2 className="mb-3 text-base font-semibold text-textPrimary">Quick player stats</h2>

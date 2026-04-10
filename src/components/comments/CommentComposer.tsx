@@ -3,12 +3,14 @@ import { Send } from 'lucide-react'
 
 interface CommentComposerProps {
   blockedReason: string | null
+  statusMessage?: string | null
+  isSubmitting?: boolean
   replyTo: { id: string; author: string } | null
   onCancelReply: () => void
-  onSubmit: (text: string, replyToId: string | null) => void
+  onSubmit: (text: string, replyToId: string | null) => Promise<void>
 }
 
-export const CommentComposer = ({ blockedReason, replyTo, onCancelReply, onSubmit }: CommentComposerProps) => {
+export const CommentComposer = ({ blockedReason, statusMessage, isSubmitting = false, replyTo, onCancelReply, onSubmit }: CommentComposerProps) => {
   const [value, setValue] = useState('')
 
   return (
@@ -29,19 +31,19 @@ export const CommentComposer = ({ blockedReason, replyTo, onCancelReply, onSubmi
 
       <div className="mt-2 flex items-center justify-between gap-2">
         <p className="text-xs text-textMuted">
-          {blockedReason ?? 'Гость: reply/delete own comment/like-dislike доступны в shell режиме.'}
+          {blockedReason ?? statusMessage ?? 'Гость: reply/delete own comment/like-dislike доступны при активной session.'}
         </p>
         <button
           type="button"
-          disabled={Boolean(blockedReason) || !value.trim()}
-          onClick={() => {
+          disabled={Boolean(blockedReason) || !value.trim() || isSubmitting}
+          onClick={async () => {
             if (!value.trim() || blockedReason) return
-            onSubmit(value.trim(), replyTo?.id ?? null)
+            await onSubmit(value.trim(), replyTo?.id ?? null)
             setValue('')
           }}
           className="inline-flex items-center gap-1 rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <Send size={12} /> Отправить
+          <Send size={12} /> {isSubmitting ? 'Отправка...' : 'Отправить'}
         </button>
       </div>
     </div>

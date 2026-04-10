@@ -46,6 +46,7 @@ export const CommentItem = ({ comment, onReply, onDelete, onReact, isThreadChild
         <CommentReactionBar reactions={comment.reactions} onReact={(reaction) => onReact(comment.id, reaction)} />
         <CommentActions
           canDelete={comment.canDelete}
+          showModeration={comment.canDelete && !comment.isOwn}
           onReply={() => onReply(comment.id, comment.authorName)}
           onDelete={() => onDelete(comment.id)}
         />

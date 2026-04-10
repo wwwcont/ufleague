@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
-import { Info, NotebookText, Pencil, PlusCircle, Timer, Users } from 'lucide-react'
+import { useState } from 'react'
+import { Info, NotebookText, Pencil, PlusCircle, Timer, Users, Wrench } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useMatchDetails } from '../../hooks/data/useMatchDetails'
 import { useTeams } from '../../hooks/data/useTeams'
@@ -12,6 +13,8 @@ import { tournament } from '../../mocks/data/tournament'
 import { CommentsSection } from '../../components/comments'
 import { EventFeedSection } from '../../components/events'
 import { EntityReactions } from '../../components/ui/EntityReactions'
+import { useSession } from '../../app/providers/use-session'
+import { useRepositories } from '../../app/providers/use-repositories'
 
 const statusLabel: Record<string, string> = {
   scheduled: 'По расписанию',
@@ -78,12 +81,19 @@ export const MatchDetailsPage = () => {
   const { data: teams } = useTeams()
   const { data: players } = usePlayers()
   const { data: matchFeed } = useEvents({ entityType: 'match', entityId: matchId, limit: 4 })
+  const { session } = useSession()
+  const { matchesRepository, eventsRepository } = useRepositories()
 
   const teamMap = Object.fromEntries((teams ?? []).map((team) => [team.id, team]))
   const playerMap = Object.fromEntries((players ?? []).map((player) => [player.id, player]))
 
   const home = match ? teamMap[match.homeTeamId] : null
   const away = match ? teamMap[match.awayTeamId] : null
+
+  const [homeScore, setHomeScore] = useState('')
+  const [awayScore, setAwayScore] = useState('')
+  const [venue, setVenue] = useState('')
+  const [adminStatus, setAdminStatus] = useState<string | null>(null)
 
   if (!match || !teams || !home || !away) {
     return (
@@ -92,6 +102,8 @@ export const MatchDetailsPage = () => {
       </PageContainer>
     )
   }
+
+  const isAdmin = session.user.role === 'admin' || session.user.role === 'superadmin'
 
   const homePlayers = (players ?? []).filter((item) => item.teamId === home.id)
   const awayPlayers = (players ?? []).filter((item) => item.teamId === away.id)
@@ -107,6 +119,53 @@ export const MatchDetailsPage = () => {
       <div className="flex justify-end">
         <EntityReactions entityKey={`match:${match.id}`} />
       </div>
+
+      {isAdmin && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Wrench size={15} className="text-accentYellow" /> Admin match actions</h2>
+          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 text-xs text-textSecondary space-y-2">
+            <div className="grid grid-cols-3 gap-2">
+              <input value={homeScore} onChange={(e) => setHomeScore(e.target.value)} placeholder="home" className="rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
+              <input value={awayScore} onChange={(e) => setAwayScore(e.target.value)} placeholder="away" className="rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
+              <input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="venue" className="rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
+            </div>
+            <button
+              type="button"
+              className="rounded-lg bg-accentYellow px-3 py-1 font-semibold text-app"
+              onClick={async () => {
+                try {
+                  await matchesRepository.updateMatch?.(match.id, {
+                    homeScore: homeScore ? Number(homeScore) : match.score.home,
+                    awayScore: awayScore ? Number(awayScore) : match.score.away,
+                    venue: venue || match.venue,
+                  })
+                  setAdminStatus('Match updated')
+                } catch (error) {
+                  setAdminStatus((error as Error).message)
+                }
+              }}
+            >
+              Update score/venue
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-borderSubtle px-3 py-1"
+              onClick={async () => {
+                try {
+                  await eventsRepository.createEventForScope?.({ scopeType: 'match', scopeId: match.id, title: `Match ${match.id} update`, body: 'Admin match event placeholder.' })
+                  setAdminStatus('Match event создан')
+                } catch (error) {
+                  setAdminStatus((error as Error).message)
+                }
+              }}
+            >
+              Add match event
+            </button>
+            <p className="text-[11px] text-textMuted">Extra-time management пока placeholder, backend-ready slot сохранен.</p>
+            {adminStatus && <p className="rounded-lg border border-borderSubtle bg-panelBg px-2 py-1">{adminStatus}</p>}
+          </div>
+        </section>
+      )}
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg px-4 py-3 shadow-soft">
         <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-textPrimary">
@@ -154,8 +213,6 @@ export const MatchDetailsPage = () => {
           </ul>
         )}
       </section>
-
-
 
       <EventFeedSection title="Match public events" events={matchFeed ?? []} layout="timeline" messageWhenEmpty="Публичные события матча пока не опубликованы." />
 
