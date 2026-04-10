@@ -58,7 +58,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.Post("/telegram/start", h.TelegramAuthStart)
 		r.Post("/telegram/complete-code", h.TelegramCodeLogin)
 		if cfg.Features.TelegramMockLoginEnabled {
-			r.Post("/telegram/mock-code-login", h.TelegramCodeLogin)
+			r.Post("/telegram/mock-code-login", h.TelegramMockCodeLogin)
 		}
 	})
 
@@ -183,6 +183,59 @@ func (h Handler) TelegramCodeLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid code", 401)
 		return
 	}
+	rawToken, tokenHash, err := h.session.GenerateToken()
+	if err != nil {
+		http.Error(w, "failed to create session token", 500)
+		return
+	}
+	sess, err := h.authRepo.CreateSession(r.Context(), repository.CreateSessionParams{
+		UserID:    user.ID,
+		TokenHash: tokenHash,
+		UserAgent: r.UserAgent(),
+		IPAddress: clientIP(r),
+		ExpiresAt: time.Now().UTC().Add(h.session.TTL()).Format(time.RFC3339),
+	})
+	if err != nil {
+		http.Error(w, "failed to create session", 500)
+		return
+	}
+	setSessionCookie(w, h.session, rawToken, sess.ExpiresAt)
+	writeJSON(w, 200, domain.MeResponse{User: user, Session: sess})
+}
+
+func (h Handler) TelegramMockCodeLogin(w http.ResponseWriter, r *http.Request) {
+	var req domain.TelegramMockCodeLoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	code := strings.TrimSpace(req.Code)
+	if code == "" {
+		http.Error(w, "code is required", 400)
+		return
+	}
+
+	seedByCode := map[string]string{
+		"UFL-SUPERADMIN-2026": "superadmin",
+		"UFL-ADMIN-2026":      "admin_test",
+		"UFL-CAPTAIN-2026":    "captain_alpha",
+		"UFL-PLAYER-2026":     "player_test",
+	}
+	if h.cfg.Features.TelegramMockCode != "" {
+		seedByCode[h.cfg.Features.TelegramMockCode] = "superadmin"
+	}
+
+	username, ok := seedByCode[code]
+	if !ok {
+		http.Error(w, "invalid code", 401)
+		return
+	}
+	user, err := h.authRepo.GetUserByUsername(r.Context(), username)
+	if err != nil {
+		http.Error(w, "seed user not found", 404)
+		return
+	}
+
 	rawToken, tokenHash, err := h.session.GenerateToken()
 	if err != nil {
 		http.Error(w, "failed to create session token", 500)
@@ -706,10 +759,7 @@ func (h Handler) GetCommentAuthorState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	role := domain.RoleGuest
-	if len(current.User.Roles) > 0 {
-		role = current.User.Roles[0]
-	}
+	role := strongestRole(current.User.Roles)
 
 	state := domain.CommentAuthorState{
 		ID:             current.User.ID,
@@ -1081,6 +1131,23 @@ func handleDomainErr(w http.ResponseWriter, err error) {
 		return
 	}
 	http.Error(w, "failed", 400)
+}
+
+func strongestRole(roles []domain.Role) domain.Role {
+	order := map[domain.Role]int{
+		domain.RoleGuest:      0,
+		domain.RolePlayer:     1,
+		domain.RoleCaptain:    2,
+		domain.RoleAdmin:      3,
+		domain.RoleSuperadmin: 4,
+	}
+	top := domain.RoleGuest
+	for _, role := range roles {
+		if order[role] > order[top] {
+			top = role
+		}
+	}
+	return top
 }
 
 func parseID(raw string) (int64, error) { return strconv.ParseInt(strings.TrimSpace(raw), 10, 64) }

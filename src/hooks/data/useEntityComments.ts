@@ -34,6 +34,7 @@ interface UseEntityCommentsResult {
   addReply: (parentId: string, text: string) => Promise<void>
   removeComment: (commentId: string) => Promise<void>
   reactToComment: (commentId: string, reaction: Exclude<CommentReactionType, null>) => Promise<void>
+  loadComments: () => Promise<void>
 }
 
 export const useEntityComments = (entityType: CommentEntityType, entityId?: string): UseEntityCommentsResult => {
@@ -184,5 +185,6 @@ export const useEntityComments = (entityType: CommentEntityType, entityId?: stri
     addReply,
     removeComment,
     reactToComment,
+    loadComments: load,
   }
 }

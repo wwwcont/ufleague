@@ -45,7 +45,7 @@ type SessionConfig struct {
 }
 
 type FeaturesConfig struct {
-	DevLoginEnabled          bool          `env:"DEV_LOGIN_ENABLED" envDefault:"true"`
+	DevLoginEnabled          bool          `env:"DEV_LOGIN_ENABLED" envDefault:"false"`
 	TelegramMockLoginEnabled bool          `env:"TELEGRAM_MOCK_LOGIN_ENABLED" envDefault:"true"`
 	TelegramMockCode         string        `env:"TELEGRAM_MOCK_CODE" envDefault:"UFL-SUPERADMIN-2026"`
 	CommentsCooldown         time.Duration `env:"COMMENTS_COOLDOWN" envDefault:"3s"`

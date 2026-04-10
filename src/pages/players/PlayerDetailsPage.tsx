@@ -12,6 +12,7 @@ import { EventFeedSection } from '../../components/events'
 import { useEvents } from '../../hooks/data/useEvents'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
+import { ApiError } from '../../infrastructure/api/repositories'
 
 const getInitials = (name: string) => name.split(' ').map((part) => part[0]).join('').slice(0, 2)
 
@@ -26,12 +27,20 @@ export const PlayerDetailsPage = () => {
 
   const [displayName, setDisplayName] = useState('')
   const [avatar, setAvatar] = useState('')
+  const [position, setPosition] = useState(player?.position ?? 'MF')
   const [status, setStatus] = useState<string | null>(null)
 
   if (!player) return <PageContainer><EmptyState title="Игрок не найден" /></PageContainer>
 
   const canSelfEdit = session.user.role === 'player'
   const canManage = session.user.role === 'captain' || session.user.role === 'admin' || session.user.role === 'superadmin'
+  const actionError = (error: unknown) => {
+    if (error instanceof ApiError) {
+      if (error.status === 403) return 'Недостаточно прав для изменения игрока (403).'
+      return `Ошибка API ${error.status}: ${error.message}`
+    }
+    return error instanceof Error ? error.message : 'Не удалось обновить игрока'
+  }
 
   const matchPlayerEvents = (matches ?? [])
     .flatMap((match) =>
@@ -72,15 +81,18 @@ export const PlayerDetailsPage = () => {
             {canManage && <p className="font-semibold text-textPrimary">Captain/Admin manage player</p>}
             <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="новое имя" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
             <input value={avatar} onChange={(e) => setAvatar(e.target.value)} placeholder="avatar url" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
+            <select value={position} onChange={(e) => setPosition(e.target.value as typeof position)} className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1">
+              {['GK', 'DF', 'MF', 'FW'].map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
             <button
               type="button"
               className="rounded-lg bg-accentYellow px-3 py-1 font-semibold text-app"
               onClick={async () => {
                 try {
-                  await playersRepository.updatePlayer?.(player.id, { displayName: displayName || player.displayName, avatar: avatar || player.avatar })
+                  await playersRepository.updatePlayer?.(player.id, { displayName: displayName || player.displayName, avatar: avatar || player.avatar, position })
                   setStatus('Данные игрока обновлены')
                 } catch (error) {
-                  setStatus((error as Error).message)
+                  setStatus(actionError(error))
                 }
               }}
             >
@@ -103,10 +115,16 @@ export const PlayerDetailsPage = () => {
       </section>
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
-        <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-textPrimary"><UserCircle2 size={16} className="text-accentYellow" /> About / profile</h2>
-        <div className="rounded-xl border border-dashed border-borderStrong bg-mutedBg px-3 py-3 text-sm text-textSecondary">
-          <p>Bio placeholder: профиль игрока, игровая роль, сильные стороны и история выступлений будут отображаться в этом блоке.</p>
-          <p className="mt-2 text-textMuted">Profile info area зарезервирован под editable personal data и медиа-блок.</p>
+        <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-textPrimary"><UserCircle2 size={16} className="text-accentYellow" /> Profile / media</h2>
+        <div className="grid gap-2 text-sm sm:grid-cols-2">
+          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3">
+            <p className="text-xs text-textMuted">Bio</p>
+            <p className="mt-1 text-textSecondary">Игрок активен в тренировочном процессе и готов к матчевой ротации.</p>
+          </div>
+          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3">
+            <p className="text-xs text-textMuted">Связь с командой</p>
+            <p className="mt-1 text-textSecondary">{team ? `${team.name} • роль в ростере` : 'Команда не привязана'}</p>
+          </div>
         </div>
       </section>
 

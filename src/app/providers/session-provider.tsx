@@ -4,20 +4,10 @@ import type { AuthSession, AuthStatus, UserRole } from '../../domain/entities/ty
 import { useRepositories } from './use-repositories'
 import { SessionContext } from './session-context'
 
-const STORAGE_KEY = 'ufl_session_v1'
-
 const guestSession: AuthSession = {
   isAuthenticated: false,
   user: { id: 'u_guest', displayName: 'Guest', role: 'guest' },
   permissions: [],
-}
-
-const persistSession = (session: AuthSession) => {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session))
-}
-
-const clearPersistedSession = () => {
-  window.localStorage.removeItem(STORAGE_KEY)
 }
 
 export const SessionProvider = ({ children }: { children: ReactNode }) => {
@@ -28,13 +18,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const applySession = useCallback((next: AuthSession) => {
     setSession(next)
     setStatus(next.isAuthenticated ? 'authenticated' : 'unauthenticated')
-
-    if (next.isAuthenticated) {
-      persistSession(next)
-      return
-    }
-
-    clearPersistedSession()
   }, [])
 
   const refreshSession = useCallback(async () => {
@@ -50,6 +33,16 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     void refreshSession()
+  }, [refreshSession])
+
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshSession()
+      }
+    }
+    window.addEventListener('visibilitychange', onVisibilityChange)
+    return () => window.removeEventListener('visibilitychange', onVisibilityChange)
   }, [refreshSession])
 
   const startTelegramLogin = useCallback(async (role?: UserRole) => {
@@ -74,7 +67,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = useCallback(async () => {
     setStatus('loading')
-    await sessionRepository.logout()
+    await sessionRepository.logout().catch(() => undefined)
     applySession(guestSession)
   }, [applySession, sessionRepository])
 

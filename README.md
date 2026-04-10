@@ -55,21 +55,27 @@ Backend: `http://localhost:8080`
 - `id: 9001`
 - роль: `superadmin`
 
-> В текущем foundation-режиме для входа удобно использовать `dev-login` endpoint.
+Dev login для UI теперь Telegram-shaped: кнопка "Войти через Telegram" → ввод mock code → backend создает cookie session.
 
-Пример:
+Коды seeded аккаунтов:
+- `UFL-SUPERADMIN-2026` → `superadmin`
+- `UFL-ADMIN-2026` → `admin_test`
+- `UFL-CAPTAIN-2026` → `captain_alpha`
+- `UFL-PLAYER-2026` → `player_test`
+
+CLI-проверка:
 ```bash
 curl -i -c /tmp/cookies.txt \
-  -X POST http://localhost:8080/api/auth/dev-login \
+  -X POST http://localhost:8080/api/auth/telegram/mock-code-login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"superadmin","display_name":"Super Admin","roles":["superadmin"]}'
+  -d '{"code":"UFL-SUPERADMIN-2026"}'
 ```
 
 ---
 
 ## 3) Frontend подключение к backend
 
-Frontend теперь может работать не только на моках.
+Frontend теперь может работать не только на моках (рекомендуемый режим для интеграции — backend).
 
 Переключение в `.env`:
 ```env
@@ -84,11 +90,11 @@ VITE_API_BASE_URL=http://localhost:8080
 ## 4) Основные backend API для проверки
 
 ### Auth
-- `POST /api/auth/dev-login`
 - `GET /api/auth/me`
 - `POST /api/auth/logout`
 - `POST /api/auth/telegram/start`
-- `POST /api/auth/telegram/complete`
+- `POST /api/auth/telegram/complete-code`
+- `POST /api/auth/telegram/mock-code-login` (dev-only)
 
 ### Public read
 - `GET /api/teams`
@@ -117,7 +123,7 @@ VITE_API_BASE_URL=http://localhost:8080
 
 - Добавлен API repository layer (`src/infrastructure/api/repositories.ts`) для:
   - teams / players / matches / events / comments
-  - session (через `/api/auth/me` и `/api/auth/dev-login`)
+  - session (через `/api/auth/me` и telegram mock-code login)
 - Provider переключается между mock и backend-режимом через `VITE_USE_BACKEND`.
 
 Это позволяет открыть существующие страницы (включая comments/profile flow) уже на реальных backend ручках.
