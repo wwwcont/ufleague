@@ -3,10 +3,11 @@ VALUES
   (9001, 'superadmin', 'Super Admin', TRUE),
   (9002, 'admin_test', 'Admin Test', TRUE),
   (9003, 'captain_alpha', 'Captain Alpha', TRUE),
-  (9004, 'captain_beta', 'Captain Beta', TRUE)
+  (9004, 'captain_beta', 'Captain Beta', TRUE),
+  (9005, 'player_test', 'Player Test', TRUE)
 ON CONFLICT (id) DO NOTHING;
 
-SELECT setval('users_id_seq', GREATEST((SELECT COALESCE(MAX(id),1) FROM users), 9004));
+SELECT setval('users_id_seq', GREATEST((SELECT COALESCE(MAX(id),1) FROM users), 9005));
 
 INSERT INTO user_roles (user_id, role_id)
 SELECT 9001, id FROM roles WHERE code='superadmin' ON CONFLICT DO NOTHING;
@@ -16,6 +17,8 @@ INSERT INTO user_roles (user_id, role_id)
 SELECT 9003, id FROM roles WHERE code='captain' ON CONFLICT DO NOTHING;
 INSERT INTO user_roles (user_id, role_id)
 SELECT 9004, id FROM roles WHERE code='captain' ON CONFLICT DO NOTHING;
+INSERT INTO user_roles (user_id, role_id)
+SELECT 9005, id FROM roles WHERE code='player' ON CONFLICT DO NOTHING;
 
 INSERT INTO teams (id, name, slug, description, logo_url, socials, captain_user_id)
 VALUES

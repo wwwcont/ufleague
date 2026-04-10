@@ -53,17 +53,8 @@ func (r *AuthRepository) UpsertDevUser(ctx context.Context, req domain.DevLoginR
 		return domain.User{}, err
 	}
 
-	if _, err = tx.Exec(ctx, `DELETE FROM user_roles WHERE user_id = $1`, user.ID); err != nil {
+	if err = replaceUserRolesTx(ctx, tx, user.ID, req.Roles); err != nil {
 		return domain.User{}, err
-	}
-
-	for _, role := range req.Roles {
-		if _, err = tx.Exec(ctx, `
-			INSERT INTO user_roles (user_id, role_id)
-			SELECT $1, id FROM roles WHERE code = $2
-		`, user.ID, role); err != nil {
-			return domain.User{}, err
-		}
 	}
 
 	if _, err = tx.Exec(ctx, `DELETE FROM user_permissions WHERE user_id = $1`, user.ID); err != nil {
@@ -97,6 +88,33 @@ func (r *AuthRepository) UpsertDevUser(ctx context.Context, req domain.DevLoginR
 	}
 
 	return r.GetUserByID(ctx, user.ID)
+}
+
+func (r *AuthRepository) ReplaceUserRoles(ctx context.Context, userID int64, roles []domain.Role) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if err = replaceUserRolesTx(ctx, tx, userID, roles); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func replaceUserRolesTx(ctx context.Context, tx pgx.Tx, userID int64, roles []domain.Role) error {
+	if _, err := tx.Exec(ctx, `DELETE FROM user_roles WHERE user_id = $1`, userID); err != nil {
+		return err
+	}
+	for _, role := range roles {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO user_roles (user_id, role_id)
+			SELECT $1, id FROM roles WHERE code = $2
+		`, userID, role); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *AuthRepository) GetUserByID(ctx context.Context, userID int64) (domain.User, error) {
