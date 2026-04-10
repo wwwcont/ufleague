@@ -28,7 +28,7 @@ const sectionRoles: Record<string, UserRole> = {
   roster: 'captain',
   moderation: 'admin',
   'comment-blocks': 'admin',
-  tournament: 'admin',
+  tournament: 'captain',
   roles: 'superadmin',
   rbac: 'superadmin',
   restrictions: 'superadmin',
@@ -86,6 +86,7 @@ export const CabinetSectionPage = () => {
 
   const minRole = section ? sectionRoles[section] : null
   const allowed = minRole ? roleRank[session.user.role] >= roleRank[minRole] : false
+  const isAdminScope = roleRank[session.user.role] >= roleRank.admin
 
   const socials = useMemo(() => Object.fromEntries(parseCSV(socialsRaw).map((line) => {
     const idx = line.indexOf('=')
@@ -283,7 +284,7 @@ export const CabinetSectionPage = () => {
             <input value={matchStartAt} onChange={(e) => setMatchStartAt(e.target.value)} placeholder="start_at RFC3339" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={matchStatus} onChange={(e) => setMatchStatus(e.target.value as typeof matchStatus)} placeholder="status" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={matchVenue} onChange={(e) => setMatchVenue(e.target.value)} placeholder="venue" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-            <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
+            <button type="button" disabled={!isAdminScope} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
               try {
                 await matchesRepository.createMatch?.({ homeTeamId: matchHomeTeamId, awayTeamId: matchAwayTeamId, startAt: matchStartAt, status: matchStatus, venue: matchVenue })
                 setStatus('ok: match created')
@@ -291,6 +292,7 @@ export const CabinetSectionPage = () => {
                 setStatus(`error: ${(error as Error).message}`)
               }
             }}>Create match</button>
+            {!isAdminScope && <p className="text-[11px] text-textMuted">Создание матчей доступно только admin/superadmin.</p>}
           </div>
         </section>
       )}

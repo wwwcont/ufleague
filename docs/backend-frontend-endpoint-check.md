@@ -19,15 +19,15 @@
 | `POST /api/auth/telegram/complete-code` | n/a* | `sessionRepository.completeTelegramLoginWithCode` | отсутствует в прод-флоу | ⚠️ исключено |
 | `GET /api/teams` | public | `teamsRepository.getTeams` | teams listing | ✅ |
 | `GET /api/teams/{id}` | public | `teamsRepository.getTeamById` | team details | ✅ |
-| `POST /api/teams` | admin+ | `teamsRepository.createTeam` | Cabinet → `tournament` | ✅ |
+| `POST /api/teams` | captain/admin/superadmin | `teamsRepository.createTeam` | Cabinet → `tournament` | ✅ |
 | `PATCH /api/teams/{id}` | admin+ | `teamsRepository.updateTeam` | Team details edit | ✅ |
 | `GET /api/players` | public | `playersRepository.getPlayers` | players listing | ✅ |
 | `GET /api/players/{id}` | public | `playersRepository.getPlayerById` | player details | ✅ |
-| `POST /api/players` | admin+ | `playersRepository.createPlayer` | Cabinet → `tournament` | ✅ |
+| `POST /api/players` | captain/admin/superadmin | `playersRepository.createPlayer` | Cabinet → `tournament` | ✅ |
 | `PATCH /api/players/{id}` | admin+ | `playersRepository.updatePlayer` | player details edit | ✅ |
 | `GET /api/matches` | public | `matchesRepository.getMatches` | matches listing | ✅ |
 | `GET /api/matches/{id}` | public | `matchesRepository.getMatchById` | match details | ✅ |
-| `POST /api/matches` | admin+ | `matchesRepository.createMatch` | Cabinet → `tournament` | ✅ |
+| `POST /api/matches` | admin/superadmin | `matchesRepository.createMatch` | Cabinet → `tournament` | ✅ |
 | `PATCH /api/matches/{id}` | admin+ | `matchesRepository.updateMatch` | match details edit | ✅ |
 | `GET /api/standings` | public | `standingsRepository.getStandings` | standings page | ✅ |
 | `GET /api/bracket` | public | `bracketRepository.getBracket` | bracket page | ✅ |
