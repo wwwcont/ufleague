@@ -35,8 +35,8 @@ export const CommentsSection = ({ entityType, entityId, title = 'Коммент�
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-base font-semibold text-textPrimary"><MessageSquare size={16} className="text-accentYellow" /> {title}</h2>
         <div className="flex items-center gap-2">
-          {author && <span className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-xs text-textMuted">role: {author.role}</span>}
-          <button type="button" onClick={() => { void loadComments() }} className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textMuted">refresh</button>
+          {author && <span className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-xs text-textMuted">Статус: {author.role}</span>}
+          <button type="button" onClick={() => { void loadComments() }} className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textMuted">Обновить</button>
         </div>
       </div>
       {author && !author.canComment && (

@@ -27,6 +27,7 @@ export interface Team {
   name: string
   shortName: string
   logoUrl: string | null
+  captainUserId?: ID | null
   city: string
   coach: string
   group: string
