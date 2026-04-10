@@ -40,7 +40,7 @@ export const TeamDetailsPage = () => {
             <TeamAvatar team={team} size="xl" fallbackLogoUrl={tournament.logoUrl} className="border border-borderStrong bg-panelSoft p-2" />
             <div>
               <h1 className="text-2xl font-bold text-textPrimary">{team.name}</h1>
-              <p className="text-sm text-textSecondary">{team.city} · Тренер: {team.coach}</p>
+              <p className="text-sm text-textSecondary">{team.city}</p>
               <p className="mt-1 text-xs text-textMuted">Клуб с акцентом на интенсивный прессинг и быстрые вертикальные атаки.</p>
             </div>
           </div>
@@ -48,8 +48,7 @@ export const TeamDetailsPage = () => {
         </div>
 
         <div className="border-t border-borderSubtle pt-2">
-          <p className="text-xs uppercase tracking-[0.08em] text-textMuted">Social links placeholder</p>
-          <SocialLinks compact />
+          <SocialLinks compact links={{ telegram: 'https://t.me/ufleague' }} />
         </div>
       </section>
 

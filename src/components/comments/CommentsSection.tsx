@@ -1,4 +1,5 @@
 import { MessageSquare } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import type { CommentEntityType } from '../../domain/entities/types'
 import { useEntityComments } from '../../hooks/data/useEntityComments'
 import { CommentComposer } from './CommentComposer'
@@ -8,9 +9,10 @@ interface CommentsSectionProps {
   entityType: CommentEntityType
   entityId: string
   title?: string
+  collapsed?: boolean
 }
 
-export const CommentsSection = ({ entityType, entityId, title = 'Комментарии' }: CommentsSectionProps) => {
+export const CommentsSection = ({ entityType, entityId, title = 'Комментарии', collapsed = true }: CommentsSectionProps) => {
   const {
     comments,
     author,
@@ -23,6 +25,7 @@ export const CommentsSection = ({ entityType, entityId, title = 'Коммент�
     removeComment,
     reactToComment,
   } = useEntityComments(entityType, entityId)
+  const visibleComments = collapsed ? comments.slice(-3) : comments
 
   return (
     <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
@@ -47,11 +50,18 @@ export const CommentsSection = ({ entityType, entityId, title = 'Коммент�
         <p className="text-sm text-textMuted">Загрузка комментариев...</p>
       ) : (
         <CommentList
-          comments={comments}
+          comments={visibleComments}
           onReply={(commentId, authorName) => setActiveReplyTo({ id: commentId, author: authorName })}
           onDelete={removeComment}
           onReact={reactToComment}
         />
+      )}
+      {collapsed && comments.length > 3 && (
+        <div className="mt-3 text-right">
+          <Link to={`/comments/${entityType}/${entityId}`} className="text-sm text-accentYellow hover:underline">
+            Все комментарии ({comments.length})
+          </Link>
+        </div>
       )}
     </section>
   )

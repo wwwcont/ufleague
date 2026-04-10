@@ -8,9 +8,7 @@ export const TeamCard = ({ team }: { team: Team }) => (
       <TeamAvatar team={team} />
       <p className="text-sm font-semibold">{team.name}</p>
     </div>
-    <p className="mt-1 text-xs text-textMuted">
-      {team.city} • {team.coach}
-    </p>
+    <p className="mt-1 text-xs text-textMuted">{team.city}</p>
     <p className="mt-2 text-xs text-textSecondary">Форма: {team.form.map((result) => ({ W: 'П', D: 'Н', L: 'ПР' }[result])).join(' ')}</p>
   </Link>
 )

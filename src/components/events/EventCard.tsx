@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { PublicEvent } from '../../domain/entities/types'
+import { EntityReactions } from '../ui/EntityReactions'
 
 const categoryLabel: Record<string, string> = {
   news: 'Новость',
@@ -27,7 +28,10 @@ export const EventCard = ({ event, showRoleActions = true }: EventCardProps) => 
       <p className="mt-1 text-xs text-textSecondary">{event.summary}</p>
     </Link>
 
-    <p className="mt-2 text-xs text-textMuted">{event.source} · {event.authorName}</p>
+    <div className="mt-2 flex items-center justify-between gap-2">
+      <p className="text-xs text-textMuted">{event.source} · {event.authorName}</p>
+      <EntityReactions entityKey={`event:${event.id}`} compact />
+    </div>
 
     {showRoleActions && (
       <div className="mt-2 flex items-center gap-2 text-xs text-textMuted">

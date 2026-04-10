@@ -3,6 +3,7 @@ import { PublicShell } from '../../layouts/public-shell/PublicShell'
 import { BracketPage } from '../../pages/bracket/BracketPage'
 import { EventDetailsPage } from '../../pages/events/EventDetailsPage'
 import { EventsPage } from '../../pages/events/EventsPage'
+import { CommentsPage } from '../../pages/comments/CommentsPage'
 import { HomePage } from '../../pages/home/HomePage'
 import { LoginPage } from '../../pages/login/LoginPage'
 import { MatchDetailsPage } from '../../pages/matches/MatchDetailsPage'
@@ -33,6 +34,7 @@ export const router = createBrowserRouter([
       { path: 'search', element: <SearchPage /> },
       { path: 'events', element: <EventsPage /> },
       { path: 'events/:eventId', element: <EventDetailsPage /> },
+      { path: 'comments/:entityType/:entityId', element: <CommentsPage /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'profile', element: <ProfilePage /> },
       { path: 'profile/:section', element: <CabinetSectionPage /> },

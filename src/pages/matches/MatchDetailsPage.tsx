@@ -11,6 +11,7 @@ import { TeamAvatar } from '../../components/ui/TeamAvatar'
 import { tournament } from '../../mocks/data/tournament'
 import { CommentsSection } from '../../components/comments'
 import { EventFeedSection } from '../../components/events'
+import { EntityReactions } from '../../components/ui/EntityReactions'
 
 const statusLabel: Record<string, string> = {
   scheduled: 'По расписанию',
@@ -103,6 +104,9 @@ export const MatchDetailsPage = () => {
   return (
     <PageContainer>
       <Scoreboard match={match} home={home} away={away} tournamentLogoUrl={tournament.logoUrl} />
+      <div className="flex justify-end">
+        <EntityReactions entityKey={`match:${match.id}`} />
+      </div>
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg px-4 py-3 shadow-soft">
         <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-textPrimary">

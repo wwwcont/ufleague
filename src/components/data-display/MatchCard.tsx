@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { Match, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
 import { tournament } from '../../mocks/data/tournament'
+import { EntityReactions } from '../ui/EntityReactions'
 
 const formatKickoff = (date: string, time: string) => {
   const [year, month, day] = date.split('-')
@@ -48,8 +49,12 @@ export const MatchCard = ({ match, home, away }: { match: Match; home: Team; awa
 
         <div className="z-10 px-1 text-center text-2xl font-bold leading-none tabular-nums text-textPrimary">
           <div className="relative inline-flex items-center justify-center px-6">
-            <span className="pointer-events-none absolute right-full top-1/2 h-px w-8 -translate-y-1/2 bg-gradient-to-r from-accentYellowSoft/75 to-transparent" />
-            <span className="pointer-events-none absolute left-full top-1/2 h-px w-8 -translate-y-1/2 bg-gradient-to-l from-accentYellowSoft/75 to-transparent" />
+            <svg className="pointer-events-none absolute right-full top-1/2 h-3 w-8 -translate-y-1/2" viewBox="0 0 32 12" fill="none">
+              <path d="M0 6 H20 M20 6 L28 1 M20 6 L28 11" stroke="rgba(227,193,75,0.75)" strokeWidth="1.7" strokeLinecap="round" />
+            </svg>
+            <svg className="pointer-events-none absolute left-full top-1/2 h-3 w-8 -translate-y-1/2 scale-x-[-1]" viewBox="0 0 32 12" fill="none">
+              <path d="M0 6 H20 M20 6 L28 1 M20 6 L28 11" stroke="rgba(227,193,75,0.75)" strokeWidth="1.7" strokeLinecap="round" />
+            </svg>
             {match.score.home}<span className="mx-1 text-accentYellow">:</span>{match.score.away}
           </div>
         </div>
@@ -62,7 +67,10 @@ export const MatchCard = ({ match, home, away }: { match: Match; home: Team; awa
 
       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-textMuted sm:text-sm">
         <span className="truncate">{match.venue}</span>
-        <span className="text-textMuted">{match.round}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-textMuted">{match.round}</span>
+          <EntityReactions entityKey={`match:${match.id}`} compact />
+        </div>
       </div>
     </Link>
   )

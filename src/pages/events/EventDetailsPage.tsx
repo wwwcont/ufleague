@@ -4,6 +4,8 @@ import { useEventDetails } from '../../hooks/data/useEventDetails'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { ErrorState } from '../../components/ui/ErrorState'
+import { EntityReactions } from '../../components/ui/EntityReactions'
+import { CommentsSection } from '../../components/comments'
 
 export const EventDetailsPage = () => {
   const { eventId } = useParams()
@@ -24,7 +26,11 @@ export const EventDetailsPage = () => {
         <p className="mt-2 text-sm text-textSecondary">{event.summary}</p>
         {event.imageUrl && <img src={event.imageUrl} alt={event.title} className="mt-4 h-44 w-full rounded-2xl object-cover" />}
         <p className="mt-4 text-base leading-relaxed text-textSecondary">{event.text}</p>
+        <div className="mt-4">
+          <EntityReactions entityKey={`event:${event.id}`} />
+        </div>
       </article>
+      <CommentsSection entityType="event" entityId={event.id} title="Комментарии к событию" />
     </PageContainer>
   )
 }

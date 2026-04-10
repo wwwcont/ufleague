@@ -49,8 +49,7 @@ export const PlayerDetailsPage = () => {
           <div className="rounded-lg border border-dashed border-borderStrong px-2 py-1 text-xs text-textMuted">self-edit / captain/admin</div>
         </div>
 
-        <p className="text-xs uppercase tracking-[0.08em] text-textMuted">Social links placeholder</p>
-        <SocialLinks compact />
+        <SocialLinks compact links={{ telegram: 'https://t.me/ufleague' }} />
       </section>
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
