@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -41,12 +42,20 @@ type Handler struct {
 func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *repository.AuthRepository, tournamentSvc tournament.Service, eventsSvc eventsservice.Service, commentsSvc commentservice.Service, notificationsSvc notifservice.Service, telegramAuthSvc telegramauth.Service, cabinetSvc cabinetadmin.Service, sessionManager session.Manager) http.Handler {
 	h := Handler{healthRepo: healthRepo, authRepo: authRepo, tournament: tournamentSvc, events: eventsSvc, comments: commentsSvc, notifications: notificationsSvc, telegramAuth: telegramAuthSvc, cabinet: cabinetSvc, session: sessionManager, cfg: cfg}
 	r := chi.NewRouter()
-	sec := middleware.NewSecurityMiddleware()
+	obs := middleware.NewObservabilityMiddleware()
+	sec := middleware.NewSecurityMiddleware(cfg)
+	r.Use(obs.RequestID)
+	r.Use(obs.RequestLogger)
+	r.Use(sec.SecurityHeaders)
 	r.Use(sec.CORS)
 	r.Use(sec.RateLimit)
 	r.Use(sec.BodyLimit)
 	r.Use(sec.CSRFSimple)
 	r.Get("/healthz", h.Healthcheck)
+	r.Get("/readyz", h.Readyz)
+	r.Get("/metricsz", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, 200, obs.Snapshot())
+	})
 	sessionMW := middleware.NewSessionMiddleware(authRepo, sessionManager)
 
 	r.Route("/api/auth", func(r chi.Router) {
@@ -58,7 +67,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.Post("/telegram/start", h.TelegramAuthStart)
 		r.Post("/telegram/complete-code", h.TelegramCodeLogin)
 		if cfg.Features.TelegramMockLoginEnabled {
-			r.Post("/telegram/mock-code-login", h.TelegramCodeLogin)
+			r.Post("/telegram/mock-code-login", h.TelegramMockCodeLogin)
 		}
 	})
 
@@ -115,6 +124,14 @@ func (h Handler) Healthcheck(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, domain.HealthStatus{Status: "ok"})
 }
+
+func (h Handler) Readyz(w http.ResponseWriter, r *http.Request) {
+	if err := h.healthRepo.Ping(r.Context()); err != nil {
+		writeJSON(w, 503, map[string]string{"status": "not_ready"})
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ready"})
+}
 func (h Handler) Me(w http.ResponseWriter, r *http.Request) {
 	current, ok := middleware.CurrentSession(r.Context())
 	if !ok {
@@ -132,8 +149,12 @@ func (h Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"status": "ok"})
 }
 func (h Handler) DevLogin(w http.ResponseWriter, r *http.Request) {
+	if !h.cfg.Features.DevLoginEnabled || h.cfg.IsProduction() {
+		http.NotFound(w, r)
+		return
+	}
 	var req domain.DevLoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSONStrict(r, &req); err != nil {
 		http.Error(w, "invalid json body", 400)
 		return
 	}
@@ -166,7 +187,7 @@ func (h Handler) DevLogin(w http.ResponseWriter, r *http.Request) {
 
 func (h Handler) TelegramCodeLogin(w http.ResponseWriter, r *http.Request) {
 	var req domain.TelegramCodeLoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSONStrict(r, &req); err != nil {
 		http.Error(w, "bad request", 400)
 		return
 	}
@@ -183,6 +204,63 @@ func (h Handler) TelegramCodeLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid code", 401)
 		return
 	}
+	rawToken, tokenHash, err := h.session.GenerateToken()
+	if err != nil {
+		http.Error(w, "failed to create session token", 500)
+		return
+	}
+	sess, err := h.authRepo.CreateSession(r.Context(), repository.CreateSessionParams{
+		UserID:    user.ID,
+		TokenHash: tokenHash,
+		UserAgent: r.UserAgent(),
+		IPAddress: clientIP(r),
+		ExpiresAt: time.Now().UTC().Add(h.session.TTL()).Format(time.RFC3339),
+	})
+	if err != nil {
+		http.Error(w, "failed to create session", 500)
+		return
+	}
+	setSessionCookie(w, h.session, rawToken, sess.ExpiresAt)
+	writeJSON(w, 200, domain.MeResponse{User: user, Session: sess})
+}
+
+func (h Handler) TelegramMockCodeLogin(w http.ResponseWriter, r *http.Request) {
+	if !h.cfg.Features.TelegramMockLoginEnabled || h.cfg.IsProduction() {
+		http.NotFound(w, r)
+		return
+	}
+	var req domain.TelegramMockCodeLoginRequest
+	if err := decodeJSONStrict(r, &req); err != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	code := strings.TrimSpace(req.Code)
+	if code == "" {
+		http.Error(w, "code is required", 400)
+		return
+	}
+
+	seedByCode := map[string]string{
+		"UFL-SUPERADMIN-2026": "superadmin",
+		"UFL-ADMIN-2026":      "admin_test",
+		"UFL-CAPTAIN-2026":    "captain_alpha",
+		"UFL-PLAYER-2026":     "player_test",
+	}
+	if h.cfg.Features.TelegramMockCode != "" {
+		seedByCode[h.cfg.Features.TelegramMockCode] = "superadmin"
+	}
+
+	username, ok := seedByCode[code]
+	if !ok {
+		http.Error(w, "invalid code", 401)
+		return
+	}
+	user, err := h.authRepo.GetUserByUsername(r.Context(), username)
+	if err != nil {
+		http.Error(w, "seed user not found", 404)
+		return
+	}
+
 	rawToken, tokenHash, err := h.session.GenerateToken()
 	if err != nil {
 		http.Error(w, "failed to create session token", 500)
@@ -706,10 +784,7 @@ func (h Handler) GetCommentAuthorState(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	role := domain.RoleGuest
-	if len(current.User.Roles) > 0 {
-		role = current.User.Roles[0]
-	}
+	role := strongestRole(current.User.Roles)
 
 	state := domain.CommentAuthorState{
 		ID:             current.User.ID,
@@ -1083,6 +1158,23 @@ func handleDomainErr(w http.ResponseWriter, err error) {
 	http.Error(w, "failed", 400)
 }
 
+func strongestRole(roles []domain.Role) domain.Role {
+	order := map[domain.Role]int{
+		domain.RoleGuest:      0,
+		domain.RolePlayer:     1,
+		domain.RoleCaptain:    2,
+		domain.RoleAdmin:      3,
+		domain.RoleSuperadmin: 4,
+	}
+	top := domain.RoleGuest
+	for _, role := range roles {
+		if order[role] > order[top] {
+			top = role
+		}
+	}
+	return top
+}
+
 func parseID(raw string) (int64, error) { return strconv.ParseInt(strings.TrimSpace(raw), 10, 64) }
 func setSessionCookie(w http.ResponseWriter, manager session.Manager, token string, expiresAt time.Time) {
 	cookie := &http.Cookie{Name: manager.CookieName(), Value: token, Path: "/", HttpOnly: true, Secure: manager.Secure(), SameSite: http.SameSiteLaxMode, Expires: expiresAt}
@@ -1106,4 +1198,16 @@ func clientIP(r *http.Request) string {
 		return parts[0]
 	}
 	return ""
+}
+
+func decodeJSONStrict(r *http.Request, dst any) error {
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(dst); err != nil {
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return errors.New("unexpected trailing json")
+	}
+	return nil
 }

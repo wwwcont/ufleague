@@ -3,52 +3,89 @@ package middleware
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"football_ui/backend/internal/platform/config"
+
+	"golang.org/x/time/rate"
 )
 
 type SecurityMiddleware struct {
-	mu   sync.Mutex
-	hits map[string][]time.Time
+	bodyLimit int64
+
+	csrfCookieSecure bool
+	allowedOrigins   map[string]struct{}
+
+	rateLimiterMu sync.Mutex
+	rateLimiters  map[string]*rate.Limiter
+	ratePerMinute int
+
+	trustedProxies []*net.IPNet
 }
 
-func NewSecurityMiddleware() *SecurityMiddleware {
-	return &SecurityMiddleware{hits: map[string][]time.Time{}}
+func NewSecurityMiddleware(cfg config.Config) *SecurityMiddleware {
+	allowedOrigins := map[string]struct{}{}
+	for _, origin := range cfg.AllowedOrigins() {
+		allowedOrigins[origin] = struct{}{}
+	}
+
+	return &SecurityMiddleware{
+		bodyLimit:        cfg.Security.BodyLimitBytes,
+		csrfCookieSecure: cfg.Session.Secure,
+		allowedOrigins:   allowedOrigins,
+		rateLimiters:     map[string]*rate.Limiter{},
+		ratePerMinute:    cfg.Security.RateLimitPerMinute,
+		trustedProxies:   parseTrustedProxies(cfg.TrustedProxyCIDRs()),
+	}
+}
+
+func (m *SecurityMiddleware) SecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+		w.Header().Set("X-XSS-Protection", "0")
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (m *SecurityMiddleware) RateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := r.RemoteAddr
-		now := time.Now()
-		m.mu.Lock()
-		window := now.Add(-1 * time.Minute)
-		arr := m.hits[ip]
-		f := arr[:0]
-		for _, t := range arr {
-			if t.After(window) {
-				f = append(f, t)
-			}
-		}
-		if len(f) >= 120 {
-			m.mu.Unlock()
-			http.Error(w, "rate limit", http.StatusTooManyRequests)
+		clientIP := m.extractClientIP(r)
+		limiter := m.getOrCreateLimiter(clientIP)
+		if !limiter.Allow() {
+			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 			return
 		}
-		m.hits[ip] = append(f, now)
-		m.mu.Unlock()
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (m *SecurityMiddleware) getOrCreateLimiter(key string) *rate.Limiter {
+	m.rateLimiterMu.Lock()
+	defer m.rateLimiterMu.Unlock()
+
+	if limiter, ok := m.rateLimiters[key]; ok {
+		return limiter
+	}
+	eventsPerSecond := float64(m.ratePerMinute) / 60.0
+	limiter := rate.NewLimiter(rate.Limit(eventsPerSecond), m.ratePerMinute)
+	m.rateLimiters[key] = limiter
+	return limiter
 }
 
 func (m *SecurityMiddleware) CORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		if origin != "" && isAllowedOrigin(origin) {
+		if origin != "" && m.isAllowedOrigin(origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token, X-Request-ID")
 			w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS")
 			w.Header().Set("Vary", "Origin")
 		}
@@ -71,6 +108,7 @@ func (m *SecurityMiddleware) CSRFSimple(next http.Handler) http.Handler {
 				Path:     "/",
 				HttpOnly: false,
 				SameSite: http.SameSiteLaxMode,
+				Secure:   m.csrfCookieSecure,
 			})
 			cookie = &http.Cookie{Name: "csrf_token", Value: token}
 		}
@@ -80,7 +118,7 @@ func (m *SecurityMiddleware) CSRFSimple(next http.Handler) http.Handler {
 		}
 		head := r.Header.Get("X-CSRF-Token")
 		if cookie == nil || cookie.Value == "" || head == "" || head != cookie.Value {
-			http.Error(w, "csrf", http.StatusForbidden)
+			http.Error(w, "csrf validation failed", http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -95,13 +133,77 @@ func randomToken(bytesN int) string {
 	return hex.EncodeToString(buf)
 }
 
-func isAllowedOrigin(origin string) bool {
-	return strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "http://127.0.0.1:")
+func (m *SecurityMiddleware) isAllowedOrigin(origin string) bool {
+	_, ok := m.allowedOrigins[origin]
+	return ok
 }
 
 func (m *SecurityMiddleware) BodyLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		r.Body = http.MaxBytesReader(w, r.Body, m.bodyLimit)
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (m *SecurityMiddleware) extractClientIP(r *http.Request) string {
+	remoteHost, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
+	if err != nil {
+		remoteHost = strings.TrimSpace(r.RemoteAddr)
+	}
+	remoteIP := net.ParseIP(remoteHost)
+
+	if remoteIP != nil && m.isTrustedProxy(remoteIP) {
+		if xff := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-For"), ",")[0]); xff != "" {
+			return xff
+		}
+		if xrip := strings.TrimSpace(r.Header.Get("X-Real-IP")); xrip != "" {
+			return xrip
+		}
+	}
+
+	if remoteHost != "" {
+		return remoteHost
+	}
+	return "unknown"
+}
+
+func (m *SecurityMiddleware) isTrustedProxy(ip net.IP) bool {
+	for _, n := range m.trustedProxies {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+func parseTrustedProxies(values []string) []*net.IPNet {
+	out := make([]*net.IPNet, 0, len(values))
+	for _, value := range values {
+		_, netw, err := net.ParseCIDR(value)
+		if err == nil {
+			out = append(out, netw)
+		}
+	}
+	return out
+}
+
+func (m *SecurityMiddleware) CleanupLimiters(interval time.Duration, ttl time.Duration, stop <-chan struct{}) {
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-t.C:
+			m.rateLimiterMu.Lock()
+			if ttl <= 0 {
+				m.rateLimiters = map[string]*rate.Limiter{}
+				m.rateLimiterMu.Unlock()
+				continue
+			}
+			// x/time/rate doesn't expose last hit time; periodic full reset is acceptable.
+			m.rateLimiters = map[string]*rate.Limiter{}
+			m.rateLimiterMu.Unlock()
+		}
+	}
 }

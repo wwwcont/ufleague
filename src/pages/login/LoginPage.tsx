@@ -3,62 +3,98 @@ import { Lock, MessageCircle, ShieldCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useSession } from '../../app/providers/use-session'
-import type { UserRole } from '../../domain/entities/types'
+
+const devAccounts = [
+  { code: 'UFL-SUPERADMIN-2026', label: 'Superadmin (seeded)' },
+  { code: 'UFL-ADMIN-2026', label: 'Admin (seeded)' },
+  { code: 'UFL-CAPTAIN-2026', label: 'Captain Alpha (seeded)' },
+  { code: 'UFL-PLAYER-2026', label: 'Player Test (seeded)' },
+]
 
 export const LoginPage = () => {
-  const { isLoading, loginAsDevRole } = useSession()
-  const [selectedRole, setSelectedRole] = useState<UserRole>('player')
+  const { isLoading, startTelegramLogin, completeTelegramLoginWithCode } = useSession()
+  const [step, setStep] = useState<'start' | 'code'>('start')
+  const [requestId, setRequestId] = useState('')
+  const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
 
   return (
     <PageContainer>
       <section className="rounded-2xl border border-borderStrong bg-panelBg p-4 shadow-matte">
-        <h2 className="text-xl font-bold text-textPrimary">Вход в UFL через Telegram (dev fallback v2)</h2>
-        <p className="mt-2 text-sm text-textSecondary">Интеграция Telegram bot еще не подключена. Этот поток будет активирован следующим этапом.</p>
-        <button
-          type="button"
-          onClick={() => setError('Telegram login пока отключен. Используйте тестовые кнопки входа по ролям ниже.')}
-          disabled={isLoading}
-          className="mt-4 inline-flex rounded-lg bg-accentYellow px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-app disabled:opacity-60"
-        >
-          Войти через Telegram
-        </button>
-        {error && <p className="mt-2 text-xs text-rose-300">{error}</p>}
-      </section>
+        <h2 className="text-xl font-bold text-textPrimary">Вход в UFL через Telegram</h2>
+        <p className="mt-2 text-sm text-textSecondary">Dev-safe login flow: backend проверяет code и создает реальную session cookie.</p>
 
-      <section className="mt-4 rounded-2xl border border-borderStrong bg-panelBg p-4 shadow-matte">
-        <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-textPrimary">Тестовый вход (обход Telegram)</h3>
-        <p className="mt-1 text-xs text-textSecondary">Использует тестовые учетные записи в БД до подключения реального бота.</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {(['player', 'captain', 'admin', 'superadmin'] as UserRole[]).map((role) => (
+        {step === 'start' && (
+          <button
+            type="button"
+            onClick={async () => {
+              setError(null)
+              try {
+                const login = await startTelegramLogin()
+                setRequestId(login.requestId)
+                setStep('code')
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : 'unknown error'
+                setError(`Не удалось инициировать Telegram login: ${msg}`)
+              }
+            }}
+            disabled={isLoading}
+            className="mt-4 inline-flex rounded-lg bg-accentYellow px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-app disabled:opacity-60"
+          >
+            Войти через Telegram
+          </button>
+        )}
+
+        {step === 'code' && (
+          <div className="mt-4 space-y-2">
+            <p className="text-xs text-textMuted">Введите mock code для seeded dev account:</p>
+            <input
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+              placeholder="UFL-SUPERADMIN-2026"
+              className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary outline-none"
+            />
+            <div className="flex flex-wrap gap-2">
+              {devAccounts.map((item) => (
+                <button
+                  key={item.code}
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => setCode(item.code)}
+                  className="rounded-lg border border-borderSubtle px-2 py-1 text-[11px] text-textSecondary"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
             <button
-              key={role}
               type="button"
               onClick={async () => {
-                setSelectedRole(role)
                 setError(null)
                 try {
-                  await loginAsDevRole(role)
+                  await completeTelegramLoginWithCode(requestId, code)
                   navigate('/profile')
                 } catch (err) {
                   const msg = err instanceof Error ? err.message : 'unknown error'
-                  setError(`Не удалось выполнить тестовый вход под ролью ${role}: ${msg}`)
+                  setError(`Не удалось завершить вход: ${msg}`)
                 }
               }}
-              disabled={isLoading}
-              className={`rounded-lg border px-3 py-2 text-xs uppercase ${selectedRole === role ? 'border-accentYellow text-accentYellow' : 'border-borderSubtle text-textSecondary'} disabled:opacity-60`}
+              disabled={isLoading || !code.trim()}
+              className="inline-flex rounded-lg bg-accentYellow px-4 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-app disabled:opacity-60"
             >
-              Войти как {role}
+              Подтвердить код
             </button>
-          ))}
-        </div>
+          </div>
+        )}
+
+        {error && <p className="mt-2 text-xs text-rose-300">{error}</p>}
       </section>
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary shadow-soft">
-        <p className="flex items-center gap-2"><MessageCircle size={14} className="text-accentYellow" /> Telegram bot auth запланирован, но временно отключен в UI.</p>
-        <p className="mt-1 flex items-center gap-2"><ShieldCheck size={14} className="text-accentYellow" /> Тестовый вход создает реальную backend session cookie.</p>
-        <p className="mt-1 flex items-center gap-2"><Lock size={14} className="text-accentYellow" /> Доступ и функциональность страниц зависят от выбранной роли.</p>
+        <p className="flex items-center gap-2"><MessageCircle size={14} className="text-accentYellow" /> UX повторяет Telegram code flow, но работает без реального бота.</p>
+        <p className="mt-1 flex items-center gap-2"><ShieldCheck size={14} className="text-accentYellow" /> Логин проходит только через backend endpoint и session cookie.</p>
+        <p className="mt-1 flex items-center gap-2"><Lock size={14} className="text-accentYellow" /> После reload/auth refresh источник истины — только /api/auth/me.</p>
       </section>
     </PageContainer>
   )

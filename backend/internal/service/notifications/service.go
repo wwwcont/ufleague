@@ -2,6 +2,8 @@ package notifications
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"football_ui/backend/internal/domain"
 	"football_ui/backend/internal/repository"
@@ -32,4 +34,23 @@ func (s Service) EnqueuePlayerCommentNew(ctx context.Context, userID int64, payl
 
 func (s Service) ClaimPending(ctx context.Context, limit int) ([]domain.NotificationJob, error) {
 	return s.repo.ClaimPending(ctx, limit)
+}
+
+type TelegramDeliveryAdapter interface {
+	Deliver(ctx context.Context, job domain.NotificationJob) error
+}
+
+func (s Service) ProcessPending(ctx context.Context, limit int, adapter TelegramDeliveryAdapter) error {
+	jobs, err := s.repo.ClaimPending(ctx, limit)
+	if err != nil {
+		return err
+	}
+	for _, job := range jobs {
+		if err = adapter.Deliver(ctx, job); err != nil {
+			_ = s.repo.MarkRetry(ctx, job.ID, 30*time.Second, fmt.Sprintf("delivery_error: %v", err))
+			continue
+		}
+		_ = s.repo.MarkSent(ctx, job.ID)
+	}
+	return nil
 }

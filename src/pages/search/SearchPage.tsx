@@ -2,10 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { SearchField } from '../../components/ui/SearchField'
-import { usePlayers } from '../../hooks/data/usePlayers'
-import { useTeams } from '../../hooks/data/useTeams'
-import { useMatches } from '../../hooks/data/useMatches'
-import { useEvents } from '../../hooks/data/useEvents'
+import { useSearch } from '../../hooks/data/useSearch'
 
 type SearchType = 'all' | 'team' | 'player' | 'match' | 'event'
 type SortType = 'date_desc' | 'date_asc' | 'name_asc' | 'name_desc'
@@ -32,43 +29,40 @@ export const SearchPage = () => {
   const [activeFilter, setActiveFilter] = useState<string>('all')
   const [sortBy, setSortBy] = useState<SortType>('date_desc')
 
-  const { data: teams } = useTeams()
-  const { data: players } = usePlayers()
-  const { data: matches } = useMatches()
-  const { data: events } = useEvents()
+  const { results: backendResults } = useSearch(query)
 
   const filters = useMemo(() => {
-    if (activeType === 'team') return ['Все группы', 'A', 'B']
-    if (activeType === 'player') return ['Все позиции', 'GK', 'DF', 'MF', 'FW']
-    if (activeType === 'match') return ['Все статусы', 'live', 'scheduled', 'finished']
-    if (activeType === 'event') return ['Все типы', 'news', 'announcement', 'report', 'injury', 'discipline', 'tactical']
+    if (activeType === 'team') return ['Все команды', 'team']
+    if (activeType === 'player') return ['Все игроки', 'player']
+    if (activeType === 'match') return ['Все матчи', 'match']
+    if (activeType === 'event') return ['Все события', 'event']
     return ['Весь турнир']
   }, [activeType])
 
   const normalizedFilter = useMemo(() => {
     const map: Record<string, string> = {
       'Все группы': 'all',
+      'Все команды': 'all',
       'Все позиции': 'all',
+      'Все игроки': 'all',
       'Все статусы': 'all',
+      'Все матчи': 'all',
       'Все типы': 'all',
+      'Все события': 'all',
       'Весь турнир': 'all',
     }
     return map[activeFilter] ?? activeFilter
   }, [activeFilter])
 
   const results = useMemo(() => {
-    const q = query.trim().toLowerCase()
-
-    const list = [
-      ...(teams ?? []).map((team) => ({ id: team.id, type: 'team' as const, route: `/teams/${team.id}`, title: team.name, subtitle: `${team.shortName} • Группа ${team.group}`, date: '', filter: team.group })),
-      ...(players ?? []).map((player) => ({ id: player.id, type: 'player' as const, route: `/players/${player.id}`, title: player.displayName, subtitle: `#${player.number} • ${player.position}`, date: '', filter: player.position })),
-      ...(matches ?? []).map((match) => ({ id: match.id, type: 'match' as const, route: `/matches/${match.id}`, title: `${match.date} ${match.time}`, subtitle: `${match.venue} • ${match.round}`, date: match.date, filter: match.status })),
-      ...(events ?? []).map((event) => ({ id: event.id, type: 'event' as const, route: `/events/${event.id}`, title: event.title, subtitle: `${event.timestamp} • ${event.authorName}`, date: event.timestamp, filter: event.category })),
-    ]
-
+    const list = backendResults.map((item) => ({
+      ...item,
+      filter: item.type,
+      date: '',
+    }))
     const byType = activeType === 'all' ? list : list.filter((item) => item.type === activeType)
     const byFilter = normalizedFilter === 'all' ? byType : byType.filter((item) => item.filter === normalizedFilter)
-    const byQuery = q ? byFilter.filter((item) => `${item.title} ${item.subtitle}`.toLowerCase().includes(q)) : byFilter
+    const byQuery = query.trim() ? byFilter : []
 
     const sorted = [...byQuery].sort((a, b) => {
       if (sortBy === 'name_asc') return a.title.localeCompare(b.title, 'ru')
@@ -78,7 +72,7 @@ export const SearchPage = () => {
     })
 
     return sorted
-  }, [activeType, events, matches, normalizedFilter, players, query, sortBy, teams])
+  }, [activeType, backendResults, normalizedFilter, query, sortBy])
 
   const openedFromHome = Boolean((location.state as { fromHome?: boolean } | null)?.fromHome)
 

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"football_ui/backend/internal/domain"
 
@@ -54,4 +55,22 @@ func (r *NotificationsRepository) ClaimPending(ctx context.Context, limit int) (
 		out = append(out, job)
 	}
 	return out, rows.Err()
+}
+
+func (r *NotificationsRepository) MarkSent(ctx context.Context, jobID int64) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE notification_jobs
+		SET status='sent', sent_at=NOW(), updated_at=NOW(), last_error=''
+		WHERE id=$1
+	`, jobID)
+	return err
+}
+
+func (r *NotificationsRepository) MarkRetry(ctx context.Context, jobID int64, retryAfter time.Duration, lastErr string) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE notification_jobs
+		SET status='pending', available_at=NOW() + ($2 * INTERVAL '1 second'), updated_at=NOW(), last_error=$3
+		WHERE id=$1
+	`, jobID, int64(retryAfter.Seconds()), lastErr)
+	return err
 }

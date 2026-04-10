@@ -26,6 +26,7 @@ export const CommentsSection = ({ entityType, entityId, title = 'Коммент�
     addReply,
     removeComment,
     reactToComment,
+    loadComments,
   } = useEntityComments(entityType, entityId)
   const visibleComments = collapsed ? comments.slice(-3) : comments
 
@@ -33,8 +34,16 @@ export const CommentsSection = ({ entityType, entityId, title = 'Коммент�
     <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 text-base font-semibold text-textPrimary"><MessageSquare size={16} className="text-accentYellow" /> {title}</h2>
-        {author && <span className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-xs text-textMuted">role: {author.role}</span>}
+        <div className="flex items-center gap-2">
+          {author && <span className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-xs text-textMuted">role: {author.role}</span>}
+          <button type="button" onClick={() => { void loadComments() }} className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textMuted">refresh</button>
+        </div>
       </div>
+      {author && !author.canComment && (
+        <p className="mb-2 rounded-lg border border-rose-400/30 bg-rose-400/10 px-2 py-1 text-xs text-rose-200">
+          Комментирование ограничено: {author.blockedReason ?? 'ограничение аккаунта'}.
+        </p>
+      )}
 
       <div className="mb-3">
         <CommentComposer

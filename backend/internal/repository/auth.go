@@ -152,6 +152,15 @@ func (r *AuthRepository) GetUserByID(ctx context.Context, userID int64) (domain.
 	return user, nil
 }
 
+func (r *AuthRepository) GetUserByUsername(ctx context.Context, username string) (domain.User, error) {
+	var id int64
+	err := r.pool.QueryRow(ctx, `SELECT id FROM users WHERE username = $1`, username).Scan(&id)
+	if err != nil {
+		return domain.User{}, err
+	}
+	return r.GetUserByID(ctx, id)
+}
+
 func (r *AuthRepository) CreateSession(ctx context.Context, params CreateSessionParams) (domain.Session, error) {
 	var sess domain.Session
 	err := r.pool.QueryRow(ctx, `

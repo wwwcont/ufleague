@@ -17,6 +17,10 @@ type TelegramCodeLoginRequest struct {
 	Code      string `json:"code"`
 }
 
+type TelegramMockCodeLoginRequest struct {
+	Code string `json:"code"`
+}
+
 type TelegramIdentity struct {
 	TelegramID int64
 	Username   string

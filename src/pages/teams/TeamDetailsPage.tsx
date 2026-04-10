@@ -17,6 +17,7 @@ import { CommentsSection } from '../../components/comments'
 import { EventFeedSection } from '../../components/events'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
+import { ApiError } from '../../infrastructure/api/repositories'
 
 const formLabel: Record<string, string> = { W: 'В', D: 'Н', L: 'П' }
 
@@ -34,7 +35,17 @@ export const TeamDetailsPage = () => {
   const [inviteUsername, setInviteUsername] = useState('')
   const [socialTelegram, setSocialTelegram] = useState('https://t.me/ufleague')
   const [transferCaptainId, setTransferCaptainId] = useState('')
+  const [rosterPlayerId, setRosterPlayerId] = useState('')
+  const [rosterVisible, setRosterVisible] = useState(true)
   const [actionStatus, setActionStatus] = useState<string | null>(null)
+  const actionError = (error: unknown) => {
+    if (error instanceof ApiError) {
+      if (error.status === 403) return 'Действие запрещено для вашей роли (403).'
+      if (error.status === 429) return 'Слишком частые запросы (429). Повторите позже.'
+      return `Ошибка API ${error.status}: ${error.message}`
+    }
+    return error instanceof Error ? error.message : 'Не удалось выполнить действие'
+  }
 
   if (!team) return <PageContainer><EmptyState title="Команда не найдена" /></PageContainer>
 
@@ -77,7 +88,7 @@ export const TeamDetailsPage = () => {
                     type="button"
                     className="rounded-lg bg-accentYellow px-2 py-1 font-semibold text-app"
                     onClick={async () => {
-                      try { await teamsRepository.captainInviteByUsername?.(team.id, inviteUsername); setActionStatus('Invite отправлен') } catch (error) { setActionStatus((error as Error).message) }
+                      try { await teamsRepository.captainInviteByUsername?.(team.id, inviteUsername); setActionStatus('Invite отправлен') } catch (error) { setActionStatus(actionError(error)) }
                     }}
                   >Invite</button>
                 </div>
@@ -87,24 +98,38 @@ export const TeamDetailsPage = () => {
                     type="button"
                     className="rounded-lg border border-borderSubtle px-2 py-1"
                     onClick={async () => {
-                      try { await teamsRepository.captainUpdateSocials?.(team.id, { telegram: socialTelegram }); setActionStatus('Соцсети обновлены') } catch (error) { setActionStatus((error as Error).message) }
+                      try { await teamsRepository.captainUpdateSocials?.(team.id, { telegram: socialTelegram }); setActionStatus('Соцсети обновлены') } catch (error) { setActionStatus(actionError(error)) }
                     }}
                   >Update socials</button>
                 </div>
-                {players?.[0] && (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <select value={rosterPlayerId} onChange={(e) => setRosterPlayerId(e.target.value)} className="rounded-lg border border-borderSubtle bg-panelBg px-2 py-1">
+                    <option value="">Игрок для roster visibility</option>
+                    {(players ?? []).map((p) => <option key={p.id} value={p.id}>{p.displayName}</option>)}
+                  </select>
+                  <label className="flex items-center gap-2 rounded-lg border border-borderSubtle bg-panelBg px-2 py-1">
+                    <input checked={rosterVisible} onChange={(e) => setRosterVisible(e.target.checked)} type="checkbox" />
+                    visible
+                  </label>
                   <button
                     type="button"
                     className="rounded-lg border border-borderSubtle px-2 py-1"
                     onClick={async () => {
-                      try { await teamsRepository.captainSetRosterVisibility?.(team.id, players[0].id, true); setActionStatus('Visibility ростера обновлена') } catch (error) { setActionStatus((error as Error).message) }
+                      try {
+                        if (!rosterPlayerId) throw new Error('Выберите игрока')
+                        await teamsRepository.captainSetRosterVisibility?.(team.id, rosterPlayerId, rosterVisible)
+                        setActionStatus('Visibility ростера обновлена')
+                      } catch (error) {
+                        setActionStatus(actionError(error))
+                      }
                     }}
-                  >Set roster visibility (demo)</button>
-                )}
+                  >Apply roster visibility</button>
+                </div>
                 <button
                   type="button"
                   className="rounded-lg border border-borderSubtle px-2 py-1"
                   onClick={async () => {
-                    try { await eventsRepository.createEventForScope?.({ scopeType: 'team', scopeId: team.id, title: `Update ${team.name}`, body: 'Team event placeholder created from details page.' }); setActionStatus('Team event создан') } catch (error) { setActionStatus((error as Error).message) }
+                    try { await eventsRepository.createEventForScope?.({ scopeType: 'team', scopeId: team.id, title: `Update ${team.name}`, body: 'Team event created from Team details.' }); setActionStatus('Team event создан') } catch (error) { setActionStatus(actionError(error)) }
                   }}
                 >Add team event</button>
               </div>
@@ -119,16 +144,16 @@ export const TeamDetailsPage = () => {
                     type="button"
                     className="rounded-lg bg-accentYellow px-2 py-1 font-semibold text-app"
                     onClick={async () => {
-                      try { await teamsRepository.adminTransferCaptain?.(team.id, transferCaptainId); setActionStatus('Капитан переведен') } catch (error) { setActionStatus((error as Error).message) }
+                      try { await teamsRepository.adminTransferCaptain?.(team.id, transferCaptainId); setActionStatus('Капитан переведен') } catch (error) { setActionStatus(actionError(error)) }
                     }}
                   >Transfer captain</button>
                 </div>
                 <button
                   type="button"
                   className="rounded-lg border border-borderSubtle px-2 py-1"
-                  onClick={async () => {
-                    try { await teamsRepository.updateTeam?.(team.id, { name: `${team.name}*` }); setActionStatus('Team updated') } catch (error) { setActionStatus((error as Error).message) }
-                  }}
+                    onClick={async () => {
+                      try { await teamsRepository.updateTeam?.(team.id, { name: `${team.name}*` }); setActionStatus('Team updated') } catch (error) { setActionStatus(actionError(error)) }
+                    }}
                 >Edit team (demo patch)</button>
                 {session.user.role === 'superadmin' && <p className="text-[11px] text-accentYellow">Superadmin note: role/permission actions доступны в cabinet.</p>}
               </div>

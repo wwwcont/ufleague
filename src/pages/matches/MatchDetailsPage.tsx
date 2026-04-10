@@ -15,6 +15,7 @@ import { EventFeedSection } from '../../components/events'
 import { EntityReactions } from '../../components/ui/EntityReactions'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
+import { ApiError } from '../../infrastructure/api/repositories'
 
 const statusLabel: Record<string, string> = {
   scheduled: 'По расписанию',
@@ -93,6 +94,7 @@ export const MatchDetailsPage = () => {
   const [homeScore, setHomeScore] = useState('')
   const [awayScore, setAwayScore] = useState('')
   const [venue, setVenue] = useState('')
+  const [nextStatus, setNextStatus] = useState(match?.status ?? 'scheduled')
   const [adminStatus, setAdminStatus] = useState<string | null>(null)
 
   if (!match || !teams || !home || !away) {
@@ -104,6 +106,14 @@ export const MatchDetailsPage = () => {
   }
 
   const isAdmin = session.user.role === 'admin' || session.user.role === 'superadmin'
+  const actionError = (error: unknown) => {
+    if (error instanceof ApiError) {
+      if (error.status === 403) return 'Недостаточно прав для admin match actions (403).'
+      if (error.status === 429) return 'Слишком частые запросы (429).'
+      return `Ошибка API ${error.status}: ${error.message}`
+    }
+    return error instanceof Error ? error.message : 'Не удалось выполнить admin action'
+  }
 
   const homePlayers = (players ?? []).filter((item) => item.teamId === home.id)
   const awayPlayers = (players ?? []).filter((item) => item.teamId === away.id)
@@ -129,6 +139,9 @@ export const MatchDetailsPage = () => {
               <input value={awayScore} onChange={(e) => setAwayScore(e.target.value)} placeholder="away" className="rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
               <input value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="venue" className="rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
             </div>
+            <select value={nextStatus} onChange={(e) => setNextStatus(e.target.value as typeof nextStatus)} className="rounded-lg border border-borderSubtle bg-panelBg px-2 py-1">
+              {(['scheduled', 'live', 'half_time', 'finished'] as const).map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
             <button
               type="button"
               className="rounded-lg bg-accentYellow px-3 py-1 font-semibold text-app"
@@ -138,10 +151,11 @@ export const MatchDetailsPage = () => {
                     homeScore: homeScore ? Number(homeScore) : match.score.home,
                     awayScore: awayScore ? Number(awayScore) : match.score.away,
                     venue: venue || match.venue,
+                    status: nextStatus,
                   })
                   setAdminStatus('Match updated')
                 } catch (error) {
-                  setAdminStatus((error as Error).message)
+                  setAdminStatus(actionError(error))
                 }
               }}
             >
@@ -155,13 +169,13 @@ export const MatchDetailsPage = () => {
                   await eventsRepository.createEventForScope?.({ scopeType: 'match', scopeId: match.id, title: `Match ${match.id} update`, body: 'Admin match event placeholder.' })
                   setAdminStatus('Match event создан')
                 } catch (error) {
-                  setAdminStatus((error as Error).message)
+                  setAdminStatus(actionError(error))
                 }
               }}
             >
               Add match event
             </button>
-            <p className="text-[11px] text-textMuted">Extra-time management пока placeholder, backend-ready slot сохранен.</p>
+            <p className="text-[11px] text-textMuted">Match timeline event-management (goal/card/substitution CRUD) пока staged placeholder до расширения backend endpointов.</p>
             {adminStatus && <p className="rounded-lg border border-borderSubtle bg-panelBg px-2 py-1">{adminStatus}</p>}
           </div>
         </section>

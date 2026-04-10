@@ -32,3 +32,12 @@ type NotificationJob struct {
 	AvailableAt      time.Time        `json:"available_at"`
 	CreatedAt        time.Time        `json:"created_at"`
 }
+
+type NotificationJobStatus string
+
+const (
+	NotificationJobPending    NotificationJobStatus = "pending"
+	NotificationJobProcessing NotificationJobStatus = "processing"
+	NotificationJobSent       NotificationJobStatus = "sent"
+	NotificationJobFailed     NotificationJobStatus = "failed"
+)
