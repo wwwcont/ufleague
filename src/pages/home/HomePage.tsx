@@ -18,7 +18,7 @@ export const HomePage = () => {
 
   return (
     <PageContainer>
-      <Link to="/search" className="flex items-center gap-2 rounded-2xl border border-borderSubtle bg-panelBg px-4 py-2.5 text-sm text-textSecondary shadow-soft hover:text-textPrimary" aria-label="Открыть поиск">
+      <Link to="/search" state={{ fromHome: true }} viewTransition className="flex items-center gap-2 rounded-2xl border border-borderSubtle bg-panelBg px-4 py-2.5 text-sm text-textSecondary shadow-soft transition hover:-translate-y-0.5 hover:text-textPrimary" aria-label="Открыть поиск">
         <Search size={15} className="text-accentYellow" />
         <span className="text-textMuted/70">Поиск по турниру</span>
       </Link>

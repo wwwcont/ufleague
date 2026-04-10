@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { SearchField } from '../../components/ui/SearchField'
 import { usePlayers } from '../../hooks/data/usePlayers'
@@ -26,6 +26,7 @@ const sortLabel: Record<SortType, string> = {
 }
 
 export const SearchPage = () => {
+  const location = useLocation()
   const [query, setQuery] = useState('')
   const [activeType, setActiveType] = useState<SearchType>('all')
   const [activeFilter, setActiveFilter] = useState<string>('all')
@@ -79,9 +80,11 @@ export const SearchPage = () => {
     return sorted
   }, [activeType, events, matches, normalizedFilter, players, query, sortBy, teams])
 
+  const openedFromHome = Boolean((location.state as { fromHome?: boolean } | null)?.fromHome)
+
   return (
-    <PageContainer>
-      <SearchField value={query} onChange={setQuery} placeholder="Поиск по турниру" />
+    <PageContainer className={openedFromHome ? 'search-sheet-enter' : undefined}>
+      <SearchField value={query} onChange={setQuery} placeholder="Поиск по турниру" autoFocus={openedFromHome} />
 
       <div className="grid gap-2 sm:grid-cols-5">
         {(['all', 'player', 'team', 'match', 'event'] as SearchType[]).map((type) => (

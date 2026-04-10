@@ -10,10 +10,8 @@ export const StandingsTable = ({ rows, teamMap }: { rows: StandingRow[]; teamMap
           <th className="px-2 py-2 text-left">#</th>
           <th className="px-2 py-2 text-left">Команда</th>
           <th className="px-2 py-2 text-center">И</th>
-          <th className="px-2 py-2 text-center">В</th>
-          <th className="px-2 py-2 text-center">Н</th>
-          <th className="px-2 py-2 text-center">П</th>
-          <th className="px-2 py-2 text-center">Мячи</th>
+          <th className="px-2 py-2 text-center">В-Н-П</th>
+          <th className="px-2 py-2 text-center">М</th>
           <th className="px-2 py-2 text-center">О</th>
         </tr>
       </thead>
@@ -31,13 +29,11 @@ export const StandingsTable = ({ rows, teamMap }: { rows: StandingRow[]; teamMap
                 </Link>
               </td>
               <td className="px-2 py-3 text-center tabular-nums text-textSecondary">{row.played}</td>
-              <td className="px-2 py-3 text-center tabular-nums text-textSecondary">{row.won}</td>
-              <td className="px-2 py-3 text-center tabular-nums text-textSecondary">{row.drawn}</td>
-              <td className="px-2 py-3 text-center tabular-nums text-textSecondary">{row.lost}</td>
+              <td className="px-2 py-3 text-center tabular-nums text-textSecondary">{row.won}-{row.drawn}-{row.lost}</td>
               <td className="px-2 py-3 text-center tabular-nums text-textSecondary">
                 <span className="inline-flex min-w-[76px] items-center justify-center rounded-full bg-panelSoft px-3 py-1">
                   {row.goalsFor}:{row.goalsAgainst}
-                  <span className="ml-2 text-[11px] font-semibold text-accentYellow">{row.goalDiff > 0 ? `+${row.goalDiff}` : row.goalDiff}</span>
+                  <sup className="ml-1 text-[10px] font-semibold text-accentYellow">{row.goalDiff > 0 ? `+${row.goalDiff}` : row.goalDiff}</sup>
                 </span>
               </td>
               <td className="rounded-r-lg px-2 py-3 text-center text-base font-bold tabular-nums text-textPrimary">{row.points}</td>

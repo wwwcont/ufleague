@@ -11,6 +11,7 @@ const FIRST_ROUND_GAP = 58
 const PADDING_X = 48
 const PADDING_Y = 44
 const CONNECTOR_STUB = 14
+const CONNECTOR_RADIUS = 8
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
@@ -143,7 +144,19 @@ export const BracketView = ({ rounds, matches, teamMap, fullScreen = false }: { 
           <svg width={width} height={height} className="absolute left-0 top-0">
             {connectors.map((line, index) => {
               const midX = line.fromX + CONNECTOR_STUB
-              const path = `M ${line.fromX} ${line.fromY} H ${midX} V ${line.toY} H ${line.toX}`
+              const direction = line.toY >= line.fromY ? 1 : -1
+              const verticalDistance = Math.abs(line.toY - line.fromY)
+              const corner = Math.min(CONNECTOR_RADIUS, verticalDistance / 2 || CONNECTOR_RADIUS)
+              const firstVerticalEnd = line.toY - direction * corner
+              const cornerJoinX = midX + corner
+              const path = [
+                `M ${line.fromX} ${line.fromY}`,
+                `H ${midX}`,
+                verticalDistance
+                  ? `V ${firstVerticalEnd} Q ${midX} ${line.toY} ${cornerJoinX} ${line.toY}`
+                  : '',
+                `H ${line.toX}`,
+              ].filter(Boolean).join(' ')
               return <path key={index} d={path} fill="none" stroke="rgba(227,193,75,0.76)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             })}
           </svg>
@@ -158,7 +171,7 @@ export const BracketView = ({ rounds, matches, teamMap, fullScreen = false }: { 
             const homeWinner = match.winnerTeamId && match.homeTeamId === match.winnerTeamId
             const awayWinner = match.winnerTeamId && match.awayTeamId === match.winnerTeamId
 
-            const teamRow = (teamId: string | null, winner: boolean) => {
+            const teamRow = (teamId: string | null, winner: boolean, score?: number) => {
               const team = teamId ? teamMap[teamId] : null
 
               return (
@@ -167,11 +180,12 @@ export const BracketView = ({ rounds, matches, teamMap, fullScreen = false }: { 
                     {team ? <TeamAvatar team={team} size="sm" /> : <CircleHelp size={16} className="text-textMuted" />}
                     <span>{team ? team.shortName : 'TBD'}</span>
                   </div>
+                  <span className="text-xs font-semibold tabular-nums text-textMuted">{score ?? '—'}</span>
                 </div>
               )
             }
 
-            const content = (<><div className="leading-4">{teamRow(match.homeTeamId, Boolean(homeWinner))}</div><div className="mt-1 leading-4">{teamRow(match.awayTeamId, Boolean(awayWinner))}</div></>)
+            const content = (<><div className="leading-4">{teamRow(match.homeTeamId, Boolean(homeWinner), match.score?.home)}</div><div className="mt-1 leading-4">{teamRow(match.awayTeamId, Boolean(awayWinner), match.score?.away)}</div></>)
 
             if (match.linkedMatchId) {
               return <Link key={match.id} to={`/matches/${match.linkedMatchId}`} className={nodeClass} style={{ left: match.x, top: match.y, width: NODE_W, height: NODE_H }}>{content}</Link>

@@ -41,16 +41,17 @@ export const MatchCard = ({ match, home, away }: { match: Match; home: Team; awa
       </div>
 
       <div className="relative grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-4">
-        <div className="pointer-events-none absolute right-[calc(50%+2.7rem)] top-1/2 -z-0 h-px w-20 -translate-y-1/2 bg-gradient-to-r from-accentYellowSoft/80 to-transparent" />
-        <div className="pointer-events-none absolute left-[calc(50%+2.7rem)] top-1/2 -z-0 h-px w-20 -translate-y-1/2 bg-gradient-to-l from-accentYellowSoft/80 to-transparent" />
-
         <div className="z-10 flex min-w-0 items-center gap-2">
           <TeamAvatar team={home} size="lg" fallbackLogoUrl={tournament.logoUrl} className="bg-panelSoft p-1.5" />
           <span className="truncate text-xs font-semibold uppercase tracking-[0.06em] text-textPrimary sm:text-sm">{home.shortName}</span>
         </div>
 
         <div className="z-10 px-1 text-center text-2xl font-bold leading-none tabular-nums text-textPrimary">
-          {match.score.home}<span className="mx-1 text-accentYellow">:</span>{match.score.away}
+          <div className="relative inline-flex items-center justify-center px-6">
+            <span className="pointer-events-none absolute right-full top-1/2 h-px w-8 -translate-y-1/2 bg-gradient-to-r from-accentYellowSoft/75 to-transparent" />
+            <span className="pointer-events-none absolute left-full top-1/2 h-px w-8 -translate-y-1/2 bg-gradient-to-l from-accentYellowSoft/75 to-transparent" />
+            {match.score.home}<span className="mx-1 text-accentYellow">:</span>{match.score.away}
+          </div>
         </div>
 
         <div className="z-10 flex min-w-0 items-center justify-end gap-2 text-right">

@@ -1,0 +1,17 @@
+{
+  "name": "UFL App",
+  "short_name": "UFL",
+  "description": "Турнирный центр: матчи, таблица, сетка и события",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1114",
+  "theme_color": "#0f1114",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
