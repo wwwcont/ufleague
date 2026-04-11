@@ -11,7 +11,7 @@ import type { SearchResult } from '../../domain/entities/types'
 
 type SearchType = 'all' | 'team' | 'player' | 'match' | 'event'
 type SortDirection = 'asc' | 'desc'
-type SortKey = 'name' | 'goals' | 'age' | 'wins' | 'date' | 'total' | 'likes'
+type SortKey = 'name' | 'goals' | 'age' | 'wins' | 'date' | 'likes'
 
 type FilterValue =
   | 'all'
@@ -61,7 +61,6 @@ const sortConfig: Record<SearchType, { label: string; key: SortKey; defaultDirec
   ],
   match: [
     { label: 'По дате', key: 'date', defaultDirection: 'desc' },
-    { label: 'По тоталу', key: 'total', defaultDirection: 'desc' },
   ],
   event: [
     { label: 'По дате', key: 'date', defaultDirection: 'desc' },
@@ -78,14 +77,9 @@ export const SearchPage = () => {
   const { data: teams } = useTeams()
   const { data: players } = usePlayers()
   const { data: matches } = useMatches()
-  const { data: events } = useEvents({ limit: 6 })
+  const { data: events } = useEvents()
 
   const { results: backendResults, loading, error } = useSearch(query)
-  const parseMatchTotal = (value: string) => {
-    const parts = value.match(/(\d+)\s*:\s*(\d+)/)
-    if (!parts) return 0
-    return Number(parts[1]) + Number(parts[2])
-  }
 
   const results = useMemo(() => {
     const list = backendResults.map((item) => ({ ...item, normalized: `${item.title} ${item.subtitle ?? ''}`.toLowerCase() }))
@@ -113,7 +107,6 @@ export const SearchPage = () => {
       if (sortState.key === 'goals') return Number((a.subtitle ?? '').match(/(\d+)\s*гол/)?.[1] ?? 0) - Number((b.subtitle ?? '').match(/(\d+)\s*гол/)?.[1] ?? 0)
       if (sortState.key === 'age') return Number((a.subtitle ?? '').match(/(\d+)\s*лет/)?.[1] ?? 0) - Number((b.subtitle ?? '').match(/(\d+)\s*лет/)?.[1] ?? 0)
       if (sortState.key === 'wins') return Number((a.subtitle ?? '').match(/(\d+)\s*поб/)?.[1] ?? 0) - Number((b.subtitle ?? '').match(/(\d+)\s*поб/)?.[1] ?? 0)
-      if (sortState.key === 'total') return parseMatchTotal(a.subtitle ?? '') - parseMatchTotal(b.subtitle ?? '')
       if (sortState.key === 'likes') return Number((a.subtitle ?? '').match(/(\d+)\s*лайк/)?.[1] ?? 0) - Number((b.subtitle ?? '').match(/(\d+)\s*лайк/)?.[1] ?? 0)
       return (a.subtitle ?? '').localeCompare(b.subtitle ?? '')
     })
@@ -176,6 +169,12 @@ export const SearchPage = () => {
       event: suggestedEvents,
     }
   }, [events, matches, players, teams])
+
+
+  const suggestionTypes = useMemo(() => {
+    if (activeType === 'all') return ['team', 'player', 'match', 'event'] as const
+    return [activeType] as const
+  }, [activeType])
 
   const openedFromHome = Boolean((location.state as { fromHome?: boolean } | null)?.fromHome)
   const availableFilters = filterConfig[activeType]
@@ -250,7 +249,7 @@ export const SearchPage = () => {
             Введите команду, игрока, матч или событие. Ниже — популярные сущности для быстрого старта.
           </div>
 
-          {(['team', 'player', 'match', 'event'] as const).map((type) => (
+          {suggestionTypes.map((type) => (
             <section key={type} className="space-y-2">
               <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-textMuted">{typeLabel[type]}</h2>
               <div className="grid gap-2 sm:grid-cols-2">

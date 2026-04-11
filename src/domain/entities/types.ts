@@ -1,6 +1,6 @@
 export type ID = string
 export type MatchStatus = 'scheduled' | 'live' | 'half_time' | 'finished'
-export type PlayerPosition = 'GK' | 'DF' | 'MF' | 'FW'
+export type PlayerPosition = 'GK' | 'DF' | 'MF' | 'FW' | 'FR'
 export type FormResult = 'W' | 'D' | 'L'
 export type SearchEntityType = 'team' | 'player' | 'match' | 'event'
 
@@ -140,6 +140,7 @@ export interface MatchEvent {
   type: 'goal' | 'yellow_card' | 'red_card' | 'substitution'
   teamId?: ID
   playerId?: ID
+  assistPlayerId?: ID
   note?: string
 }
 
@@ -160,6 +161,7 @@ export interface Match {
   tour?: string
   referee?: string
   broadcastUrl?: string
+  diskUrl?: string
   bracketPosition?: {
     stageSlotColumn: number | null
     stageSlotRow: number | null
@@ -245,10 +247,12 @@ export interface CommentNode {
   authorRole: UserRole
   isOwn: boolean
   createdAt: string
+  editedAt?: string
   text: string
   reactions: CommentReactions
   canReply: boolean
   canDelete: boolean
+  canEdit: boolean
   replies: CommentNode[]
 }
 

@@ -22,8 +22,8 @@ const sectionRoles: Record<string, UserRole> = {
   edit: 'guest',
   activity: 'guest',
   reactions: 'guest',
-  permissions: 'guest',
   'player-profile': 'player',
+  'player-events': 'player',
   'player-media': 'player',
   team: 'player',
   'team-events': 'captain',
@@ -45,8 +45,8 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   'profile-settings': { title: 'Настройки профиля', description: 'Безопасное обновление user/player profile.', tips: ['Форма автоматически загружается из backend.', 'Сохранение отправляет merged payload, чтобы не затирать данные.'] },
   edit: { title: 'Редактирование профиля', description: 'Рабочая форма профиля пользователя.', tips: ['Используйте загрузку данных перед сохранением.', 'Поля socials поддерживают key=value.'] },
   activity: { title: 'Моя активность', description: 'Работа с комментариями и реакциями.', tips: ['Откройте сущность и оставьте комментарий.', 'Проверьте ограничения доступа в реальном потоке.'] },
-  permissions: { title: 'Мои права', description: 'Видимость текущих ролей и permission-поверхности.', tips: ['Сверьте роль и доступные действия.', 'Переходите в рабочие разделы по кнопкам ниже.'] },
-  'player-profile': { title: 'Player profile', description: 'Управление игровым профилем пользователя.', tips: ['Секция работает совместно со страницей игрока.', 'Проверяйте связь user ↔ player profile.'] },
+  'player-profile': { title: 'Профиль игрока', description: 'Игровой профиль пользователя (отдельно от user-профиля).', tips: ['Переходите в user-профиль для ФИО/био.', 'Проверяйте связь user ↔ player profile.'] },
+  'player-events': { title: 'Мои события', description: 'Все события, связанные с профилем игрока.', tips: ['События открываются на странице игрока.', 'Используйте фильтр по игроку в ленте.'] },
   'player-media': { title: 'Player media', description: 'Фото и медиа-поля профиля игрока.', tips: ['Используйте изображения с доступным URL.', 'Сохраняйте медиа отдельно от спортивных данных.'] },
   team: { title: 'Моя команда', description: 'Быстрый вход в team workspace.', tips: ['Откройте карточку команды для inline-редактирования.', 'Используйте team context для событий/состава.'] },
   invites: { title: 'Приглашения', description: 'Приглашение игроков в команду.', tips: ['Укажите корректный ID команды.', 'Username вводится без @.'] },
@@ -307,6 +307,10 @@ export const CabinetSectionPage = () => {
           <p className="text-xs text-textMuted">Настройки профиля загружены из backend. Измените только нужные поля и сохраните.</p>
           {profileLoading && <p className="text-xs text-textMuted">Загружаем текущие значения…</p>}
           <div className="grid gap-2 sm:grid-cols-2">
+            <input value={session.user.telegramHandle ?? ''} readOnly placeholder="Telegram login" className="w-full rounded-lg border border-borderSubtle bg-panelSoft px-2 py-1 text-textMuted" />
+            <input value={session.user.telegramId ?? ''} readOnly placeholder="Telegram ID" className="w-full rounded-lg border border-borderSubtle bg-panelSoft px-2 py-1 text-textMuted" />
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
             <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Фамилия" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Имя" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           </div>
@@ -403,6 +407,21 @@ export const CabinetSectionPage = () => {
             <Link to={teamId ? `/teams/${teamId}` : session.user.teamId ? `/teams/${session.user.teamId}` : '/teams'} className="rounded-lg border border-borderSubtle px-3 py-2">Открыть team context</Link>
             <Link to="/teams" className="rounded-lg border border-borderSubtle px-3 py-2">Список команд</Link>
           </div>
+        </section>
+      )}
+
+
+      {section === 'player-events' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          <p className="text-sm text-textSecondary">Открывает события, связанные с вашим профилем игрока.</p>
+          {session.user.playerProfileId ? (
+            <div className="flex flex-wrap gap-2 text-xs">
+              <Link to={`/players/${session.user.playerProfileId}`} className="rounded-lg border border-borderSubtle px-3 py-2">Открыть профиль игрока</Link>
+              <Link to="/events" className="rounded-lg border border-borderSubtle px-3 py-2">Общая лента событий</Link>
+            </div>
+          ) : (
+            <p className="text-xs text-textMuted">Профиль игрока не привязан к вашему аккаунту.</p>
+          )}
         </section>
       )}
 
@@ -1001,7 +1020,7 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {!['profile', 'profile-settings', 'edit', 'activity', 'player-profile', 'team', 'permissions', 'invites', 'users', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
+      {!['profile', 'profile-settings', 'edit', 'activity', 'player-profile', 'player-events', 'team', 'invites', 'users', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
           Раздел синхронизирован по правам доступа и готов к расширению бизнес-формами.
         </section>
