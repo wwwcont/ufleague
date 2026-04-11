@@ -19,13 +19,13 @@ interface CabinetEntry {
 
 const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
   guest: [
-    { title: 'Мой профиль', description: 'Основные данные аккаунта и контакты.', route: '/profile/edit', icon: 'user' },
+    { title: 'Мой профиль', description: 'Основные данные аккаунта и контакты.', route: '/profile/profile-settings', icon: 'user' },
     { title: 'Моя активность', description: 'Комментарии, ответы и реакции.', route: '/profile/activity', icon: 'user' },
     { title: 'Мои права', description: 'Что разрешено текущей роли.', route: '/profile/permissions', icon: 'shield' },
   ],
   player: [
-    { title: 'Профиль игрока', description: 'Перейти к карточке игрока.', route: '/profile/player-profile', icon: 'user' },
-    { title: 'Редактировать player profile', description: 'Обновить bio, медиа и спорт-поля.', route: '/profile/player-media', icon: 'user' },
+    { title: 'Мой профиль', description: 'Открыть обычную карточку игрока.', route: '/profile/player-profile', icon: 'user' },
+    { title: 'Настройки профиля', description: 'Обновить данные user/player profile.', route: '/profile/profile-settings', icon: 'user' },
     { title: 'Моя команда', description: 'Связь игрока с текущей командой.', route: '/profile/team', icon: 'shield' },
   ],
   captain: [

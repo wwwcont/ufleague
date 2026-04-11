@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2, ChevronRight, LayoutPanelTop } from 'lucide-react'
 import type { Match, UserRole } from '../../domain/entities/types'
 import { PageContainer } from '../../layouts/containers/PageContainer'
@@ -16,6 +16,7 @@ const roleRank: Record<UserRole, number> = {
 
 const sectionRoles: Record<string, UserRole> = {
   profile: 'guest',
+  'profile-settings': 'guest',
   edit: 'guest',
   activity: 'guest',
   reactions: 'guest',
@@ -38,6 +39,7 @@ const sectionRoles: Record<string, UserRole> = {
 
 const sectionMeta: Record<string, { title: string; description: string; tips: string[] }> = {
   profile: { title: 'Мой профиль', description: 'Редактирование карточки аккаунта и контактов.', tips: ['Проверьте ФИО и дату рождения.', 'Обновите bio и ссылку на аватар.'] },
+  'profile-settings': { title: 'Настройки профиля', description: 'Безопасное обновление user/player profile.', tips: ['Форма автоматически загружается из backend.', 'Сохранение отправляет merged payload, чтобы не затирать данные.'] },
   edit: { title: 'Редактирование профиля', description: 'Рабочая форма профиля пользователя.', tips: ['Используйте загрузку данных перед сохранением.', 'Поля socials поддерживают key=value.'] },
   activity: { title: 'Моя активность', description: 'Работа с комментариями и реакциями.', tips: ['Откройте сущность и оставьте комментарий.', 'Проверьте ограничения доступа в реальном потоке.'] },
   permissions: { title: 'Мои права', description: 'Видимость текущих ролей и permission-поверхности.', tips: ['Сверьте роль и доступные действия.', 'Переходите в рабочие разделы по кнопкам ниже.'] },
@@ -63,6 +65,7 @@ const statusTone = (status: string) => status.startsWith('ok:') ? 'text-emerald-
 
 export const CabinetSectionPage = () => {
   const { section } = useParams()
+  const navigate = useNavigate()
   const { session } = useSession()
   const { cabinetRepository, teamsRepository, playersRepository, matchesRepository, eventsRepository, uploadsRepository } = useRepositories()
 
@@ -112,6 +115,8 @@ export const CabinetSectionPage = () => {
   const [matchStartAt, setMatchStartAt] = useState('')
   const [matchStatus, setMatchStatus] = useState<Match['status']>('scheduled')
   const [matchVenue, setMatchVenue] = useState('')
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileLoaded, setProfileLoaded] = useState<null | { displayName: string; bio: string; avatarUrl: string; socials: Record<string, string> }>(null)
   const [tournamentCycles, setTournamentCycles] = useState<Array<{ id: string; name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive: boolean }>>([])
   const [selectedCycleId, setSelectedCycleId] = useState('')
   const [newCycleName, setNewCycleName] = useState('')
@@ -135,6 +140,34 @@ export const CabinetSectionPage = () => {
         setBracketCapacityDraft(active.bracketTeamCapacity)
       }
     }).catch(() => undefined)
+  }, [cabinetRepository, section])
+
+  useEffect(() => {
+    if (!(section === 'profile-settings' || section === 'profile' || section === 'edit')) return
+
+    const load = async () => {
+      setProfileLoading(true)
+      try {
+        const profile = await cabinetRepository.getMyProfile()
+        setProfileLoaded({ displayName: profile.displayName, bio: profile.bio, avatarUrl: profile.avatarUrl, socials: profile.socials })
+        setDisplayName(profile.displayName)
+        setFirstName(profile.socials.first_name ?? '')
+        setLastName(profile.socials.last_name ?? '')
+        setMiddleName(profile.socials.middle_name ?? '')
+        setBirthDate(profile.socials.birth_date ?? '')
+        setBio(profile.bio)
+        setAvatarUrl(profile.avatarUrl)
+        setSocialsRaw(Object.entries(profile.socials)
+          .filter(([k]) => !['first_name', 'last_name', 'middle_name', 'birth_date'].includes(k))
+          .map(([k, v]) => `${k}=${v}`).join(', '))
+      } catch (error) {
+        setStatus(`error: ${(error as Error).message}`)
+      } finally {
+        setProfileLoading(false)
+      }
+    }
+
+    void load()
   }, [cabinetRepository, section])
 
   const socials = useMemo(() => Object.fromEntries(parseCSV(socialsRaw).map((line) => {
@@ -227,27 +260,25 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {(section === 'profile' || section === 'edit' || section === 'player-profile') && (
+      {section === 'player-profile' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
-          <p className="text-xs text-textMuted">Заполните профиль игрока: ФИО, дата рождения, описание и ссылки.</p>
-          <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs" onClick={async () => {
-            try {
-              const profile = await cabinetRepository.getMyProfile()
-              setDisplayName(profile.displayName)
-              setFirstName(profile.socials.first_name ?? '')
-              setLastName(profile.socials.last_name ?? '')
-              setMiddleName(profile.socials.middle_name ?? '')
-              setBirthDate(profile.socials.birth_date ?? '')
-              setBio(profile.bio)
-              setAvatarUrl(profile.avatarUrl)
-              setSocialsRaw(Object.entries(profile.socials)
-                .filter(([k]) => !['first_name', 'last_name', 'middle_name', 'birth_date'].includes(k))
-                .map(([k, v]) => `${k}=${v}`).join(', '))
-              setStatus('ok: profile loaded')
-            } catch (error) {
-              setStatus(`error: ${(error as Error).message}`)
-            }
-          }}>Загрузить данные</button>
+          <p className="text-sm text-textSecondary">«Мой профиль» ведет на обычную страницу игрока с теми же правами редактирования.</p>
+          {session.user.playerProfileId ? (
+            <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={() => navigate(`/players/${session.user.playerProfileId}`)}>
+              Открыть мой player profile
+            </button>
+          ) : (
+            <div className="rounded-lg border border-dashed border-borderStrong bg-mutedBg p-3 text-xs text-textMuted">
+              Player profile не привязан к аккаунту. Обратитесь к капитану/админу для привязки.
+            </div>
+          )}
+        </section>
+      )}
+
+      {(section === 'profile-settings' || section === 'profile' || section === 'edit') && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          <p className="text-xs text-textMuted">Настройки профиля загружены из backend. Измените только нужные поля и сохраните.</p>
+          {profileLoading && <p className="text-xs text-textMuted">Загружаем текущие значения…</p>}
           <div className="grid gap-2 sm:grid-cols-2">
             <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Фамилия" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Имя" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
@@ -261,11 +292,26 @@ export const CabinetSectionPage = () => {
           <textarea value={socialsRaw} onChange={(e) => setSocialsRaw(e.target.value)} placeholder="telegram=https://... , instagram=https://..." className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <button type="button" disabled={Boolean(birthDateError)} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
             try {
+              const base = profileLoaded ?? { displayName: '', bio: '', avatarUrl: '', socials: {} }
               await cabinetRepository.updateMyProfile({
-                displayName,
-                bio,
-                avatarUrl,
+                displayName: displayName || base.displayName,
+                bio: bio || base.bio,
+                avatarUrl: avatarUrl || base.avatarUrl,
                 socials: {
+                  ...base.socials,
+                  ...socials,
+                  first_name: firstName,
+                  last_name: lastName,
+                  middle_name: middleName,
+                  birth_date: birthDate,
+                },
+              })
+              setProfileLoaded({
+                displayName: displayName || base.displayName,
+                bio: bio || base.bio,
+                avatarUrl: avatarUrl || base.avatarUrl,
+                socials: {
+                  ...base.socials,
                   ...socials,
                   first_name: firstName,
                   last_name: lastName,
@@ -278,6 +324,20 @@ export const CabinetSectionPage = () => {
               setStatus(`error: ${(error as Error).message}`)
             }
           }}>Сохранить профиль</button>
+          <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary" onClick={() => {
+            if (!profileLoaded) return
+            setDisplayName(profileLoaded.displayName)
+            setBio(profileLoaded.bio)
+            setAvatarUrl(profileLoaded.avatarUrl)
+            setFirstName(profileLoaded.socials.first_name ?? '')
+            setLastName(profileLoaded.socials.last_name ?? '')
+            setMiddleName(profileLoaded.socials.middle_name ?? '')
+            setBirthDate(profileLoaded.socials.birth_date ?? '')
+            setSocialsRaw(Object.entries(profileLoaded.socials)
+              .filter(([k]) => !['first_name', 'last_name', 'middle_name', 'birth_date'].includes(k))
+              .map(([k, v]) => `${k}=${v}`).join(', '))
+            setStatus('ok: profile changes canceled')
+          }}>Отмена изменений</button>
         </section>
       )}
 
@@ -678,7 +738,7 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {!['profile', 'edit', 'activity', 'team', 'permissions', 'invites', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
+      {!['profile', 'profile-settings', 'edit', 'activity', 'player-profile', 'team', 'permissions', 'invites', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
           Раздел синхронизирован по правам доступа и готов к расширению бизнес-формами.
         </section>
