@@ -64,6 +64,17 @@ func (r *CommentsRepository) Create(ctx context.Context, c domain.Comment) (doma
 	return out, err
 }
 
+func (r *CommentsRepository) UpdateBody(ctx context.Context, id int64, body string) (domain.Comment, error) {
+	row := r.pool.QueryRow(ctx, `
+	UPDATE comments
+	SET body=$2, edited_at=NOW(), updated_at=NOW()
+	WHERE id=$1 AND deleted_at IS NULL
+	RETURNING id,entity_type,entity_id,parent_comment_id,author_user_id,'' as author_name,body,edited_at,created_at,updated_at,deleted_at`, id, body)
+	var out domain.Comment
+	err := row.Scan(&out.ID, &out.EntityType, &out.EntityID, &out.ParentCommentID, &out.AuthorUserID, &out.AuthorName, &out.Body, &out.EditedAt, &out.CreatedAt, &out.UpdatedAt, &out.DeletedAt)
+	return out, err
+}
+
 func (r *CommentsRepository) SoftDelete(ctx context.Context, id int64) error {
 	_, err := r.pool.Exec(ctx, `UPDATE comments SET deleted_at=NOW(),updated_at=NOW() WHERE id=$1 AND deleted_at IS NULL`, id)
 	return err

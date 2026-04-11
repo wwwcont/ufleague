@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { UserCircle2 } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
@@ -9,6 +9,7 @@ import { SocialLinks } from '../../components/ui/SocialLinks'
 import { CommentsSection } from '../../components/comments'
 import { EventEditor, EventFeedSection } from '../../components/events'
 import { useEvents } from '../../hooks/data/useEvents'
+import { useMatches } from '../../hooks/data/useMatches'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { ApiError } from '../../infrastructure/api/repositories'
@@ -26,11 +27,22 @@ import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from
 
 const getInitials = (name: string) => name.split(' ').map((part) => part[0]).join('').slice(0, 2)
 
+
+const positionLabel: Record<string, string> = {
+  GK: 'ВРТ',
+  DF: 'ЗАЩ',
+  MF: 'ЦПЗ',
+  FR: 'НАП',
+  FW: 'НАП',
+}
+
+
 export const PlayerDetailsPage = () => {
   const { playerId } = useParams()
   const { data: player } = usePlayerDetails(playerId)
   const { data: team } = useTeamDetails(player?.teamId)
   const { data: playerFeed } = useEvents({ entityType: 'player', entityId: playerId, limit: 4 })
+  const { data: matches } = useMatches()
   const { session } = useSession()
   const { playersRepository, eventsRepository, uploadsRepository } = useRepositories()
 
@@ -84,6 +96,8 @@ export const PlayerDetailsPage = () => {
   if (!player) return <PageContainer><EmptyState title="Игрок не найден" /></PageContainer>
 
   const canEditPlayer = canManagePlayer(session, player, team)
+  const goalsFromMatches = (matches ?? []).flatMap((match) => match.events).filter((event) => event.type === 'goal' && event.playerId === player.id).length
+  const assistsFromMatches = (matches ?? []).flatMap((match) => match.events).filter((event) => event.type === 'goal' && event.note?.includes(`assist:${player.id}`)).length
 
   const actionError = (error: unknown) => {
     if (error instanceof ApiError) {
@@ -101,7 +115,7 @@ export const PlayerDetailsPage = () => {
             <img
               src={avatarPreview || team?.logoUrl || ''}
               alt=""
-              className="h-full w-full scale-[1.18] object-cover blur-xl opacity-20"
+              className="h-full w-full scale-[1.12] object-cover blur-md opacity-[0.18]"
             />
           )}
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/65 to-black/80" />
@@ -137,8 +151,13 @@ export const PlayerDetailsPage = () => {
             </div>
             <div className="flex-1">
               <h1 className="text-3xl font-bold text-textPrimary">{displayName || player.displayName}</h1>
-              <p className="text-sm text-textSecondary">Роль: {player.position}</p>
+              <p className="text-sm text-textSecondary">Позиция: {positionLabel[player.position] ?? player.position}</p>
               <p className="text-xs text-textMuted">{player.age ? `${player.age} лет` : 'Возраст не указан'}</p>
+              <p className="text-xs text-textMuted">Голы: {goalsFromMatches} • Ассисты: {assistsFromMatches}</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                <Link to="/profile/profile-settings" className="rounded-lg border border-borderSubtle px-2 py-1">Профиль юзера</Link>
+                {player.userId && <Link to={`/users/${player.userId}`} className="rounded-lg border border-borderSubtle px-2 py-1">Страница юзера</Link>}
+              </div>
             </div>
           </div>
 
@@ -312,10 +331,10 @@ export const PlayerDetailsPage = () => {
             <span className="text-xs text-textMuted">Позиция</span>
             {sportsEditing ? (
               <select value={position} onChange={(e) => setPosition(e.target.value as typeof position)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm">
-                {['GK', 'DF', 'MF', 'FW'].map((item) => <option key={item} value={item}>{item}</option>)}
+                {['GK', 'DF', 'MF', 'FR'].map((item) => <option key={item} value={item}>{item} — {positionLabel[item]}</option>)}
               </select>
             ) : (
-              <p className="rounded-lg bg-mutedBg px-3 py-2 text-sm text-textSecondary">{position}</p>
+              <p className="rounded-lg bg-mutedBg px-3 py-2 text-sm text-textSecondary">{position} — {positionLabel[position] ?? position}</p>
             )}
           </label>
           {sportsEditing ? (

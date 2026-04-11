@@ -106,6 +106,7 @@ const mapMatch = (m: any): Match => ({
   tour: m.extra_time?.tour ?? undefined,
   referee: m.extra_time?.referee ?? undefined,
   broadcastUrl: m.extra_time?.broadcast_url ?? undefined,
+  diskUrl: m.extra_time?.disk_url ?? undefined,
   bracketPosition: {
     stageSlotColumn: m.stage_slot_column ?? null,
     stageSlotRow: m.stage_slot_row ?? null,
@@ -140,10 +141,12 @@ const mapComment = (c: any): CommentNode => ({
   authorRole: 'guest',
   isOwn: false,
   createdAt: c.created_at,
+  editedAt: c.edited_at ?? undefined,
   text: c.body,
   reactions: { likes: c.like_count ?? 0, dislikes: c.dislike_count ?? 0, userReaction: null },
   canReply: true,
   canDelete: false,
+  canEdit: false,
   replies: [],
 })
 
@@ -307,6 +310,7 @@ export const matchesRepository: MatchesRepository = {
     const mergedExtra = {
       ...(current.extra_time ?? {}),
       ...(patch.broadcastUrl !== undefined ? { broadcast_url: patch.broadcastUrl } : {}),
+      ...(patch.diskUrl !== undefined ? { disk_url: patch.diskUrl } : {}),
       ...(patch.stage !== undefined ? { stage: patch.stage } : {}),
       ...(patch.tour !== undefined ? { tour: patch.tour } : {}),
       ...(patch.referee !== undefined ? { referee: patch.referee } : {}),
@@ -475,17 +479,34 @@ export const commentsRepository: CommentsRepository = {
       api<any>('/api/comments/author-state').catch(() => null),
     ])
     const currentAuthor = author ? mapAuthorState(author) : guestAuthor
+    const now = Date.now()
     const flat = flatRaw.map((raw) => {
       const comment = mapComment(raw)
       const isOwn = String(raw.author_user_id) === currentAuthor.id
+      const createdAtTs = new Date(comment.createdAt).getTime()
+      const canEdit = isOwn && Number.isFinite(createdAtTs) && now - createdAtTs <= 12 * 60 * 60 * 1000
       return {
         ...comment,
         isOwn,
+        canEdit,
         canDelete: isOwn || currentAuthor.role === 'admin' || currentAuthor.role === 'superadmin',
       }
     })
-    const roots = flat.filter((c) => c.parentId === null)
-    return roots.map((r) => ({ ...r, replies: flat.filter((x) => x.parentId === r.id) }))
+
+    const byId = new Map(flat.map((item) => [item.id, { ...item, replies: [] as CommentNode[] }]))
+    const roots: CommentNode[] = []
+
+    byId.forEach((item) => {
+      if (!item.parentId) {
+        roots.push(item)
+        return
+      }
+      const parent = byId.get(item.parentId)
+      if (parent) parent.replies.push(item)
+      else roots.push(item)
+    })
+
+    return roots
   },
   async getCurrentAuthor(): Promise<CommentAuthorState> {
     try {
@@ -499,6 +520,9 @@ export const commentsRepository: CommentsRepository = {
   },
   async replyToComment(parentCommentId, text) {
     await api(`/api/comments/${parentCommentId}/reply`, { method: 'POST', body: JSON.stringify({ body: text }) })
+  },
+  async updateComment(commentId, text) {
+    await api(`/api/comments/${commentId}`, { method: 'PATCH', body: JSON.stringify({ body: text }) })
   },
   async deleteComment(commentId) {
     await api(`/api/comments/${commentId}`, { method: 'DELETE' })

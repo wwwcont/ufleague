@@ -25,6 +25,7 @@ export interface RbacApiRepository {
 
 export interface CommentsApiContract {
   createComment(entityType: CommentEntityType, entityId: string, text: string, parentId?: string): Promise<{ id: string }>
+  updateComment(commentId: string, text: string): Promise<void>
   deleteComment(commentId: string): Promise<void>
   reactToComment(commentId: string, reaction: 'like' | 'dislike' | null): Promise<void>
 }

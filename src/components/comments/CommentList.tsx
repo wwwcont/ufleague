@@ -5,19 +5,20 @@ import { CommentItem } from './CommentItem'
 interface CommentListProps {
   comments: CommentNode[]
   onReply: (commentId: string, author: string) => void
+  onEdit: (commentId: string, text: string) => void
   onDelete: (commentId: string) => void
   onReact: (commentId: string, reaction: 'like' | 'dislike') => void
   showRoleBadge?: boolean
   showThread?: boolean
 }
 
-export const CommentList = ({ comments, onReply, onDelete, onReact, showRoleBadge = true, showThread = true }: CommentListProps) => {
+export const CommentList = ({ comments, onReply, onEdit, onDelete, onReact, showRoleBadge = true, showThread = true }: CommentListProps) => {
   if (comments.length === 0) return <CommentEmptyState />
 
   return (
     <ul className="space-y-2">
       {comments.map((comment) => (
-        <CommentItem key={comment.id} comment={comment} onReply={onReply} onDelete={onDelete} onReact={onReact} showRoleBadge={showRoleBadge} showThread={showThread} />
+        <CommentItem key={comment.id} comment={comment} onReply={onReply} onEdit={onEdit} onDelete={onDelete} onReact={onReact} showRoleBadge={showRoleBadge} showThread={showThread} />
       ))}
     </ul>
   )
