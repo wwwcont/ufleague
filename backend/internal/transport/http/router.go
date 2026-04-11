@@ -644,8 +644,10 @@ func (h Handler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	results := make([]domain.SearchResult, 0, 30)
+	teamNameByID := map[int64]string{}
 	teams, _ := h.tournament.ListTeams(r.Context())
 	for _, team := range teams {
+		teamNameByID[team.ID] = team.Name
 		if strings.Contains(strings.ToLower(team.Name+" "+team.Description), query) {
 			results = append(results, domain.SearchResult{
 				ID:       "team_" + strconv.FormatInt(team.ID, 10),
@@ -672,27 +674,40 @@ func (h Handler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 	matches, _ := h.tournament.ListMatches(r.Context())
 	for _, match := range matches {
-		raw := strings.ToLower(match.Venue + " " + match.Status + " " + match.StartAt.Format(time.DateOnly))
+		homeName := teamNameByID[match.HomeTeamID]
+		awayName := teamNameByID[match.AwayTeamID]
+		raw := strings.ToLower(strings.Join([]string{
+			match.Venue,
+			match.Status,
+			match.StartAt.Format(time.DateOnly),
+			homeName,
+			awayName,
+		}, " "))
 		if strings.Contains(raw, query) {
 			results = append(results, domain.SearchResult{
 				ID:       "match_" + strconv.FormatInt(match.ID, 10),
 				Type:     "match",
 				EntityID: strconv.FormatInt(match.ID, 10),
-				Title:    match.StartAt.Format(time.DateTime),
-				Subtitle: match.Venue,
+				Title:    strings.TrimSpace(homeName + " — " + awayName),
+				Subtitle: strings.TrimSpace(match.StartAt.Format(time.DateTime) + " • " + match.Venue),
 				Route:    "/matches/" + strconv.FormatInt(match.ID, 10),
 			})
 		}
 	}
 	events, _ := h.events.ListEvents(r.Context())
 	for _, event := range events {
-		if strings.Contains(strings.ToLower(event.Title+" "+event.Body), query) {
+		raw := strings.ToLower(strings.Join([]string{
+			event.Title,
+			event.Body,
+			string(event.ScopeType),
+		}, " "))
+		if strings.Contains(raw, query) {
 			results = append(results, domain.SearchResult{
 				ID:       "event_" + strconv.FormatInt(event.ID, 10),
 				Type:     "event",
 				EntityID: strconv.FormatInt(event.ID, 10),
 				Title:    event.Title,
-				Subtitle: string(event.ScopeType) + " event",
+				Subtitle: string(event.ScopeType),
 				Route:    "/events/" + strconv.FormatInt(event.ID, 10),
 			})
 		}

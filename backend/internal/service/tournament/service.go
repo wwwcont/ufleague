@@ -101,10 +101,10 @@ func (s Service) CreatePlayer(ctx context.Context, actor domain.User, req domain
 	if !hasRole(actor, domain.RoleCaptain, domain.RoleAdmin, domain.RoleSuperadmin) {
 		return domain.Player{}, ErrForbidden
 	}
+	if req.TeamID == nil || req.UserID == nil {
+		return domain.Player{}, ErrForbidden
+	}
 	if hasRole(actor, domain.RoleCaptain) && !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
-		if req.TeamID == nil {
-			return domain.Player{}, ErrForbidden
-		}
 		team, err := s.repo.GetTeam(ctx, *req.TeamID)
 		if err != nil || team.CaptainUserID == nil || *team.CaptainUserID != actor.ID {
 			return domain.Player{}, ErrForbidden
@@ -117,6 +117,9 @@ func (s Service) CreatePlayer(ctx context.Context, actor domain.User, req domain
 }
 
 func (s Service) UpdatePlayer(ctx context.Context, actor domain.User, id int64, req domain.UpdatePlayerRequest) (domain.Player, error) {
+	if req.TeamID == nil || req.UserID == nil {
+		return domain.Player{}, ErrForbidden
+	}
 	if hasRole(actor, domain.RoleCaptain) && !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
 		player, err := s.repo.GetPlayer(ctx, id)
 		if err != nil || player.TeamID == nil {

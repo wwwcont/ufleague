@@ -20,7 +20,7 @@ export interface TeamsRepository {
   getTeams(): Promise<Team[]>
   getTeamById(teamId: string): Promise<Team | null>
   createTeam?(input: { name: string; slug: string; description: string; logoUrl?: string }): Promise<void>
-  updateTeam?(teamId: string, patch: Partial<Pick<Team, 'name' | 'city' | 'logoUrl'>>): Promise<void>
+  updateTeam?(teamId: string, patch: Partial<Pick<Team, 'name' | 'logoUrl' | 'description' | 'slogan' | 'socials'>>): Promise<void>
   captainInviteByUsername?(teamId: string, username: string): Promise<void>
   captainUpdateSocials?(teamId: string, socials: Record<string, string>): Promise<void>
   captainSetRosterVisibility?(teamId: string, playerId: string, isVisible: boolean): Promise<void>
@@ -30,8 +30,8 @@ export interface TeamsRepository {
 export interface PlayersRepository {
   getPlayers(teamId?: string): Promise<Player[]>
   getPlayerById(playerId: string): Promise<Player | null>
-  createPlayer?(input: { teamId: string; fullName: string; position: string; shirtNumber: number; avatarUrl?: string }): Promise<void>
-  updatePlayer?(playerId: string, patch: Partial<Pick<Player, 'displayName' | 'position' | 'number' | 'avatar'>>): Promise<void>
+  createPlayer?(input: { userId: string; teamId: string; fullName: string; position: string; shirtNumber: number; avatarUrl?: string }): Promise<void>
+  updatePlayer?(playerId: string, patch: Partial<Pick<Player, 'displayName' | 'position' | 'number' | 'avatar' | 'bio' | 'age' | 'socials'>>): Promise<void>
 }
 
 export interface MatchesRepository {
@@ -65,8 +65,8 @@ export interface CommentsRepository {
 export interface EventsRepository {
   getEvents(): Promise<PublicEvent[]>
   getEventById(eventId: string): Promise<PublicEvent | null>
-  createEventForScope?(input: { scopeType: 'team' | 'player' | 'match' | 'global'; scopeId?: string; title: string; body: string; imageUrl?: string }): Promise<void>
-  updateEventForScope?(input: { eventId: string; scopeType: 'team' | 'player' | 'match' | 'global'; scopeId?: string; title: string; body: string; imageUrl?: string }): Promise<void>
+  createEventForScope?(input: { scopeType: 'team' | 'player' | 'match' | 'global'; scopeId?: string; title: string; body: string; imageUrl?: string; summary?: string; contentBlocks?: PublicEvent['contentBlocks'] }): Promise<void>
+  updateEventForScope?(input: { eventId: string; scopeType: 'team' | 'player' | 'match' | 'global'; scopeId?: string; title: string; body: string; imageUrl?: string; summary?: string; contentBlocks?: PublicEvent['contentBlocks'] }): Promise<void>
   deleteEvent?(eventId: string): Promise<void>
 }
 
@@ -96,4 +96,8 @@ export interface CabinetRepository {
   superadminAssignPermissions(input: { userId: string; permissions: string[] }): Promise<void>
   superadminAssignRestrictions(input: { userId: string; restrictions: string[] }): Promise<void>
   superadminSetGlobalSetting(input: { key: string; value: Record<string, unknown> }): Promise<void>
+  getTournamentCycles?(): Promise<Array<{ id: string; name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive: boolean }>>
+  createTournamentCycle?(input: { name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive?: boolean }): Promise<void>
+  setActiveTournamentCycle?(cycleId: string): Promise<void>
+  updateTournamentBracketSettings?(cycleId: string, settings: { teamCapacity: 4 | 8 | 16 | 32 }): Promise<void>
 }

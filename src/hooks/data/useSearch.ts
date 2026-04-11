@@ -6,15 +6,38 @@ export const useSearch = (query: string) => {
   const { searchRepository } = useRepositories()
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const t = setTimeout(async () => {
-      setLoading(true)
-      setResults(await searchRepository.searchAll(query))
+    const q = query.trim()
+    if (!q) {
+      setResults([])
       setLoading(false)
+      setError(null)
+      return
+    }
+
+    let cancelled = false
+    const t = setTimeout(async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const next = await searchRepository.searchAll(q)
+        if (!cancelled) setResults(next)
+      } catch (e) {
+        if (!cancelled) {
+          setResults([])
+          setError(e instanceof Error ? e.message : 'Не удалось выполнить поиск')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }, 180)
-    return () => clearTimeout(t)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
   }, [query, searchRepository])
 
-  return { results, loading }
+  return { results, loading, error }
 }

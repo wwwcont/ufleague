@@ -171,6 +171,10 @@ let mockProfile = {
   socials: {} as Record<string, string>,
 }
 
+let mockTournamentCycles: Array<{ id: string; name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive: boolean }> = [
+  { id: 'cycle_2026', name: 'Сезон 2026', bracketTeamCapacity: 16 as const, isActive: true },
+]
+
 export const cabinetRepository: CabinetRepository = {
   async getMyProfile() {
     return mockProfile
@@ -198,6 +202,21 @@ export const cabinetRepository: CabinetRepository = {
   },
   async superadminSetGlobalSetting() {
     return
+  },
+  async getTournamentCycles() {
+    return mockTournamentCycles
+  },
+  async createTournamentCycle(input) {
+    mockTournamentCycles = [
+      ...mockTournamentCycles.map((cycle) => ({ ...cycle, isActive: input.isActive ? false : cycle.isActive })),
+      { id: `cycle_${mockTournamentCycles.length + 1}`, name: input.name, bracketTeamCapacity: input.bracketTeamCapacity, isActive: Boolean(input.isActive) },
+    ]
+  },
+  async setActiveTournamentCycle(cycleId) {
+    mockTournamentCycles = mockTournamentCycles.map((cycle) => ({ ...cycle, isActive: cycle.id === cycleId }))
+  },
+  async updateTournamentBracketSettings(cycleId, settings) {
+    mockTournamentCycles = mockTournamentCycles.map((cycle) => (cycle.id === cycleId ? { ...cycle, bracketTeamCapacity: settings.teamCapacity } : cycle))
   },
 }
 

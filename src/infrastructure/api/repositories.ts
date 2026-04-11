@@ -13,6 +13,7 @@ import type {
   UploadsRepository,
 } from '../../domain/repositories/contracts'
 import type { AuthSession, BackendMeDTO, BracketMatchGroup, BracketSettings, BracketStage, CommentAuthorState, CommentNode, Match, Player, PublicEvent, PublicUserCard, SearchResult, StandingRow, Team, UserRole } from '../../domain/entities/types'
+import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 
@@ -47,14 +48,19 @@ const mapTeam = (t: any): Team => ({
   shortName: t.name?.slice(0, 3)?.toUpperCase() ?? 'TBD',
   logoUrl: t.logo_url || null,
   captainUserId: t.captain_user_id ? String(t.captain_user_id) : null,
-  city: t.description || 'UFL Development',
+  city: t.socials?.city || 'UFL Development',
   slogan: t.socials?.slogan ?? undefined,
-  description: t.socials?.description ?? t.description ?? undefined,
+  description: t.description ?? undefined,
   socials: {
     telegram: t.socials?.telegram,
     vk: t.socials?.vk,
     instagram: t.socials?.instagram,
-    custom: Array.isArray(t.socials?.custom) ? t.socials.custom.slice(0, 2).map((item: any) => ({ label: String(item.label).slice(0, 10), url: String(item.url) })) : undefined,
+    custom: Array.isArray(t.socials?.custom)
+      ? t.socials.custom.slice(0, 2).map((item: any) => ({ label: String(item.label).slice(0, 20), url: String(item.url) }))
+      : [
+        t.socials?.custom_1_label && t.socials?.custom_1_url ? { label: String(t.socials.custom_1_label), url: String(t.socials.custom_1_url) } : null,
+        t.socials?.custom_2_label && t.socials?.custom_2_url ? { label: String(t.socials.custom_2_label), url: String(t.socials.custom_2_url) } : null,
+      ].filter(Boolean) as Array<{ label: string; url: string }>,
   },
   coach: t.socials?.coach ?? t.socials?.captain ?? 'TBD',
   group: 'A',
@@ -62,22 +68,27 @@ const mapTeam = (t: any): Team => ({
   statsSummary: { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, goalDiff: 0, points: 0 },
 })
 
-const mapPlayer = (p: any): Player => ({
-  id: String(p.id),
-  teamId: String(p.team_id ?? ''),
-  displayName: p.full_name,
-  number: p.shirt_number ?? 0,
-  position: (p.position || 'MF') as Player['position'],
-  age: 21,
-  avatar: p.avatar_url || null,
-  bio: p.socials?.bio ?? undefined,
-  socials: {
-    telegram: p.socials?.telegram,
-    vk: p.socials?.vk,
-    instagram: p.socials?.instagram,
-  },
-  stats: { goals: 0, assists: 0, appearances: Number(p.appearances ?? 0) },
-})
+const mapPlayer = (p: any): Player | null => {
+  if (!p?.id || !p?.team_id || !p?.user_id) return null
+
+  return {
+    id: String(p.id),
+    teamId: String(p.team_id),
+    userId: String(p.user_id),
+    displayName: p.full_name,
+    number: p.shirt_number ?? 0,
+    position: (p.position || 'MF') as Player['position'],
+    age: Number(p.socials?.age ?? 21),
+    avatar: p.avatar_url || null,
+    bio: p.socials?.bio ?? undefined,
+    socials: {
+      telegram: p.socials?.telegram,
+      vk: p.socials?.vk,
+      instagram: p.socials?.instagram,
+    },
+    stats: { goals: 0, assists: 0, appearances: Number(p.appearances ?? 0) },
+  }
+}
 
 const mapMatch = (m: any): Match => ({
   id: String(m.id),
@@ -101,19 +112,23 @@ const mapMatch = (m: any): Match => ({
   },
 })
 
-const mapEvent = (e: any): PublicEvent => ({
-  id: String(e.id),
-  title: e.title,
-  summary: e.body?.slice(0, 120) ?? '',
-  text: e.body,
-  timestamp: e.created_at,
-  source: 'backend',
-  authorName: e.author_name || 'Команда турнира',
-  category: 'news',
-  entityType: e.scope_type,
-  entityId: e.scope_id ? String(e.scope_id) : undefined,
-  imageUrl: e.metadata?.image_url ? String(e.metadata.image_url) : undefined,
-})
+const mapEvent = (e: any): PublicEvent => {
+  const contentBlocks = normalizeEventBlocks(e.metadata?.content_blocks, { text: String(e.body ?? ''), imageUrl: e.metadata?.image_url ? String(e.metadata.image_url) : undefined })
+  return {
+    id: String(e.id),
+    title: e.title,
+    summary: e.metadata?.summary ? String(e.metadata.summary) : deriveSummaryFromBlocks(contentBlocks),
+    text: blocksToPlainText(contentBlocks),
+    contentBlocks,
+    timestamp: e.created_at,
+    source: 'backend',
+    authorName: e.author_name || 'Команда турнира',
+    category: 'news',
+    entityType: e.scope_type,
+    entityId: e.scope_id ? String(e.scope_id) : undefined,
+    imageUrl: e.metadata?.image_url ? String(e.metadata.image_url) : undefined,
+  }
+}
 
 const mapComment = (c: any): CommentNode => ({
   id: String(c.id),
@@ -172,14 +187,28 @@ export const teamsRepository: TeamsRepository = {
   },
   async updateTeam(teamId, patch) {
     const current = await api<any>(`/api/teams/${teamId}`)
+    const patchSocials = patch.socials ?? {}
+    const customLinks = Array.isArray(patchSocials.custom) ? patchSocials.custom.slice(0, 2) : []
+    const mergedSocials = {
+      ...(current.socials ?? {}),
+      ...(patchSocials.telegram !== undefined ? { telegram: patchSocials.telegram } : {}),
+      ...(patchSocials.vk !== undefined ? { vk: patchSocials.vk } : {}),
+      ...(patchSocials.instagram !== undefined ? { instagram: patchSocials.instagram } : {}),
+      ...(patch.slogan !== undefined ? { slogan: patch.slogan } : {}),
+      custom_1_label: customLinks[0]?.label ?? '',
+      custom_1_url: customLinks[0]?.url ?? '',
+      custom_2_label: customLinks[1]?.label ?? '',
+      custom_2_url: customLinks[1]?.url ?? '',
+    }
+
     await api(`/api/teams/${teamId}`, {
       method: 'PATCH',
       body: JSON.stringify({
         name: patch.name ?? current.name,
         slug: current.slug,
-        description: patch.city ?? current.description ?? '',
+        description: patch.description ?? current.description ?? '',
         logo_url: patch.logoUrl ?? current.logo_url ?? '',
-        socials: current.socials ?? {},
+        socials: mergedSocials,
       }),
     })
   },
@@ -197,12 +226,22 @@ export const teamsRepository: TeamsRepository = {
   },
 }
 export const playersRepository: PlayersRepository = {
-  async getPlayers(teamId) { const list = (await api<any[]>('/api/players')).map(mapPlayer); return teamId ? list.filter((p) => p.teamId === teamId) : list },
-  async getPlayerById(playerId) { try { return mapPlayer(await api<any>(`/api/players/${playerId}`)) } catch { return null } },
+  async getPlayers(teamId) {
+    const list = (await api<any[]>('/api/players')).map(mapPlayer).filter((player): player is Player => Boolean(player))
+    return teamId ? list.filter((p) => p.teamId === teamId) : list
+  },
+  async getPlayerById(playerId) {
+    try {
+      return mapPlayer(await api<any>(`/api/players/${playerId}`))
+    } catch {
+      return null
+    }
+  },
   async createPlayer(input) {
     await api('/api/players', {
       method: 'POST',
       body: JSON.stringify({
+        user_id: Number(input.userId),
         team_id: Number(input.teamId),
         full_name: input.fullName,
         nickname: '',
@@ -215,6 +254,14 @@ export const playersRepository: PlayersRepository = {
   },
   async updatePlayer(playerId, patch) {
     const current = await api<any>(`/api/players/${playerId}`)
+    const mergedSocials = {
+      ...(current.socials ?? {}),
+      ...(patch.socials?.telegram !== undefined ? { telegram: patch.socials.telegram } : {}),
+      ...(patch.socials?.vk !== undefined ? { vk: patch.socials.vk } : {}),
+      ...(patch.socials?.instagram !== undefined ? { instagram: patch.socials.instagram } : {}),
+      ...(patch.bio !== undefined ? { bio: patch.bio } : {}),
+      ...(patch.age !== undefined ? { age: String(patch.age) } : {}),
+    }
     await api(`/api/players/${playerId}`, {
       method: 'PATCH',
       body: JSON.stringify({
@@ -222,7 +269,7 @@ export const playersRepository: PlayersRepository = {
         full_name: patch.displayName ?? current.full_name,
         nickname: current.nickname ?? '',
         avatar_url: patch.avatar ?? current.avatar_url ?? '',
-        socials: current.socials ?? {},
+        socials: mergedSocials,
         position: patch.position ?? current.position ?? 'MF',
         shirt_number: patch.number ?? current.shirt_number ?? 0,
       }),
@@ -357,28 +404,38 @@ export const eventsRepository: EventsRepository = {
   async getEvents() { return (await api<any[]>('/api/events')).map(mapEvent) },
   async getEventById(id) { try { return mapEvent(await api<any>(`/api/events/${id}`)) } catch { return null } },
   async createEventForScope(input) {
+    const contentBlocks = input.contentBlocks ?? normalizeEventBlocks(undefined, { text: input.body, imageUrl: input.imageUrl })
     await api('/api/events', {
       method: 'POST',
       body: JSON.stringify({
         scope_type: input.scopeType,
         scope_id: input.scopeId ? Number(input.scopeId) : null,
         title: input.title,
-        body: input.body,
-        metadata: input.imageUrl ? { image_url: input.imageUrl } : {},
+        body: blocksToPlainText(contentBlocks) || input.body,
+        metadata: {
+          ...(input.imageUrl ? { image_url: input.imageUrl } : {}),
+          summary: input.summary ?? deriveSummaryFromBlocks(contentBlocks),
+          content_blocks: contentBlocks,
+        },
         visibility: 'public',
         is_pinned: false,
       }),
     })
   },
   async updateEventForScope(input) {
+    const contentBlocks = input.contentBlocks ?? normalizeEventBlocks(undefined, { text: input.body, imageUrl: input.imageUrl })
     await api(`/api/events/${input.eventId}`, {
       method: 'PATCH',
       body: JSON.stringify({
         scope_type: input.scopeType,
         scope_id: input.scopeId ? Number(input.scopeId) : null,
         title: input.title,
-        body: input.body,
-        metadata: input.imageUrl ? { image_url: input.imageUrl } : {},
+        body: blocksToPlainText(contentBlocks) || input.body,
+        metadata: {
+          ...(input.imageUrl ? { image_url: input.imageUrl } : {}),
+          summary: input.summary ?? deriveSummaryFromBlocks(contentBlocks),
+          content_blocks: contentBlocks,
+        },
         visibility: 'public',
         is_pinned: false,
       }),
@@ -458,6 +515,8 @@ const mapMeToSession = (me: BackendMeDTO): AuthSession => {
       displayName: me.user.display_name,
       role,
       roles: statuses.length ? statuses : [role],
+      playerProfileId: me.user.player_id ? String(me.user.player_id) : undefined,
+      teamId: me.user.team_id ? String(me.user.team_id) : undefined,
       telegramHandle: me.user.username ? `@${String(me.user.username).replace(/^@/, '')}` : undefined,
       telegramId: me.user.telegram_id ? String(me.user.telegram_id) : undefined,
     },
@@ -533,6 +592,8 @@ export const sessionRepository: SessionRepository = {
         displayName: me.user.display_name,
         role,
         roles: [role],
+        playerProfileId: me.user.player_id ? String(me.user.player_id) : undefined,
+        teamId: me.user.team_id ? String(me.user.team_id) : undefined,
         telegramHandle: me.user.username ? `@${String(me.user.username).replace(/^@/, '')}` : undefined,
         telegramId: me.user.telegram_id ? String(me.user.telegram_id) : undefined,
       },
@@ -553,6 +614,25 @@ const mapProfile = (payload: any) => ({
   avatarUrl: String(payload.avatar_url ?? ''),
   socials: (payload.socials ?? {}) as Record<string, string>,
 })
+
+const tournamentCyclesStorageKey = 'ufl.tournament.cycles'
+type TournamentCycleDraft = { id: string; name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive: boolean }
+const localCyclesFallback: TournamentCycleDraft[] = [{ id: 'cycle_2026', name: 'Сезон 2026', bracketTeamCapacity: 16, isActive: true }]
+const loadLocalTournamentCycles = () => {
+  if (typeof window === 'undefined') return localCyclesFallback
+  const raw = window.localStorage.getItem(tournamentCyclesStorageKey)
+  if (!raw) return localCyclesFallback
+  try {
+    const parsed = JSON.parse(raw) as TournamentCycleDraft[]
+    return Array.isArray(parsed) && parsed.length ? parsed : localCyclesFallback
+  } catch {
+    return localCyclesFallback
+  }
+}
+const saveLocalTournamentCycles = (cycles: TournamentCycleDraft[]) => {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(tournamentCyclesStorageKey, JSON.stringify(cycles))
+}
 
 export const cabinetRepository: CabinetRepository = {
   async getMyProfile() {
@@ -607,6 +687,48 @@ export const cabinetRepository: CabinetRepository = {
   },
   async superadminSetGlobalSetting(input) {
     await api(`/api/superadmin/settings/${encodeURIComponent(input.key)}`, { method: 'PUT', body: JSON.stringify({ value: input.value }) })
+  },
+  async getTournamentCycles() {
+    try {
+      const payload = await api<any[]>('/api/tournament/cycles')
+      return payload.map((item) => ({
+        id: String(item.id),
+        name: String(item.name),
+        bracketTeamCapacity: [4, 8, 16, 32].includes(Number(item.bracket_team_capacity)) ? Number(item.bracket_team_capacity) as 4 | 8 | 16 | 32 : 16,
+        isActive: Boolean(item.is_active),
+      }))
+    } catch {
+      return loadLocalTournamentCycles()
+    }
+  },
+  async createTournamentCycle(input) {
+    try {
+      await api('/api/admin/tournament/cycles', { method: 'POST', body: JSON.stringify({ name: input.name, bracket_team_capacity: input.bracketTeamCapacity, is_active: Boolean(input.isActive) }) })
+      return
+    } catch {
+      const cycles = loadLocalTournamentCycles()
+      const next = [
+        ...cycles.map((cycle) => ({ ...cycle, isActive: input.isActive ? false : cycle.isActive })),
+        { id: `cycle_${Date.now()}`, name: input.name, bracketTeamCapacity: input.bracketTeamCapacity, isActive: Boolean(input.isActive) },
+      ]
+      saveLocalTournamentCycles(next)
+    }
+  },
+  async setActiveTournamentCycle(cycleId) {
+    try {
+      await api(`/api/admin/tournament/cycles/${cycleId}/activate`, { method: 'POST' })
+      return
+    } catch {
+      saveLocalTournamentCycles(loadLocalTournamentCycles().map((cycle) => ({ ...cycle, isActive: cycle.id === cycleId })))
+    }
+  },
+  async updateTournamentBracketSettings(cycleId, settings) {
+    try {
+      await api(`/api/admin/tournament/cycles/${cycleId}/settings`, { method: 'PATCH', body: JSON.stringify({ bracket_team_capacity: settings.teamCapacity }) })
+      return
+    } catch {
+      saveLocalTournamentCycles(loadLocalTournamentCycles().map((cycle) => (cycle.id === cycleId ? { ...cycle, bracketTeamCapacity: settings.teamCapacity } : cycle)))
+    }
   },
 }
 
