@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2, ChevronRight, LayoutPanelTop } from 'lucide-react'
-import type { Match, UserRole } from '../../domain/entities/types'
+import type { Match, PublicUserCard, UserRole } from '../../domain/entities/types'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
+import { useBracket } from '../../hooks/data/useBracket'
+import { useTeams } from '../../hooks/data/useTeams'
 
 const roleRank: Record<UserRole, number> = {
   guest: 0,
@@ -26,6 +28,7 @@ const sectionRoles: Record<string, UserRole> = {
   team: 'player',
   'team-events': 'captain',
   invites: 'captain',
+  users: 'admin',
   'team-socials': 'captain',
   roster: 'captain',
   moderation: 'admin',
@@ -47,6 +50,7 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   'player-media': { title: 'Player media', description: 'Фото и медиа-поля профиля игрока.', tips: ['Используйте изображения с доступным URL.', 'Сохраняйте медиа отдельно от спортивных данных.'] },
   team: { title: 'Моя команда', description: 'Быстрый вход в team workspace.', tips: ['Откройте карточку команды для inline-редактирования.', 'Используйте team context для событий/состава.'] },
   invites: { title: 'Приглашения', description: 'Приглашение игроков в команду.', tips: ['Укажите корректный ID команды.', 'Username вводится без @.'] },
+  users: { title: 'Пользователи', description: 'Управление captain/admin правами и team membership.', tips: ['Поиск только по Telegram @username.', 'Destructive actions требуют подтверждения.'] },
   roster: { title: 'Управление составом', description: 'Видимость игроков в ростере.', tips: ['Проверьте ID команды и игрока.', 'Изменение применяется сразу после submit.'] },
   'team-events': { title: 'События команды', description: 'Создание/обновление/удаление событий.', tips: ['Поддерживается загрузка изображения.', 'Для update/delete укажите event ID.'] },
   'team-socials': { title: 'Соцсети команды', description: 'Обновление публичных ссылок команды.', tips: ['Формат ввода: key=value.', 'Сохраняйте только валидные URL.'] },
@@ -67,7 +71,9 @@ export const CabinetSectionPage = () => {
   const { section } = useParams()
   const navigate = useNavigate()
   const { session } = useSession()
-  const { cabinetRepository, teamsRepository, playersRepository, matchesRepository, eventsRepository, uploadsRepository } = useRepositories()
+  const { cabinetRepository, teamsRepository, playersRepository, matchesRepository, eventsRepository, uploadsRepository, usersRepository } = useRepositories()
+  const { data: bracket } = useBracket()
+  const { data: teams } = useTeams()
 
   const [status, setStatus] = useState('')
 
@@ -85,6 +91,13 @@ export const CabinetSectionPage = () => {
   const [body, setBody] = useState('')
   const [eventId, setEventId] = useState('')
   const [username, setUsername] = useState('')
+  const [userLookupUsername, setUserLookupUsername] = useState('')
+  const [selectedUser, setSelectedUser] = useState<PublicUserCard | null>(null)
+  const [selectedUserTeamId, setSelectedUserTeamId] = useState('')
+  const [grantTeamCreate, setGrantTeamCreate] = useState(false)
+  const [membershipTeamId, setMembershipTeamId] = useState('')
+  const [membershipPlayerId, setMembershipPlayerId] = useState('')
+  const [deactivatePlayerOnKick, setDeactivatePlayerOnKick] = useState(true)
   const [playerId, setPlayerId] = useState('')
   const [visible, setVisible] = useState(true)
   const [teamSocialsRaw, setTeamSocialsRaw] = useState('telegram=https://t.me/')
@@ -116,6 +129,10 @@ export const CabinetSectionPage = () => {
   const [matchStartAt, setMatchStartAt] = useState('')
   const [matchStatus, setMatchStatus] = useState<Match['status']>('scheduled')
   const [matchVenue, setMatchVenue] = useState('')
+  const [matchReferee, setMatchReferee] = useState('')
+  const [matchBroadcastUrl, setMatchBroadcastUrl] = useState('')
+  const [matchStage, setMatchStage] = useState('')
+  const [attachToTieIfExists, setAttachToTieIfExists] = useState(true)
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileLoaded, setProfileLoaded] = useState<null | { displayName: string; bio: string; avatarUrl: string; socials: Record<string, string> }>(null)
   const [tournamentCycles, setTournamentCycles] = useState<Array<{ id: string; name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive: boolean }>>([])
@@ -123,6 +140,11 @@ export const CabinetSectionPage = () => {
   const [newCycleName, setNewCycleName] = useState('')
   const [newCycleCapacity, setNewCycleCapacity] = useState<4 | 8 | 16 | 32>(16)
   const [bracketCapacityDraft, setBracketCapacityDraft] = useState<4 | 8 | 16 | 32>(16)
+  const [tieStageId, setTieStageId] = useState('')
+  const [tieSlot, setTieSlot] = useState('1')
+  const [tieHomeTeamId, setTieHomeTeamId] = useState('')
+  const [tieAwayTeamId, setTieAwayTeamId] = useState('')
+  const [tieLabel, setTieLabel] = useState('')
 
   const currentRoles = useMemo<UserRole[]>(
     () => (session.user.roles?.length ? session.user.roles : [session.user.role]),
@@ -350,11 +372,35 @@ export const CabinetSectionPage = () => {
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
           <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 text-sm text-textSecondary">
             <p className="font-semibold text-textPrimary">Team workspace</p>
-            <p className="mt-1">Captain/Admin/Superadmin инструменты вынесены прямо в team detail page, здесь — быстрый переход и общие операции.</p>
+            <p className="mt-1">Captain/Admin/Superadmin инструменты вынесены прямо в team detail page, здесь — быстрый переход и создание команды для капитана без команды.</p>
           </div>
-          <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="ID команды (например: 12)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          {!session.user.teamId && currentRoles.some((role) => roleRank[role] >= roleRank.captain) && (
+            <div className="space-y-2 rounded-xl border border-borderSubtle bg-mutedBg p-3">
+              <p className="text-xs text-textMuted">У вас пока нет команды. Создайте новую и сразу станьте ее капитаном.</p>
+              <input value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="Название команды" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
+              <input value={newTeamDescription} onChange={(e) => setNewTeamDescription(e.target.value)} placeholder="Описание (опционально)" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
+              <button type="button" disabled={!newTeamName.trim()} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
+                try {
+                  const slug = newTeamName.toLowerCase().replace(/[^a-zа-я0-9]+/gi, '-').replace(/^-+|-+$/g, '') || `team-${Date.now()}`
+                  await teamsRepository.createTeam?.({ name: newTeamName.trim(), slug, description: newTeamDescription.trim(), logoUrl: undefined })
+                  const teamList = await teamsRepository.getTeams()
+                  const created = teamList.find((item) => item.name === newTeamName.trim()) ?? teamList[teamList.length - 1]
+                  if (created) {
+                    await playersRepository.createPlayer?.({ userId: session.user.id, teamId: created.id, fullName: session.user.displayName, position: 'MF', shirtNumber: 0 })
+                    setStatus('ok: team created, captain player profile created')
+                    navigate(`/teams/${created.id}`)
+                    return
+                  }
+                  setStatus('ok: team created')
+                } catch (error) {
+                  setStatus(`error: ${(error as Error).message}`)
+                }
+              }}>Создать команду</button>
+            </div>
+          )}
+          <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder={`ID команды (например: ${session.user.teamId ?? '12'})`} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <div className="flex flex-wrap gap-2 text-xs">
-            <Link to={teamId ? `/teams/${teamId}` : '/teams'} className="rounded-lg border border-borderSubtle px-3 py-2">Открыть team context</Link>
+            <Link to={teamId ? `/teams/${teamId}` : session.user.teamId ? `/teams/${session.user.teamId}` : '/teams'} className="rounded-lg border border-borderSubtle px-3 py-2">Открыть team context</Link>
             <Link to="/teams" className="rounded-lg border border-borderSubtle px-3 py-2">Список команд</Link>
           </div>
         </section>
@@ -417,6 +463,134 @@ export const CabinetSectionPage = () => {
               setStatus(`error: ${(error as Error).message}`)
             }
           }}>Send invite</button>
+        </section>
+      )}
+
+      {section === 'users' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-3">
+          <p className="text-xs text-textMuted">Поиск пользователя (обязателен Telegram @username)</p>
+          <input value={userLookupUsername} onChange={(e) => setUserLookupUsername(e.target.value)} placeholder="@telegram_username" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <button type="button" disabled={!userLookupUsername.trim().startsWith('@')} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
+            try {
+              const found = await usersRepository.findByTelegramUsername?.(userLookupUsername)
+              if (!found) {
+                setSelectedUser(null)
+                setStatus('error: user not found by telegram username')
+                return
+              }
+              setSelectedUser(found)
+              setStatus(`ok: user selected (${found.displayName})`)
+            } catch (error) {
+              setStatus(`error: ${(error as Error).message}`)
+            }
+          }}>Найти пользователя</button>
+
+          {selectedUser && (
+            <div className="space-y-3 rounded-xl border border-borderSubtle bg-mutedBg p-3">
+              <p className="text-sm text-textPrimary">Выбран: <span className="font-semibold">{selectedUser.displayName}</span> {selectedUser.telegramUsername ? `(@${selectedUser.telegramUsername})` : ''}</p>
+
+              <div className="space-y-2 rounded-lg border border-borderSubtle bg-panelBg p-3">
+                <p className="text-xs text-textMuted">Капитанство / команда</p>
+                <select value={selectedUserTeamId} onChange={(e) => setSelectedUserTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+                  <option value="">Выберите команду</option>
+                  {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
+                </select>
+                <label className="flex items-center gap-2 text-xs text-textSecondary">
+                  <input type="checkbox" checked={grantTeamCreate} onChange={(e) => setGrantTeamCreate(e.target.checked)} />
+                  Выдать капитанство с правом создавать команду
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" disabled={!selectedUserTeamId} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
+                    try {
+                      await teamsRepository.adminTransferCaptain?.(selectedUserTeamId, selectedUser.id)
+                      if (grantTeamCreate && currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)) {
+                        await cabinetRepository.superadminAssignPermissions({ userId: selectedUser.id, permissions: ['tournament.team.create'] })
+                      }
+                      setStatus('ok: captain assigned')
+                    } catch (error) {
+                      setStatus(`error: ${(error as Error).message}`)
+                    }
+                  }}>Сделать капитаном</button>
+                  <button type="button" disabled={!selectedUserTeamId} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
+                    if (!window.confirm('Заменить капитана команды? Предыдущий капитан потеряет капитанские права для этой команды.')) return
+                    try {
+                      await teamsRepository.adminTransferCaptain?.(selectedUserTeamId, selectedUser.id)
+                      setStatus('ok: captain replaced')
+                    } catch (error) {
+                      setStatus(`error: ${(error as Error).message}`)
+                    }
+                  }}>Заменить капитана</button>
+                </div>
+              </div>
+
+              <div className="space-y-2 rounded-lg border border-borderSubtle bg-panelBg p-3">
+                <p className="text-xs text-textMuted">Team membership / player profile</p>
+                <select value={membershipTeamId} onChange={(e) => setMembershipTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+                  <option value="">Команда для приглашения/добавления</option>
+                  {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
+                </select>
+                <input value={membershipPlayerId} onChange={(e) => setMembershipPlayerId(e.target.value)} placeholder="ID player profile для деактивации/исключения" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+                <label className="flex items-center gap-2 text-xs text-textSecondary">
+                  <input type="checkbox" checked={deactivatePlayerOnKick} onChange={(e) => setDeactivatePlayerOnKick(e.target.checked)} />
+                  При исключении деактивировать player profile (рекомендуется)
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" disabled={!membershipTeamId || !selectedUser.telegramUsername} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
+                    try {
+                      await teamsRepository.captainInviteByUsername?.(membershipTeamId, selectedUser.telegramUsername ?? userLookupUsername.replace(/^@/, ''))
+                      await playersRepository.createPlayer?.({ userId: selectedUser.id, teamId: membershipTeamId, fullName: selectedUser.displayName, position: 'MF', shirtNumber: 0 })
+                      setStatus('ok: invite sent + player profile created')
+                    } catch (error) {
+                      setStatus(`error: ${(error as Error).message}`)
+                    }
+                  }}>Пригласить в команду</button>
+                  <button type="button" disabled={!membershipTeamId || !membershipPlayerId} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
+                    if (!window.confirm('Исключить пользователя из команды? Аккаунт сохранится.')) return
+                    try {
+                      if (deactivatePlayerOnKick) {
+                        await teamsRepository.captainSetRosterVisibility?.(membershipTeamId, membershipPlayerId, false)
+                      }
+                      setStatus('ok: user removed from team, account preserved')
+                    } catch (error) {
+                      setStatus(`error: ${(error as Error).message}`)
+                    }
+                  }}>Исключить из команды</button>
+                </div>
+              </div>
+
+              <div className="space-y-2 rounded-lg border border-borderSubtle bg-panelBg p-3">
+                <p className="text-xs text-textMuted">Admin / rights management</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" disabled={!currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
+                    try {
+                      await cabinetRepository.superadminAssignRoles({ userId: selectedUser.id, roles: ['admin'] })
+                      setStatus('ok: admin rights granted')
+                    } catch (error) {
+                      setStatus(`error: ${(error as Error).message}`)
+                    }
+                  }}>Сделать администратором</button>
+                  <button type="button" disabled={!currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
+                    if (!window.confirm('Снять admin права у пользователя?')) return
+                    try {
+                      await cabinetRepository.superadminAssignRoles({ userId: selectedUser.id, roles: ['player'] })
+                      setStatus('ok: admin rights revoked')
+                    } catch (error) {
+                      setStatus(`error: ${(error as Error).message}`)
+                    }
+                  }}>Снять admin права</button>
+                  <button type="button" disabled={!currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
+                    if (!window.confirm('Снять captain/admin права у пользователя?')) return
+                    try {
+                      await cabinetRepository.superadminAssignRoles({ userId: selectedUser.id, roles: ['player'] })
+                      setStatus('ok: elevated rights revoked')
+                    } catch (error) {
+                      setStatus(`error: ${(error as Error).message}`)
+                    }
+                  }}>Снять captain/admin права</button>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
       )}
 
@@ -497,12 +671,18 @@ export const CabinetSectionPage = () => {
 
       {section === 'tournament' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-3">
+          <div className="rounded-xl border border-accentYellow/30 bg-accentYellow/5 p-3">
+            <p className="text-sm font-semibold text-accentYellow">Tournament administration</p>
+            <p className="text-xs text-textMuted mt-1">Отдельные секции: создание турнира, выбор активного, настройки сетки и ручное управление tie/slot.</p>
+            {selectedCycleId && <p className="mt-1 text-xs text-textSecondary">Активный контекст: tournament #{selectedCycleId}</p>}
+          </div>
+
           <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 text-xs text-textSecondary">
             <p>Команды и игроки сохраняются между турнирами. Матчи, сетка и таблица относятся к выбранному tournament cycle.</p>
           </div>
 
           <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
-            <p className="text-xs text-textMuted">Список турниров / активный турнир</p>
+            <p className="text-xs font-semibold text-textPrimary">1) Список турниров и выбор активного</p>
             {!tournamentCycles.length ? (
               <p className="text-xs text-textMuted">Пока нет данных о циклах турнира.</p>
             ) : (
@@ -542,7 +722,7 @@ export const CabinetSectionPage = () => {
           </div>
 
           <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
-            <p className="text-xs text-textMuted">Create tournament cycle</p>
+            <p className="text-xs font-semibold text-textPrimary">2) Создание турнира (cycle)</p>
             <input value={newCycleName} onChange={(e) => setNewCycleName(e.target.value)} placeholder="Название цикла (например: Сезон 2027)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <select value={newCycleCapacity} onChange={(e) => setNewCycleCapacity(Number(e.target.value) as 4 | 8 | 16 | 32)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
               {[4, 8, 16, 32].map((size) => <option key={size} value={size}>{size} команд в сетке</option>)}
@@ -560,7 +740,7 @@ export const CabinetSectionPage = () => {
           </div>
 
           <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
-            <p className="text-xs text-textMuted">Tournament settings / bracket settings</p>
+            <p className="text-xs font-semibold text-textPrimary">3) Настройки сетки турнира</p>
             <select value={selectedCycleId} onChange={(e) => {
               const nextId = e.target.value
               setSelectedCycleId(nextId)
@@ -583,6 +763,39 @@ export const CabinetSectionPage = () => {
                 setStatus(`error: ${(error as Error).message}`)
               }
             }}>Сохранить настройки сетки</button>
+          </div>
+
+          <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
+            <p className="text-xs font-semibold text-textPrimary">4) Управление стадиями / tie / slot</p>
+            <select value={tieStageId} onChange={(e) => setTieStageId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+              <option value="">Выберите стадию</option>
+              {(bracket?.stages ?? []).map((stage) => <option key={stage.id} value={stage.id}>{stage.label}</option>)}
+            </select>
+            <input value={tieSlot} onChange={(e) => setTieSlot(e.target.value)} placeholder="Slot number" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <select value={tieHomeTeamId} onChange={(e) => setTieHomeTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+              <option value="">Домашняя команда</option>
+              {(teams ?? []).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}
+            </select>
+            <select value={tieAwayTeamId} onChange={(e) => setTieAwayTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+              <option value="">Гостевая команда</option>
+              {(teams ?? []).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}
+            </select>
+            <input value={tieLabel} onChange={(e) => setTieLabel(e.target.value)} placeholder="Название tie (опционально)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <button type="button" disabled={!isAdminScope || !selectedCycleId || !tieStageId || !tieHomeTeamId || !tieAwayTeamId} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
+              try {
+                await cabinetRepository.createBracketTie?.({
+                  tournamentId: selectedCycleId,
+                  stageId: tieStageId,
+                  slot: Number(tieSlot) || 1,
+                  homeTeamId: tieHomeTeamId,
+                  awayTeamId: tieAwayTeamId,
+                  label: tieLabel || undefined,
+                })
+                setStatus('ok: tie/slot created')
+              } catch (error) {
+                setStatus(`error: ${(error as Error).message}`)
+              }
+            }}>Создать tie/slot</button>
           </div>
 
           <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
@@ -623,16 +836,59 @@ export const CabinetSectionPage = () => {
           </div>
 
           <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
-            <p className="text-xs text-textMuted">Current tournament admin view: matches (привязка к турниру backend-side)</p>
-            <input value={matchHomeTeamId} onChange={(e) => setMatchHomeTeamId(e.target.value)} placeholder="ID домашней команды" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-            <input value={matchAwayTeamId} onChange={(e) => setMatchAwayTeamId(e.target.value)} placeholder="ID гостевой команды" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <p className="text-xs text-textMuted">Матчи: admin/superadmin workflow</p>
+            <select value={matchHomeTeamId} onChange={(e) => setMatchHomeTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+              <option value="">Домашняя команда</option>
+              {(teams ?? []).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}
+            </select>
+            <select value={matchAwayTeamId} onChange={(e) => setMatchAwayTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+              <option value="">Гостевая команда</option>
+              {(teams ?? []).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}
+            </select>
             <input value={matchStartAt} onChange={(e) => setMatchStartAt(e.target.value)} placeholder="Дата и время старта (RFC3339)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={matchStatus} onChange={(e) => setMatchStatus(e.target.value as typeof matchStatus)} placeholder="status" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input value={matchStage} onChange={(e) => setMatchStage(e.target.value)} placeholder="Стадия (например: 1/8)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={matchVenue} onChange={(e) => setMatchVenue(e.target.value)} placeholder="venue" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input value={matchReferee} onChange={(e) => setMatchReferee(e.target.value)} placeholder="Судья" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input value={matchBroadcastUrl} onChange={(e) => setMatchBroadcastUrl(e.target.value)} placeholder="Ссылка на трансляцию" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <label className="flex items-center gap-2 text-xs text-textSecondary">
+              <input type="checkbox" checked={attachToTieIfExists} onChange={(e) => setAttachToTieIfExists(e.target.checked)} />
+              Автоматически привязать к подходящему tie (если есть)
+            </label>
             <button type="button" disabled={!isAdminScope} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
               try {
-                await matchesRepository.createMatch?.({ homeTeamId: matchHomeTeamId, awayTeamId: matchAwayTeamId, startAt: matchStartAt, status: matchStatus, venue: matchVenue })
-                setStatus('ok: match created')
+                const created = await matchesRepository.createMatch?.({
+                  homeTeamId: matchHomeTeamId,
+                  awayTeamId: matchAwayTeamId,
+                  startAt: matchStartAt,
+                  status: matchStatus,
+                  venue: matchVenue,
+                  referee: matchReferee,
+                  broadcastUrl: matchBroadcastUrl,
+                  stage: matchStage,
+                  tournamentId: selectedCycleId || undefined,
+                })
+
+                if (!attachToTieIfExists || !selectedCycleId || !created?.id) {
+                  setStatus('ok: match created')
+                  return
+                }
+
+                const suitableTie = (bracket?.groups ?? []).find((group) => {
+                  const direct = group.homeTeamId === matchHomeTeamId && group.awayTeamId === matchAwayTeamId
+                  const reverse = group.homeTeamId === matchAwayTeamId && group.awayTeamId === matchHomeTeamId
+                  return direct || reverse
+                })
+
+                if (!suitableTie) {
+                  setStatus('ok: match created (без tie)')
+                  return
+                }
+
+                await cabinetRepository.attachMatchToTie?.({ tournamentId: selectedCycleId, tieId: suitableTie.id, matchId: created.id })
+                const tieMatchCount = [suitableTie.firstLeg.matchId, suitableTie.secondLeg?.matchId].filter(Boolean).length
+                const aggregateHint = tieMatchCount >= 1 ? ' — tie переведен в two-leg/aggregate режим' : ''
+                setStatus(`ok: match created + attached to tie${aggregateHint}`)
               } catch (error) {
                 setStatus(`error: ${(error as Error).message}`)
               }
@@ -745,7 +1001,7 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {!['profile', 'profile-settings', 'edit', 'activity', 'player-profile', 'team', 'permissions', 'invites', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
+      {!['profile', 'profile-settings', 'edit', 'activity', 'player-profile', 'team', 'permissions', 'invites', 'users', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
           Раздел синхронизирован по правам доступа и готов к расширению бизнес-формами.
         </section>

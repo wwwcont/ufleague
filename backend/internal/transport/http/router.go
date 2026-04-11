@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"net/http"
 	"os"
@@ -588,34 +589,82 @@ func (h Handler) GetBracket(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed", 500)
 		return
 	}
-	sort.Slice(matches, func(i, j int) bool { return matches[i].StartAt.Before(matches[j].StartAt) })
+	sort.Slice(matches, func(i, j int) bool { return matches[i].ID < matches[j].ID })
 
-	roundOrder := map[string]int{}
-	rounds := make([]domain.BracketRound, 0)
-	byRound := map[string]int{}
-	bracketMatches := make([]domain.BracketMatch, 0, len(matches))
-
-	for _, match := range matches {
-		key := match.StartAt.Format("2006-01-02")
-		if _, ok := roundOrder[key]; !ok {
-			order := len(rounds) + 1
-			roundID := fmt.Sprintf("round_%d", order)
-			roundOrder[key] = order
-			rounds = append(rounds, domain.BracketRound{
-				ID:    roundID,
-				Label: match.StartAt.Format("02 Jan"),
-				Order: order,
-			})
+	teams, _ := h.tournament.ListTeams(r.Context())
+	capacity := 16
+	if len(teams) > 0 {
+		nextPower := 1
+		for nextPower < len(teams) {
+			nextPower *= 2
 		}
-		order := roundOrder[key]
-		roundID := fmt.Sprintf("round_%d", order)
-		byRound[roundID]++
-		slot := byRound[roundID]
+		switch {
+		case nextPower <= 4:
+			capacity = 4
+		case nextPower <= 8:
+			capacity = 8
+		case nextPower <= 16:
+			capacity = 16
+		default:
+			capacity = 32
+		}
+	}
+
+	maxStageColumn := 1
+	for _, match := range matches {
+		if match.StageSlotColumn != nil && *match.StageSlotColumn > maxStageColumn {
+			maxStageColumn = *match.StageSlotColumn
+		}
+	}
+
+	stageCount := int(math.Log2(float64(capacity)))
+	if maxStageColumn > stageCount {
+		stageCount = maxStageColumn
+	}
+
+	rounds := make([]domain.BracketRound, 0, stageCount)
+	for i := 1; i <= stageCount; i++ {
+		matchesInStage := capacity / (1 << i)
+		label := fmt.Sprintf("Stage %d", i)
+		switch matchesInStage {
+		case 8:
+			label = "1/8 финала"
+		case 4:
+			label = "1/4 финала"
+		case 2:
+			label = "Полуфинал"
+		case 1:
+			label = "Финал"
+		}
+		rounds = append(rounds, domain.BracketRound{ID: fmt.Sprintf("stage_%d", i), Label: label, Order: i})
+	}
+
+	stageSlotCounters := map[int]int{}
+	bracketMatches := make([]domain.BracketMatch, 0, len(matches))
+	for _, match := range matches {
+		stageColumn := 1
+		if match.StageSlotColumn != nil && *match.StageSlotColumn > 0 {
+			stageColumn = *match.StageSlotColumn
+		}
+		if stageColumn > stageCount {
+			stageColumn = stageCount
+		}
+
+		slot := 0
+		if match.StageSlotRow != nil && *match.StageSlotRow > 0 {
+			slot = *match.StageSlotRow
+		} else {
+			stageSlotCounters[stageColumn]++
+			slot = stageSlotCounters[stageColumn]
+		}
+
 		homeID, awayID := match.HomeTeamID, match.AwayTeamID
 		out := domain.BracketMatch{
 			ID:          strconv.FormatInt(match.ID, 10),
-			RoundID:     roundID,
+			RoundID:     fmt.Sprintf("stage_%d", stageColumn),
 			Slot:        slot,
+			StageColumn: match.StageSlotColumn,
+			StageRow:    match.StageSlotRow,
 			HomeTeamID:  &homeID,
 			AwayTeamID:  &awayID,
 			Status:      match.Status,
@@ -633,7 +682,11 @@ func (h Handler) GetBracket(w http.ResponseWriter, r *http.Request) {
 		bracketMatches = append(bracketMatches, out)
 	}
 
-	writeJSON(w, 200, domain.BracketResponse{Rounds: rounds, Matches: bracketMatches})
+	writeJSON(w, 200, domain.BracketResponse{
+		Settings: map[string]any{"team_capacity": capacity},
+		Rounds:   rounds,
+		Matches:  bracketMatches,
+	})
 }
 
 func (h Handler) Search(w http.ResponseWriter, r *http.Request) {

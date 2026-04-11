@@ -55,13 +55,10 @@ export const bracketGroups: BracketMatchGroup[] = [
   },
   { id: 'bg5', stageId: 's1', slot: 5, homeTeamId: 'team_2', awayTeamId: 'team_15', tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
   { id: 'bg6', stageId: 's1', slot: 6, homeTeamId: 'team_7', awayTeamId: 'team_10', tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
-  { id: 'bg7', stageId: 's1', slot: 7, homeTeamId: 'team_3', awayTeamId: 'team_14', tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
-  { id: 'bg8', stageId: 's1', slot: 8, homeTeamId: 'team_6', awayTeamId: 'team_11', tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
+  { id: 'bg7', stageId: 's1', slot: 7, homeTeamId: null, awayTeamId: null, tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
 
   { id: 'bg9', stageId: 's2', slot: 1, homeTeamId: 'team_1', awayTeamId: 'team_9', tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
   { id: 'bg10', stageId: 's2', slot: 2, homeTeamId: null, awayTeamId: null, tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
-  { id: 'bg11', stageId: 's2', slot: 3, homeTeamId: null, awayTeamId: null, tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
-  { id: 'bg12', stageId: 's2', slot: 4, homeTeamId: null, awayTeamId: null, tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
 
   { id: 'bg13', stageId: 's3', slot: 1, homeTeamId: null, awayTeamId: null, tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
   { id: 'bg14', stageId: 's3', slot: 2, homeTeamId: null, awayTeamId: null, tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },

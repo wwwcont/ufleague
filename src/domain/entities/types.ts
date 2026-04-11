@@ -11,11 +11,63 @@ export interface Tournament {
   fallbackLogoUrl: string
 }
 
+export type BracketSize = 4 | 8 | 16 | 32
+export type BracketStageCode = 'R16' | 'R8' | 'R4' | 'SF' | 'F'
+
+// Normalized tournament aggregate used for admin/backend contracts.
+export interface TournamentAggregate {
+  id: ID
+  name: string
+  bracketSize: BracketSize
+  isActive: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface TournamentBracketSettings {
+  tournamentId: ID
+  bracketSize: BracketSize
+  legsPerTieDefault: 1 | 2
+}
+
+export interface TournamentStandingsContext {
+  id: ID
+  tournamentId: ID
+  stageCode?: BracketStageCode
+  label: string
+  generatedAt?: string
+}
+
+export interface TournamentBracketStage {
+  id: ID
+  tournamentId: ID
+  code: BracketStageCode
+  label: string
+  order: number
+}
+
+export interface TournamentBracketTie {
+  id: ID
+  tournamentId: ID
+  stageId: ID
+  slot: number
+  homeTeamId: ID | null
+  awayTeamId: ID | null
+  legsPlanned: 1 | 2
+  winnerTeamId?: ID | null
+  aggregateScore?: { home: number; away: number } | null
+}
+
+export interface MatchTieRelation {
+  tieId: ID
+  legNumber: number
+}
+
 // TODO(organizers): multi-season tournament management foundation.
 export interface TournamentCycle {
   id: ID
   name: string
-  bracketTeamCapacity: 4 | 8 | 16 | 32
+  bracketTeamCapacity: BracketSize
   isActive: boolean
 }
 
@@ -93,6 +145,7 @@ export interface MatchEvent {
 
 export interface Match {
   id: ID
+  tournamentId?: ID
   round: string
   date: string
   time: string
@@ -111,6 +164,7 @@ export interface Match {
     stageSlotColumn: number | null
     stageSlotRow: number | null
   }
+  tieRelation?: MatchTieRelation | null
 }
 
 export interface StandingRow {
@@ -153,7 +207,7 @@ export interface BracketMatchGroup {
 }
 
 export interface BracketSettings {
-  teamCapacity: 4 | 8 | 16 | 32
+  teamCapacity: BracketSize
 }
 
 export interface SearchResult {

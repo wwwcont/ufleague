@@ -23,6 +23,8 @@ type BracketMatch struct {
 	ID           string `json:"id"`
 	RoundID      string `json:"round_id"`
 	Slot         int    `json:"slot"`
+	StageColumn  *int   `json:"stage_slot_column,omitempty"`
+	StageRow     *int   `json:"stage_slot_row,omitempty"`
 	HomeTeamID   *int64 `json:"home_team_id"`
 	AwayTeamID   *int64 `json:"away_team_id"`
 	WinnerTeamID *int64 `json:"winner_team_id,omitempty"`
@@ -33,8 +35,9 @@ type BracketMatch struct {
 }
 
 type BracketResponse struct {
-	Rounds  []BracketRound `json:"rounds"`
-	Matches []BracketMatch `json:"matches"`
+	Settings map[string]any `json:"settings,omitempty"`
+	Rounds   []BracketRound `json:"rounds"`
+	Matches  []BracketMatch `json:"matches"`
 }
 
 type SearchResult struct {

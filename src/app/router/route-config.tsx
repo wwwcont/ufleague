@@ -7,6 +7,7 @@ import { CommentsPage } from '../../pages/comments/CommentsPage'
 import { HomePage } from '../../pages/home/HomePage'
 import { LoginPage } from '../../pages/login/LoginPage'
 import { MatchDetailsPage } from '../../pages/matches/MatchDetailsPage'
+import { MatchEventsPage } from '../../pages/matches/MatchEventsPage'
 import { MatchesPage } from '../../pages/matches/MatchesPage'
 import { PlayerDetailsPage } from '../../pages/players/PlayerDetailsPage'
 import { PlayersPage } from '../../pages/players/PlayersPage'
@@ -28,6 +29,7 @@ export const router = createBrowserRouter([
       { index: true, element: <HomePage /> },
       { path: 'matches', element: <MatchesPage /> },
       { path: 'matches/:matchId', element: <MatchDetailsPage /> },
+      { path: 'matches/:matchId/events', element: <MatchEventsPage /> },
       { path: 'teams', element: <TeamsPage /> },
       { path: 'teams/:teamId', element: <TeamDetailsPage /> },
       { path: 'players', element: <PlayersPage /> },

@@ -34,12 +34,14 @@ const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
   ],
   admin: [
     { title: 'Матчи', description: 'Управление матчами и турниром.', route: '/profile/tournament', icon: 'shield' },
+    { title: 'Пользователи', description: 'Капитанство, приглашения, admin права.', route: '/profile/users', icon: 'shield' },
     { title: 'События', description: 'Операции с событиями турнира.', route: '/profile/team-events', icon: 'shield' },
     { title: 'Комментарии', description: 'Модерация комментариев.', route: '/profile/moderation', icon: 'shield' },
     { title: 'Блокировки', description: 'Ограничения комментариев.', route: '/profile/comment-blocks', icon: 'shield' },
     { title: 'Команды и игроки', description: 'Создание и администрирование сущностей.', route: '/profile/tournament', icon: 'shield' },
   ],
   superadmin: [
+    { title: 'Пользователи', description: 'Полный workflow user/team rights.', route: '/profile/users', icon: 'shield' },
     { title: 'Роли пользователей', description: 'Назначение ролей и аудит.', route: '/profile/roles', icon: 'shield' },
     { title: 'Permissions', description: 'Тонкая настройка прав.', route: '/profile/rbac', icon: 'shield' },
     { title: 'Restrictions', description: 'Глобальные ограничения.', route: '/profile/restrictions', icon: 'shield' },

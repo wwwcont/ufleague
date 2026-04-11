@@ -5,9 +5,10 @@ interface TeamAvatarProps {
   size?: 'sm' | 'md' | 'lg' | 'xl'
   fallbackLogoUrl?: string
   className?: string
+  fit?: 'contain' | 'cover'
 }
 
-export const TeamAvatar = ({ team, size = 'md', className = '' }: TeamAvatarProps) => {
+export const TeamAvatar = ({ team, size = 'md', className = '', fit = 'contain' }: TeamAvatarProps) => {
   const sizeClass = {
     sm: 'h-6 w-6',
     md: 'h-8 w-8',
@@ -15,7 +16,8 @@ export const TeamAvatar = ({ team, size = 'md', className = '' }: TeamAvatarProp
     xl: 'h-16 w-16',
   }[size]
 
-  const avatarClass = `${sizeClass} shrink-0 rounded-full object-contain ${className}`.trim()
+  const fitClass = fit === 'cover' ? 'object-cover' : 'object-contain'
+  const avatarClass = `${sizeClass} shrink-0 rounded-full ${fitClass} ${className}`.trim()
 
   if (team.logoUrl) {
     return <img src={team.logoUrl} alt={`Логотип ${team.name}`} className={avatarClass} />

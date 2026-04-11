@@ -280,7 +280,7 @@ export const matchesRepository: MatchesRepository = {
   async getMatches() { return (await api<any[]>('/api/matches')).map(mapMatch) },
   async getMatchById(matchId) { try { return mapMatch(await api<any>(`/api/matches/${matchId}`)) } catch { return null } },
   async createMatch(input) {
-    await api('/api/matches', {
+    const created = await api<any>('/api/matches', {
       method: 'POST',
       body: JSON.stringify({
         home_team_id: Number(input.homeTeamId),
@@ -289,16 +289,27 @@ export const matchesRepository: MatchesRepository = {
         status: input.status,
         home_score: 0,
         away_score: 0,
-        extra_time: {},
+        extra_time: {
+          ...(input.stage ? { stage: input.stage } : {}),
+          ...(input.referee ? { referee: input.referee } : {}),
+          ...(input.broadcastUrl ? { broadcast_url: input.broadcastUrl } : {}),
+          ...(input.tieId ? { tie_id: input.tieId } : {}),
+          ...(input.tournamentId ? { tournament_id: input.tournamentId } : {}),
+        },
         venue: input.venue,
       }),
     })
+    const nextId = created?.id ?? created?.match_id
+    return nextId ? { id: String(nextId) } : undefined
   },
   async updateMatch(matchId, patch) {
     const current = await api<any>(`/api/matches/${matchId}`)
     const mergedExtra = {
       ...(current.extra_time ?? {}),
       ...(patch.broadcastUrl !== undefined ? { broadcast_url: patch.broadcastUrl } : {}),
+      ...(patch.stage !== undefined ? { stage: patch.stage } : {}),
+      ...(patch.tour !== undefined ? { tour: patch.tour } : {}),
+      ...(patch.referee !== undefined ? { referee: patch.referee } : {}),
     }
     await api(`/api/matches/${matchId}`, {
       method: 'PATCH',
@@ -342,12 +353,24 @@ export const bracketRepository: BracketRepository = {
       teamCapacity: [4, 8, 16, 32].includes(Number(data.settings?.team_capacity)) ? Number(data.settings?.team_capacity) as BracketSettings['teamCapacity'] : 16,
     }
 
-    const stages: BracketStage[] = stagesRaw.map((stage, index) => ({
+    const stagesFromApi: BracketStage[] = stagesRaw.map((stage, index) => ({
       id: String(stage.id),
       label: stage.label,
       order: Number(stage.order ?? index + 1),
       size: Number(stage.size ?? 1),
     }))
+    const expectedStageCount = Math.max(1, Math.round(Math.log2(settings.teamCapacity)))
+    const stages: BracketStage[] = Array.from({ length: expectedStageCount }, (_, index) => {
+      const stageOrder = index + 1
+      const mapped = stagesFromApi.find((stage) => stage.order === stageOrder) ?? stagesFromApi[index]
+      const computedSize = Math.max(1, Math.floor(settings.teamCapacity / (2 ** stageOrder)))
+      return {
+        id: mapped?.id ?? `stage_${stageOrder}`,
+        label: mapped?.label ?? (computedSize === 1 ? 'Финал' : `1/${computedSize * 2} финала`),
+        order: stageOrder,
+        size: computedSize,
+      }
+    })
 
     const groups: BracketMatchGroup[] = groupsRaw.map((group) => {
       const firstLegScore = group.first_leg_home_score !== undefined && group.first_leg_away_score !== undefined
@@ -362,8 +385,8 @@ export const bracketRepository: BracketRepository = {
 
       return {
         id: String(group.id),
-        stageId: String(group.stage_id ?? group.round_id),
-        slot: Number(group.slot ?? 1),
+        stageId: String(group.stage_id ?? group.round_id ?? `stage_${group.stage_slot_column ?? 1}`),
+        slot: Number(group.slot ?? group.stage_slot_row ?? 1),
         homeTeamId: group.home_team_id ? String(group.home_team_id) : null,
         awayTeamId: group.away_team_id ? String(group.away_team_id) : null,
         winnerTeamId: group.winner_team_id ? String(group.winner_team_id) : null,
@@ -730,6 +753,29 @@ export const cabinetRepository: CabinetRepository = {
       saveLocalTournamentCycles(loadLocalTournamentCycles().map((cycle) => (cycle.id === cycleId ? { ...cycle, bracketTeamCapacity: settings.teamCapacity } : cycle)))
     }
   },
+  async createBracketTie(input) {
+    await api('/api/admin/bracket/ties', {
+      method: 'POST',
+      body: JSON.stringify({
+        tournament_id: Number(input.tournamentId),
+        stage_id: input.stageId,
+        slot: input.slot,
+        home_team_id: Number(input.homeTeamId),
+        away_team_id: Number(input.awayTeamId),
+        label: input.label ?? '',
+      }),
+    }).catch(() => undefined)
+  },
+  async attachMatchToTie(input) {
+    await api('/api/admin/bracket/ties/attach-match', {
+      method: 'POST',
+      body: JSON.stringify({
+        tournament_id: Number(input.tournamentId),
+        tie_id: input.tieId,
+        match_id: Number(input.matchId),
+      }),
+    }).catch(() => undefined)
+  },
 }
 
 export const usersRepository: UsersRepository = {
@@ -738,6 +784,20 @@ export const usersRepository: UsersRepository = {
       return mapUserCard(await api<any>(`/api/users/${userId}`))
     } catch {
       return null
+    }
+  },
+  async findByTelegramUsername(username) {
+    const normalized = username.trim().replace(/^@/, '')
+    if (!normalized) return null
+    try {
+      return mapUserCard(await api<any>(`/api/users/by-telegram/${encodeURIComponent(normalized)}`))
+    } catch {
+      try {
+        const list = await api<any[]>(`/api/users/search?telegram=${encodeURIComponent(normalized)}`)
+        return list.length ? mapUserCard(list[0]) : null
+      } catch {
+        return null
+      }
     }
   },
 }

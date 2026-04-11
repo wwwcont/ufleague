@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { Fragment, useState } from 'react'
-import { Activity, Info, Radio, Timer, Wrench } from 'lucide-react'
+import { Activity, Info, Plus, Radio, Timer, Wrench } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useMatchDetails } from '../../hooks/data/useMatchDetails'
 import { useMatches } from '../../hooks/data/useMatches'
@@ -16,6 +16,7 @@ import { ApiError } from '../../infrastructure/api/repositories'
 import { canManageMatch } from '../../domain/services/accessControl'
 import { formatMatchMetaMsk, getTimeToKickoff } from '../../lib/date-time'
 import type { Match } from '../../domain/entities/types'
+import { EditableSectionHeader, EditableTextField, SectionActionBar } from '../../components/ui/editable'
 
 const statusLabel: Record<string, string> = {
   scheduled: 'По расписанию',
@@ -47,6 +48,29 @@ const getRecentForm = (targetTeamId: string, allMatches: Match[], currentMatchId
   .slice(0, 5)
   .map((item) => getOutcome(targetTeamId, item))
 
+type FormChip = {
+  value: 'W' | 'D' | 'L' | '-'
+  upcoming: boolean
+}
+
+const getFormChips = (targetTeamId: string, allMatches: Match[], currentMatchId: string): FormChip[] => {
+  const teamMatches = allMatches
+    .filter((item) => item.id !== currentMatchId && (item.homeTeamId === targetTeamId || item.awayTeamId === targetTeamId))
+    .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`))
+
+  const finished = teamMatches
+    .filter((item) => item.status === 'finished')
+    .slice(0, 4)
+    .map((item): FormChip => ({ value: getOutcome(targetTeamId, item), upcoming: false }))
+
+  const upcoming = teamMatches
+    .filter((item) => item.status !== 'finished')
+    .slice(0, 1)
+    .map((): FormChip => ({ value: '-', upcoming: true }))
+
+  return [...finished, ...upcoming]
+}
+
 const getTeamStats = (teamId: string, allMatches: Match[]) => {
   const played = allMatches.filter((item) => item.status === 'finished' && (item.homeTeamId === teamId || item.awayTeamId === teamId))
   const goals = played.reduce((sum, item) => sum + (item.homeTeamId === teamId ? item.score.home : item.score.away), 0)
@@ -69,6 +93,12 @@ export const MatchDetailsPage = () => {
 
   const [broadcastUrl, setBroadcastUrl] = useState(match?.broadcastUrl ?? '')
   const [adminStatus, setAdminStatus] = useState<string | null>(null)
+  const [isInfoEditing, setIsInfoEditing] = useState(false)
+  const [editableVenue, setEditableVenue] = useState(match?.venue ?? '')
+  const [editableStage, setEditableStage] = useState(match?.stage ?? '')
+  const [editableTour, setEditableTour] = useState(match?.tour ?? match?.round ?? '')
+  const [editableReferee, setEditableReferee] = useState(match?.referee ?? '')
+  const [metadataStatus, setMetadataStatus] = useState<string | null>(null)
 
   if (!match || !teams || !home || !away || !allMatches) {
     return (
@@ -90,6 +120,8 @@ export const MatchDetailsPage = () => {
 
   const homeForm = getRecentForm(home.id, allMatches, match.id)
   const awayForm = getRecentForm(away.id, allMatches, match.id)
+  const homeFormChips = getFormChips(home.id, allMatches, match.id)
+  const awayFormChips = getFormChips(away.id, allMatches, match.id)
   const homeStats = getTeamStats(home.id, allMatches)
   const awayStats = getTeamStats(away.id, allMatches)
 
@@ -102,7 +134,7 @@ export const MatchDetailsPage = () => {
 
   return (
     <PageContainer>
-      <section className="relative overflow-hidden rounded-2xl border border-borderStrong bg-panelBg px-4 py-4 shadow-matte">
+      <section className="relative overflow-hidden rounded-2xl border border-borderStrong bg-panelBg px-5 py-5 shadow-matte sm:px-6 sm:py-6">
         <div className="mb-2 flex items-center justify-between gap-3 text-xs sm:text-sm">
           <p className="font-medium tracking-[0.03em] text-textSecondary">{formatMatchMetaMsk(match.date, match.time)}</p>
           <span className={`inline-flex items-center gap-2 font-semibold uppercase tracking-[0.08em] ${match.status === 'live' ? 'text-red-400' : 'text-textSecondary'}`}>
@@ -111,36 +143,48 @@ export const MatchDetailsPage = () => {
           </span>
         </div>
 
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-          <div className="flex min-w-0 flex-col items-start gap-1.5">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:gap-5">
+          <Link to={`/teams/${home.id}`} className="flex min-w-0 flex-col items-start gap-1.5 rounded-xl p-1 transition hover:bg-panelSoft/70">
             <div className="flex items-center gap-2">
-              <TeamAvatar team={home} size="lg" fallbackLogoUrl={tournament.logoUrl} className="bg-panelSoft p-1.5" />
+              <div className="flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-borderSubtle/60 bg-panelSoft/90 sm:h-[72px] sm:w-[72px]">
+                <TeamAvatar team={home} size="xl" fit="cover" fallbackLogoUrl={tournament.logoUrl} className="h-full w-full" />
+              </div>
               <div>
                 <p className="text-sm font-semibold uppercase text-textPrimary">{home.shortName}</p>
                 <p className="text-xs text-textMuted truncate max-w-[120px]">{home.name}</p>
               </div>
             </div>
             <div className="flex gap-1">
-              {(homeForm.length ? homeForm : ['-', '-', '-', '-', '-']).map((value, index) => <span key={`${home.id}_${index}`} className={`inline-flex h-5 w-5 items-center justify-center rounded-md text-[10px] font-semibold ${formTone[value]}`}>{value === 'W' ? 'В' : value === 'L' ? 'П' : value === 'D' ? 'Н' : '-'}</span>)}
+              {homeFormChips.map((chip, index) => (
+                <span key={`${home.id}_${index}`} className={`inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[10px] font-semibold ${chip.upcoming ? 'border border-accentYellow/60 bg-accentYellow/15 text-accentYellow' : formTone[chip.value]}`}>
+                  {chip.upcoming ? 'Бл' : chip.value === 'W' ? 'В' : chip.value === 'L' ? 'П' : chip.value === 'D' ? 'Н' : '-'}
+                </span>
+              ))}
             </div>
-          </div>
+          </Link>
 
-          <div className="px-1 text-center text-[36px] font-bold leading-none tabular-nums text-textPrimary sm:text-[46px]">
+          <div className="px-1 text-center text-[40px] font-bold leading-none tabular-nums text-textPrimary sm:text-[56px]">
             {match.score.home}<span className="mx-1 text-accentYellow">:</span>{match.score.away}
           </div>
 
-          <div className="flex min-w-0 flex-col items-end gap-1.5 text-right">
+          <Link to={`/teams/${away.id}`} className="flex min-w-0 flex-col items-end gap-1.5 rounded-xl p-1 text-right transition hover:bg-panelSoft/70">
             <div className="flex items-center gap-2">
               <div>
                 <p className="text-sm font-semibold uppercase text-textPrimary">{away.shortName}</p>
                 <p className="text-xs text-textMuted truncate max-w-[120px]">{away.name}</p>
               </div>
-              <TeamAvatar team={away} size="lg" fallbackLogoUrl={tournament.logoUrl} className="bg-panelSoft p-1.5" />
+              <div className="flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-borderSubtle/60 bg-panelSoft/90 sm:h-[72px] sm:w-[72px]">
+                <TeamAvatar team={away} size="xl" fit="cover" fallbackLogoUrl={tournament.logoUrl} className="h-full w-full" />
+              </div>
             </div>
             <div className="flex gap-1">
-              {(awayForm.length ? awayForm : ['-', '-', '-', '-', '-']).map((value, index) => <span key={`${away.id}_${index}`} className={`inline-flex h-5 w-5 items-center justify-center rounded-md text-[10px] font-semibold ${formTone[value]}`}>{value === 'W' ? 'В' : value === 'L' ? 'П' : value === 'D' ? 'Н' : '-'}</span>)}
+              {awayFormChips.map((chip, index) => (
+                <span key={`${away.id}_${index}`} className={`inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[10px] font-semibold ${chip.upcoming ? 'border border-accentYellow/60 bg-accentYellow/15 text-accentYellow' : formTone[chip.value]}`}>
+                  {chip.upcoming ? 'Бл' : chip.value === 'W' ? 'В' : chip.value === 'L' ? 'П' : chip.value === 'D' ? 'Н' : '-'}
+                </span>
+              ))}
             </div>
-          </div>
+          </Link>
         </div>
 
         <div className="mt-3 flex items-center justify-between gap-3 text-xs text-textMuted sm:text-sm">
@@ -152,7 +196,7 @@ export const MatchDetailsPage = () => {
       <div className="flex items-center justify-between gap-3">
         <EntityReactions entityKey={`match:${match.id}`} />
         {match.broadcastUrl && (
-          <a href={match.broadcastUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-accentYellow px-4 py-2 text-xs font-semibold tracking-[0.08em] text-white shadow-soft">
+          <a href={match.broadcastUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-accentYellow px-4 py-2 text-xs font-semibold tracking-[0.08em] text-app shadow-soft">
             <Radio size={14} /> СМОТРЕТЬ ТРАНСЛЯЦИЮ
           </a>
         )}
@@ -183,19 +227,70 @@ export const MatchDetailsPage = () => {
       )}
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg px-4 py-3 shadow-soft">
-        <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-textPrimary">
-          <Info size={14} className="text-accentYellow" /> Quick match info
-        </div>
+        <EditableSectionHeader
+          title="Информация"
+          subtitle="Ключевая metadata матча"
+          canEdit={isAdmin}
+          isEditing={isInfoEditing}
+          onStartEdit={() => {
+            setEditableVenue(match.venue ?? '')
+            setEditableStage(match.stage ?? '')
+            setEditableTour(match.tour ?? match.round ?? '')
+            setEditableReferee(match.referee ?? '')
+            setMetadataStatus(null)
+            setIsInfoEditing(true)
+          }}
+          onCancelEdit={() => {
+            setIsInfoEditing(false)
+            setMetadataStatus(null)
+          }}
+          actions={<Info size={14} className="text-accentYellow" />}
+        />
         <div className="grid gap-2 text-sm text-textSecondary sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Статус:</span> {statusLabel[match.status]}</div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Этап:</span> {match.stage ?? '—'}</div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Тур:</span> {match.tour ?? match.round}</div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Судья:</span> {match.referee ?? '—'}</div>
+          <EditableTextField label="Этап" value={editableStage} onChange={setEditableStage} isEditing={isInfoEditing} placeholder="Например: Полуфинал" />
+          <EditableTextField label="Тур / стадия" value={editableTour} onChange={setEditableTour} isEditing={isInfoEditing} placeholder="Например: 5 тур" />
+          <EditableTextField label="Судья" value={editableReferee} onChange={setEditableReferee} isEditing={isInfoEditing} placeholder="Имя судьи" />
         </div>
+        <div className="mt-2">
+          <EditableTextField label="Стадион / площадка" value={editableVenue} onChange={setEditableVenue} isEditing={isInfoEditing} placeholder="Название арены" />
+        </div>
+        <SectionActionBar
+          isEditing={isInfoEditing}
+          statusMessage={metadataStatus}
+          onCancel={() => {
+            setIsInfoEditing(false)
+            setMetadataStatus(null)
+          }}
+          onSave={async () => {
+            try {
+              await matchesRepository.updateMatch?.(match.id, {
+                venue: editableVenue.trim() || match.venue,
+                stage: editableStage.trim(),
+                tour: editableTour.trim(),
+                referee: editableReferee.trim(),
+              })
+              setMetadataStatus('Информация обновлена')
+              setIsInfoEditing(false)
+            } catch (error) {
+              setMetadataStatus(actionError(error))
+            }
+          }}
+        />
       </section>
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
-        <div className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Timer size={15} className="text-accentYellow" /> События матча</div>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-base font-semibold text-textPrimary"><Timer size={15} className="text-accentYellow" /> События матча</div>
+          <div className="flex items-center gap-2">
+            <Link to={`/matches/${match.id}/events`} className="text-xs text-accentYellow hover:underline">Все события</Link>
+            {isAdmin && (
+              <Link to={`/matches/${match.id}/events`} className="inline-flex items-center gap-1 rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app">
+                <Plus size={12} /> Добавить событие
+              </Link>
+            )}
+          </div>
+        </div>
         {match.events.length === 0 ? (
           <p className="rounded-xl border border-dashed border-borderStrong bg-mutedBg px-3 py-4 text-sm text-textMuted">Автособытия (старт, голы, конец, изменение времени, победитель) и admin-события появятся здесь.</p>
         ) : (
@@ -232,10 +327,6 @@ export const MatchDetailsPage = () => {
 
       <CommentsSection entityType="match" entityId={match.id} title="Комментарии" />
 
-      <div className="flex gap-3 text-xs">
-        <Link to={`/teams/${home.id}`} className="text-accentYellow hover:underline">Команда {home.shortName}</Link>
-        <Link to={`/teams/${away.id}`} className="text-accentYellow hover:underline">Команда {away.shortName}</Link>
-      </div>
     </PageContainer>
   )
 }

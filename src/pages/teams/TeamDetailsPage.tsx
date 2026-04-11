@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { CalendarClock, ShieldCheck, Trophy, Users } from 'lucide-react'
+import { CalendarClock, EyeOff, Pencil, Plus, ShieldCheck, Trophy, UserPlus, Users, X } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
 import { usePlayers } from '../../hooks/data/usePlayers'
@@ -41,7 +41,7 @@ export const TeamDetailsPage = () => {
   const { data: matches } = useMatches()
   const { data: teams } = useTeams()
   const { session } = useSession()
-  const { teamsRepository, eventsRepository, uploadsRepository } = useRepositories()
+  const { teamsRepository, eventsRepository, uploadsRepository, playersRepository, usersRepository } = useRepositories()
   const [heroEditing, setHeroEditing] = useState(false)
   const [descriptionEditing, setDescriptionEditing] = useState(false)
   const [socialsEditing, setSocialsEditing] = useState(false)
@@ -75,6 +75,12 @@ export const TeamDetailsPage = () => {
   const [newEventTitle, setNewEventTitle] = useState('')
   const [newEventSummary, setNewEventSummary] = useState('')
   const [newEventBlocks, setNewEventBlocks] = useState<EventContentBlock[]>([])
+  const [localTeamFeed, setLocalTeamFeed] = useState(teamFeed ?? [])
+  const [rosterSetupMode, setRosterSetupMode] = useState(false)
+  const [inviteUsername, setInviteUsername] = useState('')
+  const [rosterStatus, setRosterStatus] = useState<string | null>(null)
+  const [hiddenPlayerIds, setHiddenPlayerIds] = useState<string[]>([])
+  const [kickedPlayerIds, setKickedPlayerIds] = useState<string[]>([])
 
   useEffect(() => {
     if (!team) return
@@ -94,6 +100,10 @@ export const TeamDetailsPage = () => {
     setDescriptionEditing(false)
     setSocialsEditing(false)
   }, [team])
+
+  useEffect(() => {
+    setLocalTeamFeed(teamFeed ?? [])
+  }, [teamFeed])
 
   if (!team) return <PageContainer><EmptyState title="Команда не найдена" /></PageContainer>
 
@@ -391,7 +401,7 @@ export const TeamDetailsPage = () => {
         </div>
       </section>
 
-      <EventFeedSection title="События команды" events={teamFeed ?? []} layout="timeline" messageWhenEmpty="События команды пока не добавлены." />
+      <EventFeedSection title="События команды" events={localTeamFeed} layout="timeline" messageWhenEmpty="События команды пока не добавлены." />
 
       {canManageCurrentTeam && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
@@ -442,6 +452,22 @@ export const TeamDetailsPage = () => {
                         imageUrl: blocks.find((item) => item.type === 'image')?.imageUrl,
                         contentBlocks: blocks,
                       })
+                      setLocalTeamFeed((prev) => [{
+                        id: `local_${Date.now()}`,
+                        title: newEventTitle.trim(),
+                        summary: newEventSummary.trim() || deriveSummaryFromBlocks(blocks),
+                        text: blocksToPlainText(blocks),
+                        contentBlocks: blocks,
+                        timestamp: new Date().toISOString(),
+                        source: 'team',
+                        authorName: session.user.displayName,
+                        category: 'news' as const,
+                        entityType: 'team' as const,
+                        entityId: team.id,
+                        imageUrl: blocks.find((item) => item.type === 'image')?.imageUrl,
+                        canEdit: true,
+                        canDelete: true,
+                      }, ...prev].slice(0, 8))
                       setEventCreateStatus('Событие создано')
                       setEventCreateOpen(false)
                       setNewEventTitle('')
@@ -473,10 +499,79 @@ export const TeamDetailsPage = () => {
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-base font-semibold text-textPrimary"><Users size={16} className="text-accentYellow" /> СОСТАВ</h2>
-          <Link to="/players" className="text-xs text-accentYellow hover:underline">ВСЕ</Link>
+          <div className="flex items-center gap-2">
+            {canManageCurrentTeam && (
+              <>
+                <button type="button" onClick={() => setRosterSetupMode((prev) => !prev)} className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textSecondary">
+                  {rosterSetupMode ? 'Готово' : 'Настроить'}
+                </button>
+              </>
+            )}
+            <Link to="/players" className="text-xs text-accentYellow hover:underline">ВСЕ</Link>
+          </div>
         </div>
+        {canManageCurrentTeam && (
+          <div className="mb-3 rounded-xl border border-borderSubtle bg-mutedBg p-3">
+            <p className="mb-2 text-xs text-textMuted">Добавить игрока по @username</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <input value={inviteUsername} onChange={(event) => setInviteUsername(event.target.value)} placeholder="@telegram_username" className="min-w-[220px] flex-1 rounded-lg border border-borderSubtle bg-panelBg px-3 py-2 text-sm" />
+              <button type="button" disabled={!inviteUsername.trim().startsWith('@')} className="inline-flex items-center gap-1 rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
+                try {
+                  const found = await usersRepository.findByTelegramUsername?.(inviteUsername)
+                  if (!found) throw new Error('Пользователь не найден')
+                  await teamsRepository.captainInviteByUsername?.(team.id, found.telegramUsername ?? inviteUsername.replace(/^@/, ''))
+                  await playersRepository.createPlayer?.({ userId: found.id, teamId: team.id, fullName: found.displayName, position: 'MF', shirtNumber: 0 })
+                  setRosterStatus('Игрок добавлен в команду и player profile создан')
+                  setInviteUsername('')
+                } catch (error) {
+                  setRosterStatus(actionError(error))
+                }
+              }}>
+                <UserPlus size={12} /> <Plus size={12} /> Добавить
+              </button>
+            </div>
+            {rosterStatus && <p className="mt-2 text-xs text-textMuted">{rosterStatus}</p>}
+          </div>
+        )}
         <div className="space-y-2">
-          {players?.length ? players.map((player) => <PlayerRow key={player.id} player={player} />) : <p className="text-sm text-textMuted">Состав пока не загружен.</p>}
+          {players?.length ? players.filter((player) => !kickedPlayerIds.includes(player.id)).map((player) => (
+            <div key={player.id} className="rounded-xl border border-borderSubtle bg-mutedBg p-2">
+              <div className="flex items-center justify-between gap-2">
+                <PlayerRow player={player} />
+                {canManageCurrentTeam && rosterSetupMode && (
+                  <div className="flex items-center gap-1">
+                    <Link to={`/players/${player.id}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-borderSubtle text-textSecondary" aria-label="Редактировать игрока">
+                      <Pencil size={12} />
+                    </Link>
+                    <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-borderSubtle text-textSecondary" aria-label="Скрыть игрока" onClick={async () => {
+                      try {
+                        await teamsRepository.captainSetRosterVisibility?.(team.id, player.id, hiddenPlayerIds.includes(player.id))
+                        setHiddenPlayerIds((prev) => (prev.includes(player.id) ? prev.filter((id) => id !== player.id) : [...prev, player.id]))
+                        setRosterStatus(hiddenPlayerIds.includes(player.id) ? 'Игрок снова отображается в составе' : 'Игрок скрыт из состава')
+                      } catch (error) {
+                        setRosterStatus(actionError(error))
+                      }
+                    }}>
+                      <EyeOff size={12} />
+                    </button>
+                    <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/40 text-red-300" aria-label="Выгнать игрока" onClick={async () => {
+                      if (!window.confirm('Выгнать игрока из команды? Пользователь сохранится, профиль игрока будет деактивирован.')) return
+                      try {
+                        await teamsRepository.captainSetRosterVisibility?.(team.id, player.id, false)
+                        setKickedPlayerIds((prev) => [...prev, player.id])
+                        setRosterStatus('Игрок исключен из команды, user сохранен')
+                      } catch (error) {
+                        setRosterStatus(actionError(error))
+                      }
+                    }}>
+                      <X size={12} />
+                    </button>
+                  </div>
+                )}
+              </div>
+              {hiddenPlayerIds.includes(player.id) && <p className="mt-1 text-xs text-textMuted">Скрыт из состава</p>}
+            </div>
+          )) : <p className="text-sm text-textMuted">Состав пока не загружен.</p>}
         </div>
       </section>
 
