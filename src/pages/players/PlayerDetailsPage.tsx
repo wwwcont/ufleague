@@ -7,7 +7,7 @@ import { useTeamDetails } from '../../hooks/data/useTeamDetails'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { SocialLinks } from '../../components/ui/SocialLinks'
 import { CommentsSection } from '../../components/comments'
-import { EventFeedSection } from '../../components/events'
+import { EventEditor, EventFeedSection } from '../../components/events'
 import { useEvents } from '../../hooks/data/useEvents'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
@@ -21,6 +21,8 @@ import {
   EditableTextareaField,
   SectionActionBar,
 } from '../../components/ui/editable'
+import type { EventContentBlock } from '../../domain/entities/types'
+import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
 
 const getInitials = (name: string) => name.split(' ').map((part) => part[0]).join('').slice(0, 2)
 
@@ -30,7 +32,7 @@ export const PlayerDetailsPage = () => {
   const { data: team } = useTeamDetails(player?.teamId)
   const { data: playerFeed } = useEvents({ entityType: 'player', entityId: playerId, limit: 4 })
   const { session } = useSession()
-  const { playersRepository, uploadsRepository } = useRepositories()
+  const { playersRepository, eventsRepository, uploadsRepository } = useRepositories()
 
   const [heroEditing, setHeroEditing] = useState(false)
   const [profileEditing, setProfileEditing] = useState(false)
@@ -55,6 +57,12 @@ export const PlayerDetailsPage = () => {
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | undefined>(undefined)
   const [position, setPosition] = useState(player?.position ?? 'MF')
+  const [eventCreateOpen, setEventCreateOpen] = useState(false)
+  const [eventCreatePending, setEventCreatePending] = useState(false)
+  const [eventCreateStatus, setEventCreateStatus] = useState<string | null>(null)
+  const [newEventTitle, setNewEventTitle] = useState('')
+  const [newEventSummary, setNewEventSummary] = useState('')
+  const [newEventBlocks, setNewEventBlocks] = useState<EventContentBlock[]>([])
 
   useEffect(() => {
     if (!player) return
@@ -361,6 +369,83 @@ export const PlayerDetailsPage = () => {
       </section>
 
       <EventFeedSection title="События игрока" events={playerFeed ?? []} layout="timeline" messageWhenEmpty="События игрока пока не найдены." />
+
+      {canEditPlayer && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
+          {!eventCreateOpen ? (
+            <button type="button" onClick={() => setEventCreateOpen(true)} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary">Создать событие</button>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-textPrimary">Новое событие игрока</p>
+              <input value={newEventTitle} onChange={(event) => setNewEventTitle(event.target.value)} placeholder="Заголовок события" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm" />
+              <textarea value={newEventSummary} onChange={(event) => setNewEventSummary(event.target.value)} rows={2} placeholder="Короткое summary (необязательно)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm" />
+              <EventEditor
+                blocks={newEventBlocks}
+                onChange={setNewEventBlocks}
+                onImageUpload={async (blockId, file) => {
+                  const next = [...newEventBlocks]
+                  const index = next.findIndex((item) => item.id === blockId)
+                  if (index < 0) return
+                  if (!file) {
+                    next[index] = { ...next[index], imageUrl: '' }
+                    setNewEventBlocks(next)
+                    return
+                  }
+                  try {
+                    const imageUrl = (await uploadsRepository.uploadImage(file)).url
+                    next[index] = { ...next[index], imageUrl }
+                    setNewEventBlocks(next)
+                  } catch (error) {
+                    setEventCreateStatus(actionError(error))
+                  }
+                }}
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={eventCreatePending || !newEventTitle.trim()}
+                  className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50"
+                  onClick={async () => {
+                    setEventCreatePending(true)
+                    setEventCreateStatus('Сохраняем событие...')
+                    try {
+                      const blocks = normalizeEventBlocks(newEventBlocks, { text: '', imageUrl: undefined })
+                      await eventsRepository.createEventForScope?.({
+                        scopeType: 'player',
+                        scopeId: player.id,
+                        title: newEventTitle.trim(),
+                        summary: newEventSummary.trim() || deriveSummaryFromBlocks(blocks),
+                        body: blocksToPlainText(blocks) || newEventSummary.trim(),
+                        imageUrl: blocks.find((item) => item.type === 'image')?.imageUrl,
+                        contentBlocks: blocks,
+                      })
+                      setEventCreateStatus('Событие создано')
+                      setEventCreateOpen(false)
+                      setNewEventTitle('')
+                      setNewEventSummary('')
+                      setNewEventBlocks([])
+                    } catch (error) {
+                      setEventCreateStatus(actionError(error))
+                    } finally {
+                      setEventCreatePending(false)
+                    }
+                  }}
+                >
+                  Сохранить
+                </button>
+                <button type="button" disabled={eventCreatePending} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={() => {
+                  setEventCreateOpen(false)
+                  setNewEventTitle('')
+                  setNewEventSummary('')
+                  setNewEventBlocks([])
+                  setEventCreateStatus(null)
+                }}>Отмена</button>
+              </div>
+              {eventCreateStatus && <p className="text-xs text-textMuted">{eventCreateStatus}</p>}
+            </div>
+          )}
+        </section>
+      )}
 
       <CommentsSection entityType="player" entityId={player.id} title="Комментарии" />
     </PageContainer>
