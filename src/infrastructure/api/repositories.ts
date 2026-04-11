@@ -46,6 +46,14 @@ const mapTeam = (t: any): Team => ({
   logoUrl: t.logo_url || null,
   captainUserId: t.captain_user_id ? String(t.captain_user_id) : null,
   city: t.description || 'UFL Development',
+  slogan: t.socials?.slogan ?? undefined,
+  description: t.socials?.description ?? t.description ?? undefined,
+  socials: {
+    telegram: t.socials?.telegram,
+    vk: t.socials?.vk,
+    instagram: t.socials?.instagram,
+    custom: Array.isArray(t.socials?.custom) ? t.socials.custom.slice(0, 2).map((item: any) => ({ label: String(item.label).slice(0, 10), url: String(item.url) })) : undefined,
+  },
   coach: t.socials?.coach ?? t.socials?.captain ?? 'TBD',
   group: 'A',
   form: ['D', 'D', 'D', 'D', 'D'],
@@ -60,6 +68,12 @@ const mapPlayer = (p: any): Player => ({
   position: (p.position || 'MF') as Player['position'],
   age: 21,
   avatar: p.avatar_url || null,
+  bio: p.socials?.bio ?? undefined,
+  socials: {
+    telegram: p.socials?.telegram,
+    vk: p.socials?.vk,
+    instagram: p.socials?.instagram,
+  },
   stats: { goals: 0, assists: 0, appearances: Number(p.appearances ?? 0) },
 })
 

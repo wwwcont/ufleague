@@ -46,6 +46,14 @@ export interface Team {
   logoUrl: string | null
   captainUserId?: ID | null
   city: string
+  slogan?: string
+  description?: string
+  socials?: {
+    telegram?: string
+    vk?: string
+    instagram?: string
+    custom?: Array<{ label: string; url: string }>
+  }
   coach: string
   group: string
   form: FormResult[]
@@ -60,6 +68,12 @@ export interface Player {
   position: PlayerPosition
   age: number
   avatar: string | null
+  bio?: string
+  socials?: {
+    telegram?: string
+    vk?: string
+    instagram?: string
+  }
   stats: {
     goals: number
     assists: number

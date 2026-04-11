@@ -8,6 +8,10 @@ const make = (id: string, teamId: string, displayName: string, number: number, p
   position,
   age: 20 + (number % 12),
   avatar: null,
+  bio: 'Игрок основной обоймы, готов к ротации и высоким нагрузкам.',
+  socials: {
+    telegram: `https://t.me/${id}`,
+  },
   stats: { goals: number % 6, assists: number % 4, appearances: 6 },
 })
 

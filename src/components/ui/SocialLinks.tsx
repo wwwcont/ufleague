@@ -5,10 +5,12 @@ const VkGlyph = () => (
 )
 
 export type SocialSet = { telegram?: string; vk?: string; instagram?: string }
+type CustomSocial = { label: string; url: string }
 
-export const SocialLinks = ({ compact = false, links }: { compact?: boolean; links?: SocialSet }) => {
+export const SocialLinks = ({ compact = false, links, custom = [] }: { compact?: boolean; links?: SocialSet; custom?: CustomSocial[] }) => {
   const size = compact ? 'h-8 w-8' : 'h-9 w-9'
-  const hasAny = Boolean(links?.telegram || links?.vk || links?.instagram)
+  const visibleCustom = custom.slice(0, 2)
+  const hasAny = Boolean(links?.telegram || links?.vk || links?.instagram || visibleCustom.length)
   if (!hasAny) return null
 
   return (
@@ -22,6 +24,11 @@ export const SocialLinks = ({ compact = false, links }: { compact?: boolean; lin
       {links?.instagram && <a href={links.instagram} aria-label="Instagram" className={`${size} inline-flex items-center justify-center rounded-full border border-borderSubtle bg-panelSoft text-textSecondary hover:border-borderStrong hover:text-accentYellow`}>
         <Camera size={14} />
       </a>}
+      {visibleCustom.map((item) => (
+        <a key={item.url} href={item.url} aria-label={item.label} className={`${size} inline-flex items-center justify-center rounded-full border border-borderSubtle bg-panelSoft px-2 text-[10px] font-semibold uppercase text-textSecondary hover:border-borderStrong hover:text-accentYellow`}>
+          {item.label.slice(0, 10)}
+        </a>
+      ))}
     </div>
   )
 }

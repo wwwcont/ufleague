@@ -1,6 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { useState } from 'react'
-import { ShieldCheck, Trophy, Users, Wrench } from 'lucide-react'
+import { CalendarClock, ShieldCheck, Trophy, Users } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
 import { usePlayers } from '../../hooks/data/usePlayers'
@@ -15,10 +14,6 @@ import { SocialLinks } from '../../components/ui/SocialLinks'
 import { tournament } from '../../mocks/data/tournament'
 import { CommentsSection } from '../../components/comments'
 import { EventFeedSection } from '../../components/events'
-import { useSession } from '../../app/providers/use-session'
-import { useRepositories } from '../../app/providers/use-repositories'
-import { ApiError } from '../../infrastructure/api/repositories'
-import { canManageTeam, isAtLeastRole, isTeamCaptain } from '../../domain/services/accessControl'
 
 const formLabel: Record<string, string> = { W: 'В', D: 'Н', L: 'П' }
 
@@ -30,167 +25,82 @@ export const TeamDetailsPage = () => {
   const { data: standings } = useStandings()
   const { data: matches } = useMatches()
   const { data: teams } = useTeams()
-  const { session } = useSession()
-  const { teamsRepository, eventsRepository } = useRepositories()
-
-  const [inviteUsername, setInviteUsername] = useState('')
-  const [socialTelegram, setSocialTelegram] = useState('https://t.me/ufleague')
-  const [transferCaptainId, setTransferCaptainId] = useState('')
-  const [rosterPlayerId, setRosterPlayerId] = useState('')
-  const [rosterVisible, setRosterVisible] = useState(true)
-  const [actionStatus, setActionStatus] = useState<string | null>(null)
-  const actionError = (error: unknown) => {
-    if (error instanceof ApiError) {
-      if (error.status === 403) return 'Действие запрещено для вашей роли (403).'
-      if (error.status === 429) return 'Слишком частые запросы (429). Повторите позже.'
-      return `Ошибка API ${error.status}: ${error.message}`
-    }
-    return error instanceof Error ? error.message : 'Не удалось выполнить действие'
-  }
 
   if (!team) return <PageContainer><EmptyState title="Команда не найдена" /></PageContainer>
 
   const standing = standings?.find((row) => row.teamId === team.id)
-  const teamMatches = (matches ?? []).filter((match) => match.homeTeamId === team.id || match.awayTeamId === team.id).slice(0, 4)
+  const allTeamMatches = (matches ?? []).filter((match) => match.homeTeamId === team.id || match.awayTeamId === team.id)
+  const teamMatches = allTeamMatches.slice(0, 3)
+  const hasMoreMatches = allTeamMatches.length > 3
   const teamMap = Object.fromEntries((teams ?? []).map((item) => [item.id, item]))
-  const isCaptain = isTeamCaptain(session, team)
-  const isAdmin = isAtLeastRole(session, 'admin')
-  const canManageCurrentTeam = canManageTeam(session, team)
+
+  const liveMatch = allTeamMatches.find((match) => match.status === 'live' || match.status === 'half_time')
+  const nextMatch = allTeamMatches
+    .filter((match) => match.status === 'scheduled')
+    .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))[0]
+
+  const tourStatus = liveMatch
+    ? `LIVE • ${liveMatch.round}`
+    : nextMatch
+      ? `Следующий • ${nextMatch.round}`
+      : 'ВЫБЫЛА'
 
   return (
     <PageContainer>
-      <section className="rounded-2xl border border-borderStrong bg-panelBg p-4 shadow-matte">
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <TeamAvatar team={team} size="xl" fallbackLogoUrl={tournament.logoUrl} className="border border-borderStrong bg-panelSoft p-2" />
-            <div>
-              <h1 className="text-2xl font-bold text-textPrimary">{team.name}</h1>
-              <p className="text-sm text-textSecondary">{team.city}</p>
-              <p className="mt-1 text-xs text-textMuted">Клуб с акцентом на интенсивный прессинг и быстрые вертикальные атаки.</p>
-            </div>
-          </div>
-          {canManageCurrentTeam && <div className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textMuted">Вы можете управлять этой командой</div>}
+      <section className="relative overflow-hidden rounded-2xl border border-borderStrong bg-panelBg p-5 shadow-matte">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/60 to-black/75" />
+          {team.logoUrl && <img src={team.logoUrl} alt="" className="h-full w-full scale-[1.45] object-cover blur-2xl opacity-35" />}
         </div>
 
-        <div className="border-t border-borderSubtle pt-2">
-          <SocialLinks compact links={{ telegram: socialTelegram }} />
+        <div className="relative z-10">
+          <div className="mb-4 flex items-center gap-4">
+            <TeamAvatar team={team} size="xl" fallbackLogoUrl={tournament.logoUrl} className="h-20 w-20 border border-borderStrong bg-panelSoft p-2" />
+            <div>
+              <h1 className="text-3xl font-bold text-textPrimary">{team.name}</h1>
+              {team.slogan && <p className="mt-1 text-sm text-textSecondary">{team.slogan}</p>}
+            </div>
+          </div>
+
+          {team.description && <p className="max-w-3xl text-sm leading-relaxed text-textSecondary">{team.description}</p>}
+
+          <SocialLinks
+            compact
+            links={{ telegram: team.socials?.telegram, vk: team.socials?.vk, instagram: team.socials?.instagram }}
+            custom={team.socials?.custom}
+          />
         </div>
       </section>
 
-      {canManageCurrentTeam && (
-        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
-          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Wrench size={16} className="text-accentYellow" /> Управление командой</h2>
-          <div className="space-y-2 text-xs text-textSecondary">
-            {isCaptain && (
-              <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 space-y-2">
-                <p className="font-semibold text-textPrimary">Captain tools</p>
-                <div className="flex gap-2">
-                  <input value={inviteUsername} onChange={(e) => setInviteUsername(e.target.value)} placeholder="username для invite" className="flex-1 rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
-                  <button
-                    type="button"
-                    className="rounded-lg bg-accentYellow px-2 py-1 font-semibold text-app"
-                    onClick={async () => {
-                      try { await teamsRepository.captainInviteByUsername?.(team.id, inviteUsername); setActionStatus('Invite отправлен') } catch (error) { setActionStatus(actionError(error)) }
-                    }}
-                  >Invite</button>
-                </div>
-                <div className="flex gap-2">
-                  <input value={socialTelegram} onChange={(e) => setSocialTelegram(e.target.value)} placeholder="telegram link" className="flex-1 rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
-                  <button
-                    type="button"
-                    className="rounded-lg border border-borderSubtle px-2 py-1"
-                    onClick={async () => {
-                      try { await teamsRepository.captainUpdateSocials?.(team.id, { telegram: socialTelegram }); setActionStatus('Соцсети обновлены') } catch (error) { setActionStatus(actionError(error)) }
-                    }}
-                  >Update socials</button>
-                </div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <select value={rosterPlayerId} onChange={(e) => setRosterPlayerId(e.target.value)} className="rounded-lg border border-borderSubtle bg-panelBg px-2 py-1">
-                    <option value="">Игрок для roster visibility</option>
-                    {(players ?? []).map((p) => <option key={p.id} value={p.id}>{p.displayName}</option>)}
-                  </select>
-                  <label className="flex items-center gap-2 rounded-lg border border-borderSubtle bg-panelBg px-2 py-1">
-                    <input checked={rosterVisible} onChange={(e) => setRosterVisible(e.target.checked)} type="checkbox" />
-                    visible
-                  </label>
-                  <button
-                    type="button"
-                    className="rounded-lg border border-borderSubtle px-2 py-1"
-                    onClick={async () => {
-                      try {
-                        if (!rosterPlayerId) throw new Error('Выберите игрока')
-                        await teamsRepository.captainSetRosterVisibility?.(team.id, rosterPlayerId, rosterVisible)
-                        setActionStatus('Visibility ростера обновлена')
-                      } catch (error) {
-                        setActionStatus(actionError(error))
-                      }
-                    }}
-                  >Apply roster visibility</button>
-                </div>
-                <button
-                  type="button"
-                  className="rounded-lg border border-borderSubtle px-2 py-1"
-                  onClick={async () => {
-                    try { await eventsRepository.createEventForScope?.({ scopeType: 'team', scopeId: team.id, title: `Update ${team.name}`, body: 'Team event created from Team details.' }); setActionStatus('Team event создан') } catch (error) { setActionStatus(actionError(error)) }
-                  }}
-                >Add team event</button>
-              </div>
-            )}
-
-            {isAdmin && (
-              <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 space-y-2">
-                <p className="font-semibold text-textPrimary">Admin / Superadmin tools</p>
-                <div className="flex gap-2">
-                  <input value={transferCaptainId} onChange={(e) => setTransferCaptainId(e.target.value)} placeholder="new captain user id" className="flex-1 rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
-                  <button
-                    type="button"
-                    className="rounded-lg bg-accentYellow px-2 py-1 font-semibold text-app"
-                    onClick={async () => {
-                      try { await teamsRepository.adminTransferCaptain?.(team.id, transferCaptainId); setActionStatus('Капитан переведен') } catch (error) { setActionStatus(actionError(error)) }
-                    }}
-                  >Transfer captain</button>
-                </div>
-                <button
-                  type="button"
-                  className="rounded-lg border border-borderSubtle px-2 py-1"
-                    onClick={async () => {
-                      try { await teamsRepository.updateTeam?.(team.id, { name: `${team.name}*` }); setActionStatus('Team updated') } catch (error) { setActionStatus(actionError(error)) }
-                    }}
-                >Edit team (demo patch)</button>
-                {session.user.role === 'superadmin' && <p className="text-[11px] text-accentYellow">Superadmin note: role/permission actions доступны в cabinet.</p>}
-              </div>
-            )}
-            {actionStatus && <p className="rounded-lg border border-borderSubtle bg-panelBg px-2 py-1">{actionStatus}</p>}
-          </div>
-        </section>
-      )}
-
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
-        <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Trophy size={16} className="text-accentYellow" /> Quick team stats</h2>
-        <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-5">
+        <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Trophy size={16} className="text-accentYellow" /> ИНФОРМАЦИЯ</h2>
+        <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-6">
           <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Позиция:</span> <span className="font-semibold text-textPrimary">#{standing?.position ?? '—'}</span></div>
           <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Очки:</span> <span className="font-semibold text-accentYellow">{standing?.points ?? team.statsSummary.points}</span></div>
           <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Матчи:</span> {team.statsSummary.played}</div>
           <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Форма:</span> {team.form.map((item) => formLabel[item] ?? item).join(' ')}</div>
           <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Голы:</span> {team.statsSummary.goalsFor}:{team.statsSummary.goalsAgainst}</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">ТУР:</span> {tourStatus}</div>
         </div>
       </section>
 
-      <EventFeedSection title="Team events / updates" events={teamFeed ?? []} layout="timeline" messageWhenEmpty="События команды пока не добавлены." />
+      <EventFeedSection title="События команды" events={teamFeed ?? []} layout="timeline" messageWhenEmpty="События команды пока не добавлены." />
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-textPrimary"><Users size={16} className="text-accentYellow" /> Main squad / roster</h2>
-          <Link to="/players" className="text-xs text-accentYellow hover:underline">Все игроки</Link>
+          <h2 className="flex items-center gap-2 text-base font-semibold text-textPrimary"><Users size={16} className="text-accentYellow" /> СОСТАВ</h2>
+          <Link to="/players" className="text-xs text-accentYellow hover:underline">ВСЕ</Link>
         </div>
-
         <div className="space-y-2">
           {players?.length ? players.map((player) => <PlayerRow key={player.id} player={player} />) : <p className="text-sm text-textMuted">Состав пока не загружен.</p>}
         </div>
       </section>
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
-        <h2 className="mb-3 text-base font-semibold text-textPrimary">Recent matches</h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-textPrimary"><CalendarClock size={16} className="text-accentYellow" /> Последние матчи</h2>
+          {hasMoreMatches && <Link to="/matches" className="text-xs text-accentYellow hover:underline">ВСЕ</Link>}
+        </div>
         <div className="space-y-2">
           {teamMatches.length === 0 ? (
             <p className="rounded-xl border border-dashed border-borderStrong bg-mutedBg px-3 py-6 text-center text-sm text-textMuted">Недавние матчи отсутствуют.</p>
@@ -219,8 +129,8 @@ export const TeamDetailsPage = () => {
         </div>
       </section>
 
-      <CommentsSection entityType="team" entityId={team.id} title="Team comments" />
-      {canManageCurrentTeam && <p className="text-xs text-textMuted flex items-center gap-1"><ShieldCheck size={12} className="text-accentYellow" /> Права проверяются и в интерфейсе, и на backend.</p>}
+      <CommentsSection entityType="team" entityId={team.id} title="Комментарии" />
+      <p className="text-xs text-textMuted flex items-center gap-1"><ShieldCheck size={12} className="text-accentYellow" /> События команды создаются капитанами/админами через события и ЛК.</p>
     </PageContainer>
   )
 }
