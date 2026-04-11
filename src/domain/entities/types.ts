@@ -140,6 +140,7 @@ export interface MatchEvent {
   type: 'goal' | 'yellow_card' | 'red_card' | 'substitution'
   teamId?: ID
   playerId?: ID
+  assistPlayerId?: ID
   note?: string
 }
 

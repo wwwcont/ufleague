@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Activity, Disc3, Info, Pencil, Plus, Radio, Timer } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useMatchDetails } from '../../hooks/data/useMatchDetails'
@@ -102,11 +102,19 @@ export const MatchDetailsPage = () => {
   const [editableDiskUrl, setEditableDiskUrl] = useState(match?.diskUrl ?? '')
   const [metadataStatus, setMetadataStatus] = useState<string | null>(null)
   const [scoreDraft, setScoreDraft] = useState<{ home: number; away: number } | null>(null)
+  const [localEvents, setLocalEvents] = useState(match?.events ?? [])
   const [goalEditorOpen, setGoalEditorOpen] = useState(false)
   const [goalTeamId, setGoalTeamId] = useState('')
   const [goalScorerId, setGoalScorerId] = useState('')
   const [goalAssistId, setGoalAssistId] = useState('')
   const [goalStatus, setGoalStatus] = useState<string | null>(null)
+
+
+  useEffect(() => {
+    if (!match) return
+    setScoreDraft(match.score)
+    setLocalEvents(match.events)
+  }, [match])
 
   if (!match || !teams || !home || !away || !allMatches || !players) {
     return (
@@ -135,7 +143,7 @@ export const MatchDetailsPage = () => {
   const effectiveScore = scoreDraft ?? match.score
   const candidatePlayers = useMemo(() => players.filter((p) => p.teamId === goalTeamId), [goalTeamId, players])
 
-  const liveMinute = match.events.length ? Math.max(...match.events.map((event) => event.minute)) : null
+  const liveMinute = localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : null
   const timingNote = (() => {
     if (match.status === 'live' || match.status === 'half_time') return liveMinute ? `${liveMinute}′ минута` : 'Матч в процессе'
     if (match.status === 'scheduled') return getTimeToKickoff(match.date, match.time) ?? 'Скоро'
@@ -264,10 +272,21 @@ export const MatchDetailsPage = () => {
                   const nextScore = goalTeamId === home.id
                     ? { home: effectiveScore.home + 1, away: effectiveScore.away }
                     : { home: effectiveScore.home, away: effectiveScore.away + 1 }
+                  const newGoalEvent: Match['events'][number] = {
+                    id: `goal_${Date.now()}`,
+                    minute: (localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0) + 1,
+                    type: 'goal',
+                    teamId: goalTeamId,
+                    playerId: goalScorerId,
+                    assistPlayerId: goalAssistId || undefined,
+                    note: goalAssistId ? `ассист: ${goalAssistId}` : undefined,
+                  }
+                  const nextEvents = [...localEvents, newGoalEvent]
                   setScoreDraft(nextScore)
+                  setLocalEvents(nextEvents)
                   try {
-                    await matchesRepository.updateMatch?.(match.id, { homeScore: nextScore.home, awayScore: nextScore.away })
-                    setGoalStatus('Гол добавлен. Счет обновлен.')
+                    await matchesRepository.updateMatch?.(match.id, { homeScore: nextScore.home, awayScore: nextScore.away, goalEvents: nextEvents })
+                    setGoalStatus('Гол и ассист сохранены. Счет обновлен.')
                   } catch (error) {
                     setGoalStatus(actionError(error))
                   }
@@ -354,14 +373,15 @@ export const MatchDetailsPage = () => {
             )}
           </div>
         </div>
-        {match.events.length === 0 ? (
+        {localEvents.length === 0 ? (
           <p className="rounded-xl border border-dashed border-borderStrong bg-mutedBg px-3 py-4 text-sm text-textMuted">Автособытия (старт, голы, конец, изменение времени, победитель) и admin-события появятся здесь.</p>
         ) : (
           <div className="space-y-2">
-            {match.events.slice().sort((a, b) => a.minute - b.minute).map((event) => (
+            {localEvents.slice().sort((a, b) => a.minute - b.minute).map((event) => (
               <div key={event.id} className="rounded-xl border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textSecondary">
                 <span className="mr-2 font-semibold text-textPrimary">{event.minute}′</span>
                 <span className="uppercase tracking-[0.06em] text-accentYellow">{event.type}</span>
+                {event.assistPlayerId && <span className="ml-2 text-textMuted">ассист: {event.assistPlayerId}</span>}
                 {event.note && <span className="ml-2">— {event.note}</span>}
               </div>
             ))}

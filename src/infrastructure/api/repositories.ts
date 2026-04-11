@@ -90,6 +90,27 @@ const mapPlayer = (p: any): Player | null => {
   }
 }
 
+
+const mapGoalEvents = (raw: unknown): Match['events'] => {
+  if (!Array.isArray(raw)) return []
+  return raw.reduce<Match['events']>((acc, item, index) => {
+    if (!item || typeof item !== 'object') return acc
+    const payload = item as Record<string, unknown>
+    const minute = Number(payload.minute ?? 0)
+    if (!Number.isFinite(minute) || minute <= 0) return acc
+    acc.push({
+      id: String(payload.id ?? `goal_${index}`),
+      minute,
+      type: 'goal',
+      teamId: payload.team_id ? String(payload.team_id) : undefined,
+      playerId: payload.player_id ? String(payload.player_id) : undefined,
+      assistPlayerId: payload.assist_player_id ? String(payload.assist_player_id) : undefined,
+      note: payload.note ? String(payload.note) : undefined,
+    })
+    return acc
+  }, [])
+}
+
 const mapMatch = (m: any): Match => ({
   id: String(m.id),
   round: `Round ${new Date(m.start_at).toISOString().slice(0, 10)}`,
@@ -100,7 +121,7 @@ const mapMatch = (m: any): Match => ({
   homeTeamId: String(m.home_team_id),
   awayTeamId: String(m.away_team_id),
   score: { home: m.home_score ?? 0, away: m.away_score ?? 0 },
-  events: [],
+  events: mapGoalEvents(m.extra_time?.goal_events),
   featured: m.status === 'live',
   stage: m.extra_time?.stage ?? undefined,
   tour: m.extra_time?.tour ?? undefined,
@@ -172,6 +193,18 @@ const mapAuthorState = (payload: any): CommentAuthorState => ({
   cooldownSeconds: Number(payload.cooldown_seconds ?? payload.cooldownSeconds ?? 0),
   blockedReason: payload.blocked_reason ?? payload.blockedReason,
 })
+
+
+const serializeGoalEvents = (events: Match['events']) => events
+  .filter((event) => event.type === 'goal')
+  .map((event) => ({
+    id: event.id,
+    minute: event.minute,
+    team_id: event.teamId,
+    player_id: event.playerId,
+    assist_player_id: event.assistPlayerId,
+    note: event.note,
+  }))
 
 export const teamsRepository: TeamsRepository = {
   async getTeams() { return (await api<any[]>('/api/teams')).map(mapTeam) },
@@ -311,6 +344,7 @@ export const matchesRepository: MatchesRepository = {
       ...(current.extra_time ?? {}),
       ...(patch.broadcastUrl !== undefined ? { broadcast_url: patch.broadcastUrl } : {}),
       ...(patch.diskUrl !== undefined ? { disk_url: patch.diskUrl } : {}),
+      ...(patch.goalEvents !== undefined ? { goal_events: serializeGoalEvents(patch.goalEvents) } : {}),
       ...(patch.stage !== undefined ? { stage: patch.stage } : {}),
       ...(patch.tour !== undefined ? { tour: patch.tour } : {}),
       ...(patch.referee !== undefined ? { referee: patch.referee } : {}),

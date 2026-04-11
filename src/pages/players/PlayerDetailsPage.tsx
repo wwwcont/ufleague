@@ -97,7 +97,7 @@ export const PlayerDetailsPage = () => {
 
   const canEditPlayer = canManagePlayer(session, player, team)
   const goalsFromMatches = (matches ?? []).flatMap((match) => match.events).filter((event) => event.type === 'goal' && event.playerId === player.id).length
-  const assistsFromMatches = (matches ?? []).flatMap((match) => match.events).filter((event) => event.type === 'goal' && event.note?.includes(`assist:${player.id}`)).length
+  const assistsFromMatches = (matches ?? []).flatMap((match) => match.events).filter((event) => event.type === 'goal' && event.assistPlayerId === player.id).length
 
   const actionError = (error: unknown) => {
     if (error instanceof ApiError) {
