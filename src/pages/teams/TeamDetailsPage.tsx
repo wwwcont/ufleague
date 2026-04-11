@@ -160,25 +160,36 @@ export const TeamDetailsPage = () => {
 
           <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center">
             <TeamAvatar team={{ ...team, logoUrl: editableLogoUrl ?? team.logoUrl }} size="xl" fallbackLogoUrl={tournament.logoUrl} className="h-20 w-20 border border-borderStrong bg-panelSoft p-2" />
-            <div className="flex-1 space-y-2">
-              <EditableTextField label="Название" value={editableName} onChange={setEditableName} isEditing={heroEditing} placeholder="Название команды" />
-              <EditableTextField label="Слоган" value={editableSlogan} onChange={setEditableSlogan} isEditing={heroEditing} placeholder="Слоган (необязательно)" />
+            <div className="flex-1">
+              {heroEditing ? (
+                <div className="space-y-2">
+                  <EditableTextField label="Название" value={editableName} onChange={setEditableName} isEditing placeholder="Название команды" />
+                  <EditableTextField label="Слоган" value={editableSlogan} onChange={setEditableSlogan} isEditing placeholder="Слоган (необязательно)" />
+                </div>
+              ) : (
+                <>
+                  <h1 className="text-3xl font-bold text-textPrimary">{team.name}</h1>
+                  {team.slogan && <p className="mt-1 text-sm text-textSecondary">{team.slogan}</p>}
+                </>
+              )}
             </div>
           </div>
 
-          <EditableImageField
-            label="Логотип"
-            imageUrl={editableLogoUrl}
-            isEditing={heroEditing}
-            onSelectFile={(file) => {
-              setLogoFile(file)
-              if (!file) {
-                setEditableLogoUrl(team.logoUrl ?? undefined)
-                return
-              }
-              setEditableLogoUrl(URL.createObjectURL(file))
-            }}
-          />
+          {heroEditing && (
+            <EditableImageField
+              label="Сменить логотип"
+              imageUrl={editableLogoUrl}
+              isEditing
+              onSelectFile={(file) => {
+                setLogoFile(file)
+                if (!file) {
+                  setEditableLogoUrl(team.logoUrl ?? undefined)
+                  return
+                }
+                setEditableLogoUrl(URL.createObjectURL(file))
+              }}
+            />
+          )}
 
           <SectionActionBar
             isEditing={heroEditing}
@@ -241,7 +252,11 @@ export const TeamDetailsPage = () => {
             setDescriptionEditing(false)
           }}
         />
-        <EditableTextareaField label="Описание" value={editableDescription} onChange={setEditableDescription} isEditing={descriptionEditing} placeholder="Описание команды" rows={5} />
+        {descriptionEditing ? (
+          <EditableTextareaField label="Описание" value={editableDescription} onChange={setEditableDescription} isEditing placeholder="Описание команды" rows={5} />
+        ) : (
+          <p className="text-sm leading-relaxed text-textSecondary">{team.description || 'Описание команды пока не заполнено.'}</p>
+        )}
         <SectionActionBar
           isEditing={descriptionEditing}
           isPending={descriptionSaving}
@@ -291,15 +306,23 @@ export const TeamDetailsPage = () => {
             setSocialsEditing(false)
           }}
         />
-        <div className="grid gap-2 sm:grid-cols-2">
-          <EditableTextField label="Telegram" value={editableTelegram} onChange={setEditableTelegram} isEditing={socialsEditing} placeholder="@team_channel" />
-          <EditableTextField label="VK" value={editableVk} onChange={setEditableVk} isEditing={socialsEditing} placeholder="vk.com/team" />
-          <EditableTextField label="Instagram" value={editableInstagram} onChange={setEditableInstagram} isEditing={socialsEditing} placeholder="instagram.com/team" />
-          <EditableTextField label="Custom link #1 (label)" value={customLabel1} onChange={setCustomLabel1} isEditing={socialsEditing} placeholder="Партнер" />
-          <EditableTextField label="Custom link #1 (url)" value={customUrl1} onChange={setCustomUrl1} isEditing={socialsEditing} placeholder="https://..." />
-          <EditableTextField label="Custom link #2 (label)" value={customLabel2} onChange={setCustomLabel2} isEditing={socialsEditing} placeholder="Мерч" />
-          <EditableTextField label="Custom link #2 (url)" value={customUrl2} onChange={setCustomUrl2} isEditing={socialsEditing} placeholder="https://..." />
-        </div>
+        {socialsEditing ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <EditableTextField label="Telegram" value={editableTelegram} onChange={setEditableTelegram} isEditing placeholder="@team_channel" />
+            <EditableTextField label="VK" value={editableVk} onChange={setEditableVk} isEditing placeholder="vk.com/team" />
+            <EditableTextField label="Instagram" value={editableInstagram} onChange={setEditableInstagram} isEditing placeholder="instagram.com/team" />
+            <EditableTextField label="Custom link #1 (label)" value={customLabel1} onChange={setCustomLabel1} isEditing placeholder="Партнер" />
+            <EditableTextField label="Custom link #1 (url)" value={customUrl1} onChange={setCustomUrl1} isEditing placeholder="https://..." />
+            <EditableTextField label="Custom link #2 (label)" value={customLabel2} onChange={setCustomLabel2} isEditing placeholder="Мерч" />
+            <EditableTextField label="Custom link #2 (url)" value={customUrl2} onChange={setCustomUrl2} isEditing placeholder="https://..." />
+          </div>
+        ) : (
+          <SocialLinks
+            compact
+            links={{ telegram: team.socials?.telegram, vk: team.socials?.vk, instagram: team.socials?.instagram }}
+            custom={team.socials?.custom}
+          />
+        )}
         <SectionActionBar
           isEditing={socialsEditing}
           isPending={socialsSaving}

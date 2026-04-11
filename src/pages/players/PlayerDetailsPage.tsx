@@ -127,22 +127,26 @@ export const PlayerDetailsPage = () => {
             </div>
           </div>
 
-          <EditableTextField label="Имя игрока" value={displayName} onChange={setDisplayName} isEditing={heroEditing} placeholder="Полное имя" />
-          <div className="mt-3">
-            <EditableImageField
-              label="Аватар"
-              imageUrl={avatarPreview}
-              isEditing={heroEditing}
-              onSelectFile={(file) => {
-                setAvatarFile(file)
-                if (!file) {
-                  setAvatarPreview(player.avatar ?? undefined)
-                  return
-                }
-                setAvatarPreview(URL.createObjectURL(file))
-              }}
-            />
-          </div>
+          {heroEditing && (
+            <>
+              <EditableTextField label="Имя игрока" value={displayName} onChange={setDisplayName} isEditing placeholder="Полное имя" />
+              <div className="mt-3">
+                <EditableImageField
+                  label="Сменить аватар"
+                  imageUrl={avatarPreview}
+                  isEditing
+                  onSelectFile={(file) => {
+                    setAvatarFile(file)
+                    if (!file) {
+                      setAvatarPreview(player.avatar ?? undefined)
+                      return
+                    }
+                    setAvatarPreview(URL.createObjectURL(file))
+                  }}
+                />
+              </div>
+            </>
+          )}
           <SectionActionBar
             isEditing={heroEditing}
             isPending={heroSaving}
@@ -207,13 +211,23 @@ export const PlayerDetailsPage = () => {
             setProfileEditing(false)
           }}
         />
-        <EditableTextareaField label="Bio" value={bio} onChange={setBio} isEditing={profileEditing} placeholder="Кратко о себе" />
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          <EditableTextField label="Возраст" value={age} onChange={setAge} isEditing={profileEditing} placeholder="Например: 22" />
-          <EditableTextField label="Telegram" value={telegram} onChange={setTelegram} isEditing={profileEditing} placeholder="@nickname" />
-          <EditableTextField label="VK" value={vk} onChange={setVk} isEditing={profileEditing} placeholder="vk.com/..." />
-          <EditableTextField label="Instagram" value={instagram} onChange={setInstagram} isEditing={profileEditing} placeholder="instagram.com/..." />
-        </div>
+        {profileEditing ? (
+          <>
+            <EditableTextareaField label="Bio" value={bio} onChange={setBio} isEditing placeholder="Кратко о себе" />
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <EditableTextField label="Возраст" value={age} onChange={setAge} isEditing placeholder="Например: 22" />
+              <EditableTextField label="Telegram" value={telegram} onChange={setTelegram} isEditing placeholder="@nickname" />
+              <EditableTextField label="VK" value={vk} onChange={setVk} isEditing placeholder="vk.com/..." />
+              <EditableTextField label="Instagram" value={instagram} onChange={setInstagram} isEditing placeholder="instagram.com/..." />
+            </div>
+          </>
+        ) : (
+          <div className="space-y-2 text-sm text-textSecondary">
+            <p>{bio || 'Био пока не заполнено.'}</p>
+            <p className="text-xs text-textMuted">Возраст: {player.age || '—'}</p>
+            <SocialLinks compact links={{ telegram: player.socials?.telegram, vk: player.socials?.vk, instagram: player.socials?.instagram }} />
+          </div>
+        )}
         <SectionActionBar
           isEditing={profileEditing}
           isPending={profileSaving}
@@ -289,7 +303,14 @@ export const PlayerDetailsPage = () => {
               <p className="rounded-lg bg-mutedBg px-3 py-2 text-sm text-textSecondary">{position}</p>
             )}
           </label>
-          <EditableTextField label="Игровой номер" value={number} onChange={setNumber} isEditing={sportsEditing} placeholder="Например: 10" />
+          {sportsEditing ? (
+            <EditableTextField label="Игровой номер" value={number} onChange={setNumber} isEditing placeholder="Например: 10" />
+          ) : (
+            <div>
+              <p className="text-xs text-textMuted">Игровой номер</p>
+              <p className="rounded-lg bg-mutedBg px-3 py-2 text-sm text-textSecondary">{number}</p>
+            </div>
+          )}
         </div>
         <SectionActionBar
           isEditing={sportsEditing}

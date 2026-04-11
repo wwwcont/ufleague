@@ -32,18 +32,20 @@ export const EditableSectionHeader = ({
         <button
           type="button"
           onClick={onStartEdit}
-          className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textSecondary"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-borderSubtle text-textSecondary"
+          aria-label="Редактировать блок"
         >
-          <Pencil size={12} /> Изменить
+          <Pencil size={12} />
         </button>
       )}
       {canEdit && isEditing && (
         <button
           type="button"
           onClick={onCancelEdit}
-          className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textSecondary"
+          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-borderSubtle text-textSecondary"
+          aria-label="Закрыть редактирование"
         >
-          <X size={12} /> Закрыть
+          <X size={12} />
         </button>
       )}
     </div>
