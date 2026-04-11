@@ -1,5 +1,6 @@
 import { MessageSquare } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import type { CommentEntityType } from '../../domain/entities/types'
 import { useEntityComments } from '../../hooks/data/useEntityComments'
 import { CommentComposer } from './CommentComposer'
@@ -13,7 +14,6 @@ interface CommentsSectionProps {
 }
 
 export const CommentsSection = ({ entityType, entityId, title = 'Комментарии', collapsed = true }: CommentsSectionProps) => {
-  const [isExpanded, setIsExpanded] = useState(!collapsed)
   const {
     comments,
     author,
@@ -25,22 +25,14 @@ export const CommentsSection = ({ entityType, entityId, title = 'Коммент�
     setActiveReplyTo,
     addComment,
     addReply,
+    editComment,
     removeComment,
     reactToComment,
     loadComments,
   } = useEntityComments(entityType, entityId)
-  const previewComments = useMemo(() => {
-    const flat: typeof comments = []
-    const walk = (nodes: typeof comments) => {
-      nodes.forEach((node) => {
-        flat.push({ ...node, replies: [] })
-        if (node.replies.length) walk(node.replies)
-      })
-    }
-    walk(comments)
-    return flat.slice(-3)
-  }, [comments])
-  const visibleComments = isExpanded ? comments : previewComments
+
+  const previewComments = useMemo(() => comments.slice(-3), [comments])
+  const visibleComments = collapsed ? previewComments : comments
 
   return (
     <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
@@ -76,17 +68,18 @@ export const CommentsSection = ({ entityType, entityId, title = 'Коммент�
         <CommentList
           comments={visibleComments}
           onReply={(commentId, authorName) => setActiveReplyTo({ id: commentId, author: authorName })}
+          onEdit={(commentId, text) => { void editComment(commentId, text) }}
           onDelete={(commentId) => { void removeComment(commentId) }}
           onReact={(commentId, reaction) => { void reactToComment(commentId, reaction) }}
-          showRoleBadge={isExpanded}
-          showThread={isExpanded}
+          showRoleBadge={!collapsed}
+          showThread={!collapsed}
         />
       )}
       {collapsed && comments.length > 3 && (
         <div className="mt-3 text-right">
-          <button type="button" className="text-sm text-accentYellow hover:underline" onClick={() => setIsExpanded((prev) => !prev)}>
-            {isExpanded ? 'Свернуть' : `Развернуть (${comments.length})`}
-          </button>
+          <Link to={`/comments/${entityType}/${entityId}`} className="text-sm text-accentYellow hover:underline">
+            Развернуть все комментарии ({comments.length})
+          </Link>
         </div>
       )}
     </section>

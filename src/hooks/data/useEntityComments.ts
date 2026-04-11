@@ -15,6 +15,12 @@ const appendReplyToTree = (items: CommentNode[], parentId: string, reply: Commen
     return { ...item, replies: appendReplyToTree(item.replies, parentId, reply) }
   })
 
+
+const removeCommentFromTree = (items: CommentNode[], commentId: string): CommentNode[] =>
+  items
+    .filter((item) => item.id !== commentId)
+    .map((item) => ({ ...item, replies: removeCommentFromTree(item.replies, commentId) }))
+
 const extractUiError = (error: unknown): string => {
   if (error instanceof ApiError) {
     if (error.status === 401) return 'Нужна активная session. Сначала выполните вход.'
@@ -38,6 +44,7 @@ interface UseEntityCommentsResult {
   setActiveReplyTo: (reply: { id: string; author: string } | null) => void
   addComment: (text: string) => Promise<void>
   addReply: (parentId: string, text: string) => Promise<void>
+  editComment: (commentId: string, text: string) => Promise<void>
   removeComment: (commentId: string) => Promise<void>
   reactToComment: (commentId: string, reaction: Exclude<CommentReactionType, null>) => Promise<void>
   loadComments: () => Promise<void>
@@ -64,10 +71,12 @@ export const useEntityComments = (entityType: CommentEntityType, entityId?: stri
     authorRole: author?.role ?? 'guest',
     isOwn: true,
     createdAt: new Date().toISOString(),
+    editedAt: undefined,
     text,
     reactions: { likes: 0, dislikes: 0, userReaction: null },
     canReply: true,
     canDelete: true,
+    canEdit: true,
     replies: [],
   }), [author?.id, author?.name, author?.role, entityId, entityType])
 
@@ -157,12 +166,28 @@ export const useEntityComments = (entityType: CommentEntityType, entityId?: stri
     }
   }, [commentsRepository, createOptimisticComment, load])
 
+  const editComment = useCallback(async (commentId: string, text: string) => {
+    setIsSubmitting(true)
+    setFeedbackMessage(null)
+    const before = comments
+    setComments((prev) => updateCommentTree(prev, commentId, (comment) => ({ ...comment, text, editedAt: new Date().toISOString() })))
+    try {
+      await commentsRepository.updateComment(commentId, text)
+      await load()
+    } catch (error) {
+      setComments(before)
+      setFeedbackMessage(extractUiError(error))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [comments, commentsRepository, load])
+
   const removeComment = useCallback(async (commentId: string) => {
     setIsSubmitting(true)
     setFeedbackMessage(null)
     try {
       await commentsRepository.deleteComment(commentId)
-      setComments((prev) => prev.filter((item) => item.id !== commentId).map((item) => ({ ...item, replies: item.replies.filter((reply) => reply.id !== commentId) })))
+      setComments((prev) => removeCommentFromTree(prev, commentId))
       await load()
     } catch (error) {
       setFeedbackMessage(extractUiError(error))
@@ -212,6 +237,7 @@ export const useEntityComments = (entityType: CommentEntityType, entityId?: stri
     setActiveReplyTo,
     addComment,
     addReply,
+    editComment,
     removeComment,
     reactToComment,
     loadComments: load,

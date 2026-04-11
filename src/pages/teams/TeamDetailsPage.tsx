@@ -156,7 +156,7 @@ export const TeamDetailsPage = () => {
             <img
               src={editableLogoUrl || team.logoUrl || ''}
               alt=""
-              className="h-full w-full scale-[1.18] object-cover blur-xl opacity-20"
+              className="h-full w-full scale-[1.12] object-cover blur-md opacity-[0.18]"
             />
           )}
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/65 to-black/80" />

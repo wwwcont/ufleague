@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CircleHelp, Plus, ShieldCheck } from 'lucide-react'
+import { CircleHelp, Pencil, Plus, ShieldCheck } from 'lucide-react'
 import type { BracketMatchGroup, BracketStage, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
 
@@ -27,6 +27,7 @@ export const BracketView = ({
   fullScreen = false,
   editable = false,
   onCreateTie,
+  onEditTie,
 }: {
   stages: BracketStage[]
   groups: BracketMatchGroup[]
@@ -34,6 +35,7 @@ export const BracketView = ({
   fullScreen?: boolean
   editable?: boolean
   onCreateTie?: (stageId: string, slot: number) => void
+  onEditTie?: (group: BracketMatchGroup) => void
 }) => {
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
@@ -219,7 +221,7 @@ export const BracketView = ({
                 >
                   <div className="flex h-full flex-col items-center justify-center gap-2 text-xs">
                     <Plus size={14} />
-                    <span>Создать slot #{group.slot}</span>
+                    <span>Добавить плей-офф #{group.slot}</span>
                   </div>
                 </button>
               )
@@ -280,11 +282,26 @@ export const BracketView = ({
             )
 
             const primaryMatch = group.firstLeg.matchId
-            if (primaryMatch) {
+            const editButton = editable ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onEditTie?.(group)
+                }}
+                className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md border border-borderSubtle bg-panelBg/80 text-textMuted hover:border-accentYellow/70 hover:text-accentYellow"
+                aria-label="Редактировать плей-офф"
+              >
+                <Pencil size={12} />
+              </button>
+            ) : null
+
+            if (primaryMatch && !editable) {
               return <Link key={group.id} to={`/matches/${primaryMatch}`} className={nodeClass} style={{ left: group.x, top: group.y, width: NODE_W, height: NODE_H }}>{content}</Link>
             }
 
-            return <div key={group.id} className={nodeClass} style={{ left: group.x, top: group.y, width: NODE_W, height: NODE_H }}>{content}</div>
+            return <div key={group.id} className={`${nodeClass} relative`} style={{ left: group.x, top: group.y, width: NODE_W, height: NODE_H }}>{editButton}{content}</div>
           })}
         </div>
       </div>
