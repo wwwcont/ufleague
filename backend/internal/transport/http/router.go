@@ -85,6 +85,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.Get("/events/{id}", h.GetEvent)
 		r.Get("/comments", h.ListComments)
 		r.Get("/comments/author-state", h.GetCommentAuthorState)
+		r.Get("/users/{id}", h.GetUserCard)
 
 		r.With(sessionMW.RequireSession).Post("/teams", h.CreateTeam)
 		r.With(sessionMW.RequireSession).Patch("/teams/{id}", h.UpdateTeam)
@@ -139,6 +140,20 @@ func (h Handler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, domain.MeResponse{User: current.User, Session: current.Session})
+}
+
+func (h Handler) GetUserCard(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	item, err := h.authRepo.GetPublicUserCard(r.Context(), id)
+	if err != nil {
+		http.Error(w, "not found", 404)
+		return
+	}
+	writeJSON(w, 200, item)
 }
 func (h Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(h.session.CookieName())

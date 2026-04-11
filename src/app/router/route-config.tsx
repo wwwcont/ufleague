@@ -16,6 +16,7 @@ import { SearchPage } from '../../pages/search/SearchPage'
 import { TablePage } from '../../pages/table/TablePage'
 import { TeamDetailsPage } from '../../pages/teams/TeamDetailsPage'
 import { TeamsPage } from '../../pages/teams/TeamsPage'
+import { UserDetailsPage } from '../../pages/users/UserDetailsPage'
 import { AppRouteError } from './AppRouteError'
 
 export const router = createBrowserRouter([
@@ -40,6 +41,7 @@ export const router = createBrowserRouter([
       { path: 'login', element: <LoginPage /> },
       { path: 'profile', element: <ProfilePage /> },
       { path: 'profile/:section', element: <CabinetSectionPage /> },
+      { path: 'users/:userId', element: <UserDetailsPage /> },
     ],
   },
 ])

@@ -111,7 +111,7 @@ func (s Service) CreatePlayer(ctx context.Context, actor domain.User, req domain
 		}
 	}
 	return s.repo.CreatePlayer(ctx, domain.Player{
-		TeamID: req.TeamID, FullName: req.FullName, Nickname: req.Nickname, AvatarURL: req.AvatarURL,
+		UserID: req.UserID, TeamID: req.TeamID, FullName: req.FullName, Nickname: req.Nickname, AvatarURL: req.AvatarURL,
 		Socials: req.Socials, Position: req.Position, ShirtNumber: req.ShirtNumber,
 	})
 }
@@ -130,7 +130,7 @@ func (s Service) UpdatePlayer(ctx context.Context, actor domain.User, id int64, 
 		return domain.Player{}, ErrForbidden
 	}
 	return s.repo.UpdatePlayer(ctx, id, domain.Player{
-		TeamID: req.TeamID, FullName: req.FullName, Nickname: req.Nickname, AvatarURL: req.AvatarURL,
+		UserID: req.UserID, TeamID: req.TeamID, FullName: req.FullName, Nickname: req.Nickname, AvatarURL: req.AvatarURL,
 		Socials: req.Socials, Position: req.Position, ShirtNumber: req.ShirtNumber,
 	})
 }
@@ -149,6 +149,7 @@ func (s Service) CreateMatch(ctx context.Context, actor domain.User, req domain.
 	return s.repo.CreateMatch(ctx, domain.Match{
 		HomeTeamID: req.HomeTeamID, AwayTeamID: req.AwayTeamID, StartAt: req.StartAt, Status: req.Status,
 		HomeScore: req.HomeScore, AwayScore: req.AwayScore, ExtraTime: req.ExtraTime, Venue: req.Venue,
+		StageSlotColumn: req.StageSlotColumn, StageSlotRow: req.StageSlotRow,
 	})
 }
 
@@ -159,5 +160,6 @@ func (s Service) UpdateMatch(ctx context.Context, actor domain.User, id int64, r
 	return s.repo.UpdateMatch(ctx, id, domain.Match{
 		HomeTeamID: req.HomeTeamID, AwayTeamID: req.AwayTeamID, StartAt: req.StartAt, Status: req.Status,
 		HomeScore: req.HomeScore, AwayScore: req.AwayScore, ExtraTime: req.ExtraTime, Venue: req.Venue,
+		StageSlotColumn: req.StageSlotColumn, StageSlotRow: req.StageSlotRow,
 	})
 }

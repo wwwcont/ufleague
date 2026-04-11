@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"football_ui/backend/internal/domain"
 
@@ -16,6 +17,57 @@ var ErrSessionNotFound = errors.New("session not found")
 type SessionWithUser struct {
 	Session domain.Session
 	User    domain.User
+}
+
+func (r *AuthRepository) GetPublicUserCard(ctx context.Context, userID int64) (domain.PublicUserCard, error) {
+	var card domain.PublicUserCard
+	var lastSeen *time.Time
+	err := r.pool.QueryRow(ctx, `
+		SELECT u.id, u.display_name, COALESCE(u.telegram_username, ''),
+		       MAX(s.last_seen_at) FILTER (WHERE s.revoked_at IS NULL AND s.expires_at > NOW()) AS last_seen_at
+		FROM users u
+		LEFT JOIN sessions s ON s.user_id = u.id
+		WHERE u.id = $1
+		GROUP BY u.id, u.display_name, u.telegram_username
+	`, userID).Scan(&card.ID, &card.DisplayName, &card.TelegramUsername, &lastSeen)
+	if err != nil {
+		return domain.PublicUserCard{}, err
+	}
+
+	roles, err := queryStrings(ctx, r.pool, `
+		SELECT r.code
+		FROM user_roles ur
+		JOIN roles r ON r.id = ur.role_id
+		WHERE ur.user_id = $1
+		ORDER BY r.code
+	`, userID)
+	if err != nil {
+		return domain.PublicUserCard{}, err
+	}
+	card.Roles = make([]domain.Role, 0, len(roles))
+	for _, role := range roles {
+		card.Roles = append(card.Roles, domain.Role(role))
+	}
+
+	if lastSeen != nil {
+		card.LastSeenAt = lastSeen
+		card.IsOnline = time.Since(*lastSeen) <= 5*time.Minute
+	}
+
+	var playerID, teamID *int64
+	_ = r.pool.QueryRow(ctx, `SELECT id, team_id FROM players WHERE user_id = $1 LIMIT 1`, userID).Scan(&playerID, &teamID)
+	if playerID != nil {
+		card.PlayerID = playerID
+	}
+
+	if teamID == nil {
+		_ = r.pool.QueryRow(ctx, `SELECT id FROM teams WHERE captain_user_id = $1 LIMIT 1`, userID).Scan(&teamID)
+	}
+	if teamID != nil {
+		card.TeamID = teamID
+	}
+
+	return card, nil
 }
 
 type CreateSessionParams struct {
@@ -47,8 +99,8 @@ func (r *AuthRepository) UpsertDevUser(ctx context.Context, req domain.DevLoginR
 		VALUES ($1, $2)
 		ON CONFLICT (username)
 		DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW()
-		RETURNING id, username, display_name, is_active, created_at
-	`, req.Username, req.DisplayName).Scan(&user.ID, &user.Username, &user.DisplayName, &user.IsActive, &user.CreatedAt)
+		RETURNING id, telegram_id, COALESCE(telegram_username,''), username, display_name, is_active, created_at
+	`, req.Username, req.DisplayName).Scan(&user.ID, &user.TelegramID, &user.TelegramName, &user.Username, &user.DisplayName, &user.IsActive, &user.CreatedAt)
 	if err != nil {
 		return domain.User{}, err
 	}
@@ -120,9 +172,9 @@ func replaceUserRolesTx(ctx context.Context, tx pgx.Tx, userID int64, roles []do
 func (r *AuthRepository) GetUserByID(ctx context.Context, userID int64) (domain.User, error) {
 	var user domain.User
 	err := r.pool.QueryRow(ctx, `
-		SELECT id, username, display_name, is_active, created_at
+		SELECT id, telegram_id, COALESCE(telegram_username,''), username, display_name, is_active, created_at
 		FROM users WHERE id = $1
-	`, userID).Scan(&user.ID, &user.Username, &user.DisplayName, &user.IsActive, &user.CreatedAt)
+	`, userID).Scan(&user.ID, &user.TelegramID, &user.TelegramName, &user.Username, &user.DisplayName, &user.IsActive, &user.CreatedAt)
 	if err != nil {
 		return domain.User{}, err
 	}
@@ -175,7 +227,7 @@ func (r *AuthRepository) GetSessionWithUserByHash(ctx context.Context, tokenHash
 	var out SessionWithUser
 	err := r.pool.QueryRow(ctx, `
 		SELECT s.id::text, s.user_id, s.expires_at, s.created_at,
-		       u.id, u.username, u.display_name, u.is_active, u.created_at
+		       u.id, u.telegram_id, COALESCE(u.telegram_username,''), u.username, u.display_name, u.is_active, u.created_at
 		FROM sessions s
 		JOIN users u ON u.id = s.user_id
 		WHERE s.token_hash = $1
@@ -187,6 +239,8 @@ func (r *AuthRepository) GetSessionWithUserByHash(ctx context.Context, tokenHash
 		&out.Session.ExpiresAt,
 		&out.Session.CreatedAt,
 		&out.User.ID,
+		&out.User.TelegramID,
+		&out.User.TelegramName,
 		&out.User.Username,
 		&out.User.DisplayName,
 		&out.User.IsActive,

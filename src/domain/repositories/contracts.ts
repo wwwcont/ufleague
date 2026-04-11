@@ -1,13 +1,15 @@
 import type {
   AuthSession,
-  BracketMatch,
-  BracketRound,
+  BracketMatchGroup,
+  BracketSettings,
+  BracketStage,
   CommentAuthorState,
   CommentEntityType,
   CommentNode,
   Match,
   Player,
   PublicEvent,
+  PublicUserCard,
   SearchResult,
   StandingRow,
   Team,
@@ -36,7 +38,7 @@ export interface MatchesRepository {
   getMatches(): Promise<Match[]>
   getMatchById(matchId: string): Promise<Match | null>
   createMatch?(input: { homeTeamId: string; awayTeamId: string; startAt: string; status: Match['status']; venue: string }): Promise<void>
-  updateMatch?(matchId: string, patch: Partial<{ status: Match['status']; homeScore: number; awayScore: number; venue: string }>): Promise<void>
+  updateMatch?(matchId: string, patch: Partial<{ status: Match['status']; homeScore: number; awayScore: number; venue: string; broadcastUrl: string }>): Promise<void>
 }
 
 export interface StandingsRepository {
@@ -44,7 +46,7 @@ export interface StandingsRepository {
 }
 
 export interface BracketRepository {
-  getBracket(): Promise<{ rounds: BracketRound[]; matches: BracketMatch[] }>
+  getBracket(): Promise<{ stages: BracketStage[]; groups: BracketMatchGroup[]; settings: BracketSettings }>
 }
 
 export interface SearchRepository {
@@ -74,6 +76,10 @@ export interface SessionRepository {
   completeTelegramLoginWithCode(requestId: string, code: string): Promise<AuthSession>
   loginAsDevRole?(role: UserRole): Promise<AuthSession>
   logout(): Promise<void>
+}
+
+export interface UsersRepository {
+  getUserCard(userId: string): Promise<PublicUserCard | null>
 }
 
 export interface CabinetRepository {
