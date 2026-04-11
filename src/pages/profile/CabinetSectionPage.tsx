@@ -48,6 +48,10 @@ export const CabinetSectionPage = () => {
   const [status, setStatus] = useState('')
 
   const [displayName, setDisplayName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [middleName, setMiddleName] = useState('')
+  const [birthDate, setBirthDate] = useState('')
   const [bio, setBio] = useState('')
   const [avatarUrl, setAvatarUrl] = useState('')
   const [socialsRaw, setSocialsRaw] = useState('')
@@ -101,6 +105,20 @@ export const CabinetSectionPage = () => {
     return [line.slice(0, idx).trim(), line.slice(idx + 1).trim()]
   }).filter(([key]) => key)), [teamSocialsRaw])
 
+  const birthDateError = useMemo(() => {
+    if (!birthDate.trim()) return ''
+    if (!/^\d{2}\.\d{2}\.\d{4}$/.test(birthDate.trim())) return 'Дата рождения должна быть в формате ДД.ММ.ГГГГ'
+    const [dayStr, monthStr, yearStr] = birthDate.split('.')
+    const day = Number(dayStr)
+    const month = Number(monthStr)
+    const year = Number(yearStr)
+    const date = new Date(year, month - 1, day)
+    const valid = date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+    if (!valid) return 'Укажите существующую дату рождения'
+    if (date.getTime() > Date.now()) return 'Дата рождения не может быть в будущем'
+    return ''
+  }, [birthDate])
+
   if (!section || !minRole) {
     return (
       <PageContainer>
@@ -149,33 +167,57 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {(section === 'profile' || section === 'edit') && (
+      {(section === 'profile' || section === 'edit' || section === 'player-profile') && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
-          <p className="text-xs text-textMuted">Редактирование базового профиля пользователя.</p>
+          <p className="text-xs text-textMuted">Заполните профиль игрока: ФИО, дата рождения, описание и ссылки.</p>
           <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs" onClick={async () => {
             try {
               const profile = await cabinetRepository.getMyProfile()
               setDisplayName(profile.displayName)
+              setFirstName(profile.socials.first_name ?? '')
+              setLastName(profile.socials.last_name ?? '')
+              setMiddleName(profile.socials.middle_name ?? '')
+              setBirthDate(profile.socials.birth_date ?? '')
               setBio(profile.bio)
               setAvatarUrl(profile.avatarUrl)
-              setSocialsRaw(Object.entries(profile.socials).map(([k, v]) => `${k}=${v}`).join(', '))
+              setSocialsRaw(Object.entries(profile.socials)
+                .filter(([k]) => !['first_name', 'last_name', 'middle_name', 'birth_date'].includes(k))
+                .map(([k, v]) => `${k}=${v}`).join(', '))
               setStatus('ok: profile loaded')
             } catch (error) {
               setStatus(`error: ${(error as Error).message}`)
             }
-          }}>Load profile</button>
-          <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="display name" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <input value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="avatar url" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="bio" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          }}>Загрузить данные</button>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Фамилия" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Имя" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          </div>
+          <input value={middleName} onChange={(e) => setMiddleName(e.target.value)} placeholder="Отчество (если есть)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input value={birthDate} onChange={(e) => setBirthDate(e.target.value)} placeholder="Дата рождения (ДД.ММ.ГГГГ)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          {birthDateError && <p className="text-xs text-rose-300">{birthDateError}</p>}
+          <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Отображаемое имя" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="Ссылка на фото профиля" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Коротко о себе" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <textarea value={socialsRaw} onChange={(e) => setSocialsRaw(e.target.value)} placeholder="telegram=https://... , instagram=https://..." className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <button type="button" disabled={roleRank[session.user.role] < roleRank.superadmin} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
+          <button type="button" disabled={Boolean(birthDateError)} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
             try {
-              await cabinetRepository.updateMyProfile({ displayName, bio, avatarUrl, socials })
+              await cabinetRepository.updateMyProfile({
+                displayName,
+                bio,
+                avatarUrl,
+                socials: {
+                  ...socials,
+                  first_name: firstName,
+                  last_name: lastName,
+                  middle_name: middleName,
+                  birth_date: birthDate,
+                },
+              })
               setStatus('ok: profile updated')
             } catch (error) {
               setStatus(`error: ${(error as Error).message}`)
             }
-          }}>Save profile</button>
+          }}>Сохранить профиль</button>
         </section>
       )}
 
