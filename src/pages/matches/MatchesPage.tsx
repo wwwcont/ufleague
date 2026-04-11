@@ -1,10 +1,10 @@
+import { useMemo, useState } from 'react'
 import { MatchCard } from '../../components/data-display/MatchCard'
 import { EmptyState } from '../../components/ui/EmptyState'
-import { SectionHeader } from '../../components/ui/SectionHeader'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useMatches } from '../../hooks/data/useMatches'
 import { useTeams } from '../../hooks/data/useTeams'
-import type { Team } from '../../domain/entities/types'
+import type { Match, Team } from '../../domain/entities/types'
 
 const fallbackTeam = (id: string): Team => ({
   id,
@@ -19,19 +19,45 @@ const fallbackTeam = (id: string): Team => ({
 })
 
 export const MatchesPage = () => {
+  const [filter, setFilter] = useState<'all' | 'live' | 'upcoming' | 'finished'>('all')
   const { data: matchList, isLoading } = useMatches()
   const { data: teams } = useTeams()
   const teamMap = Object.fromEntries((teams ?? []).map((t) => [t.id, t]))
+  const filteredMatches = useMemo(() => {
+    if (!matchList) return []
+    if (filter === 'live') return matchList.filter((match) => match.status === 'live' || match.status === 'half_time')
+    if (filter === 'upcoming') return matchList.filter((match) => match.status === 'scheduled')
+    if (filter === 'finished') return matchList.filter((match) => match.status === 'finished')
+    return matchList
+  }, [filter, matchList])
+
+  const filterLabel: Record<typeof filter, string> = {
+    all: 'ВСЕ',
+    live: 'LIVE',
+    upcoming: 'ПРЕДСТОЯЩИЕ',
+    finished: 'ПРОШЕДШИЕ',
+  }
 
   return (
     <PageContainer>
-      <SectionHeader title="Центр матчей" />
-      <p className="mb-4 text-sm text-textSecondary">Расписание по турам и актуальные статусы игр.</p>
+      <div className="grid gap-2 sm:grid-cols-4">
+        {(['all', 'live', 'upcoming', 'finished'] as const).map((value) => (
+          <button
+            type="button"
+            key={value}
+            onClick={() => setFilter(value)}
+            className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${filter === value ? 'bg-accentYellow text-app' : 'bg-panelBg text-textMuted'}`}
+          >
+            {filterLabel[value]}
+          </button>
+        ))}
+      </div>
+
       <div className="space-y-3">
         {isLoading && <p className="text-sm text-textMuted">Загрузка...</p>}
-        {matchList?.map((m) => <MatchCard key={m.id} match={m} home={teamMap[m.homeTeamId] ?? fallbackTeam(m.homeTeamId)} away={teamMap[m.awayTeamId] ?? fallbackTeam(m.awayTeamId)} />)}
+        {filteredMatches.map((m: Match) => <MatchCard key={m.id} match={m} home={teamMap[m.homeTeamId] ?? fallbackTeam(m.homeTeamId)} away={teamMap[m.awayTeamId] ?? fallbackTeam(m.awayTeamId)} />)}
       </div>
-      {!isLoading && (!matchList || matchList.length === 0) && <EmptyState title="Матчи не найдены" />}
+      {!isLoading && filteredMatches.length === 0 && <EmptyState title="Матчи не найдены" />}
     </PageContainer>
   )
 }

@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -56,6 +59,8 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 	r.Get("/metricsz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, obs.Snapshot())
 	})
+	_ = os.MkdirAll("uploads", 0o755)
+	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))
 	sessionMW := middleware.NewSessionMiddleware(authRepo, sessionManager)
 
 	r.Route("/api/auth", func(r chi.Router) {
@@ -85,6 +90,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.Get("/events/{id}", h.GetEvent)
 		r.Get("/comments", h.ListComments)
 		r.Get("/comments/author-state", h.GetCommentAuthorState)
+		r.Get("/users/{id}", h.GetUserCard)
 
 		r.With(sessionMW.RequireSession).Post("/teams", h.CreateTeam)
 		r.With(sessionMW.RequireSession).Patch("/teams/{id}", h.UpdateTeam)
@@ -112,6 +118,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Post("/superadmin/users/{id}/permissions", h.SuperadminAssignPermissions)
 		r.With(sessionMW.RequireSession).Post("/superadmin/users/{id}/restrictions", h.SuperadminAssignRestrictions)
 		r.With(sessionMW.RequireSession).Put("/superadmin/settings/{key}", h.SuperadminSetGlobalSetting)
+		r.With(sessionMW.RequireSession).Post("/uploads/image", h.UploadImage)
 	})
 
 	return r
@@ -139,6 +146,66 @@ func (h Handler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, domain.MeResponse{User: current.User, Session: current.Session})
+}
+
+func (h Handler) GetUserCard(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	item, err := h.authRepo.GetPublicUserCard(r.Context(), id)
+	if err != nil {
+		http.Error(w, "not found", 404)
+		return
+	}
+	writeJSON(w, 200, item)
+}
+
+func (h Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseMultipartForm(8 << 20); err != nil {
+		http.Error(w, "invalid multipart form", 400)
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "file is required", 400)
+		return
+	}
+	defer file.Close()
+
+	contentType := header.Header.Get("Content-Type")
+	if !strings.HasPrefix(contentType, "image/") {
+		http.Error(w, "only image files are allowed", 400)
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	if ext == "" {
+		ext = ".jpg"
+	}
+	filename := fmt.Sprintf("%d_%06d%s", time.Now().UnixMilli(), rand.Intn(1000000), ext)
+	targetPath := filepath.Join("uploads", filename)
+
+	dst, err := os.Create(targetPath)
+	if err != nil {
+		http.Error(w, "failed to create file", 500)
+		return
+	}
+	defer dst.Close()
+	if _, err = io.Copy(dst, file); err != nil {
+		http.Error(w, "failed to save file", 500)
+		return
+	}
+
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); forwarded != "" {
+		scheme = forwarded
+	}
+	writeJSON(w, 201, map[string]string{"url": fmt.Sprintf("%s://%s/uploads/%s", scheme, r.Host, filename)})
 }
 func (h Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(h.session.CookieName())

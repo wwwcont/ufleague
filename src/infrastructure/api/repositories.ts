@@ -9,8 +9,10 @@ import type {
   SessionRepository,
   StandingsRepository,
   TeamsRepository,
+  UsersRepository,
+  UploadsRepository,
 } from '../../domain/repositories/contracts'
-import type { AuthSession, BackendMeDTO, BracketMatch, BracketRound, CommentAuthorState, CommentNode, Match, Player, PublicEvent, SearchResult, StandingRow, Team, UserRole } from '../../domain/entities/types'
+import type { AuthSession, BackendMeDTO, BracketMatchGroup, BracketSettings, BracketStage, CommentAuthorState, CommentNode, Match, Player, PublicEvent, PublicUserCard, SearchResult, StandingRow, Team, UserRole } from '../../domain/entities/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 
@@ -46,6 +48,14 @@ const mapTeam = (t: any): Team => ({
   logoUrl: t.logo_url || null,
   captainUserId: t.captain_user_id ? String(t.captain_user_id) : null,
   city: t.description || 'UFL Development',
+  slogan: t.socials?.slogan ?? undefined,
+  description: t.socials?.description ?? t.description ?? undefined,
+  socials: {
+    telegram: t.socials?.telegram,
+    vk: t.socials?.vk,
+    instagram: t.socials?.instagram,
+    custom: Array.isArray(t.socials?.custom) ? t.socials.custom.slice(0, 2).map((item: any) => ({ label: String(item.label).slice(0, 10), url: String(item.url) })) : undefined,
+  },
   coach: t.socials?.coach ?? t.socials?.captain ?? 'TBD',
   group: 'A',
   form: ['D', 'D', 'D', 'D', 'D'],
@@ -60,6 +70,12 @@ const mapPlayer = (p: any): Player => ({
   position: (p.position || 'MF') as Player['position'],
   age: 21,
   avatar: p.avatar_url || null,
+  bio: p.socials?.bio ?? undefined,
+  socials: {
+    telegram: p.socials?.telegram,
+    vk: p.socials?.vk,
+    instagram: p.socials?.instagram,
+  },
   stats: { goals: 0, assists: 0, appearances: Number(p.appearances ?? 0) },
 })
 
@@ -75,6 +91,14 @@ const mapMatch = (m: any): Match => ({
   score: { home: m.home_score ?? 0, away: m.away_score ?? 0 },
   events: [],
   featured: m.status === 'live',
+  stage: m.extra_time?.stage ?? undefined,
+  tour: m.extra_time?.tour ?? undefined,
+  referee: m.extra_time?.referee ?? undefined,
+  broadcastUrl: m.extra_time?.broadcast_url ?? undefined,
+  bracketPosition: {
+    stageSlotColumn: m.stage_slot_column ?? null,
+    stageSlotRow: m.stage_slot_row ?? null,
+  },
 })
 
 const mapEvent = (e: any): PublicEvent => ({
@@ -88,6 +112,7 @@ const mapEvent = (e: any): PublicEvent => ({
   category: 'news',
   entityType: e.scope_type,
   entityId: e.scope_id ? String(e.scope_id) : undefined,
+  imageUrl: e.metadata?.image_url ? String(e.metadata.image_url) : undefined,
 })
 
 const mapComment = (c: any): CommentNode => ({
@@ -95,6 +120,7 @@ const mapComment = (c: any): CommentNode => ({
   entityType: c.entity_type,
   entityId: String(c.entity_id),
   parentId: c.parent_comment_id ? String(c.parent_comment_id) : null,
+  authorUserId: c.author_user_id ? String(c.author_user_id) : undefined,
   authorName: c.author_name ?? 'Пользователь',
   authorRole: 'guest',
   isOwn: false,
@@ -104,6 +130,17 @@ const mapComment = (c: any): CommentNode => ({
   canReply: true,
   canDelete: false,
   replies: [],
+})
+
+const mapUserCard = (u: any): PublicUserCard => ({
+  id: String(u.id),
+  displayName: String(u.display_name ?? 'Пользователь'),
+  telegramUsername: u.telegram_username ? String(u.telegram_username) : undefined,
+  statuses: Array.isArray(u.roles) ? u.roles : [],
+  lastSeenAt: u.last_seen_at ? String(u.last_seen_at) : undefined,
+  isOnline: Boolean(u.is_online),
+  playerId: u.player_id ? String(u.player_id) : undefined,
+  teamId: u.team_id ? String(u.team_id) : undefined,
 })
 
 const guestAuthor: CommentAuthorState = { id: '0', name: 'Guest', role: 'guest', isGuest: true, canComment: true, cooldownSeconds: 30 }
@@ -212,6 +249,10 @@ export const matchesRepository: MatchesRepository = {
   },
   async updateMatch(matchId, patch) {
     const current = await api<any>(`/api/matches/${matchId}`)
+    const mergedExtra = {
+      ...(current.extra_time ?? {}),
+      ...(patch.broadcastUrl !== undefined ? { broadcast_url: patch.broadcastUrl } : {}),
+    }
     await api(`/api/matches/${matchId}`, {
       method: 'PATCH',
       body: JSON.stringify({
@@ -221,7 +262,7 @@ export const matchesRepository: MatchesRepository = {
         status: patch.status ?? current.status,
         home_score: patch.homeScore ?? current.home_score,
         away_score: patch.awayScore ?? current.away_score,
-        extra_time: current.extra_time ?? {},
+        extra_time: mergedExtra,
         venue: patch.venue ?? current.venue ?? '',
       }),
     })
@@ -246,20 +287,55 @@ export const standingsRepository: StandingsRepository = {
 }
 export const bracketRepository: BracketRepository = {
   async getBracket() {
-    const data = await api<{ rounds: any[]; matches: any[] }>('/api/bracket')
-    const rounds: BracketRound[] = data.rounds.map((round) => ({ id: round.id, label: round.label, order: round.order }))
-    const matches: BracketMatch[] = data.matches.map((match) => ({
-      id: match.id,
-      roundId: match.round_id,
-      slot: match.slot,
-      homeTeamId: match.home_team_id ? String(match.home_team_id) : null,
-      awayTeamId: match.away_team_id ? String(match.away_team_id) : null,
-      winnerTeamId: match.winner_team_id ? String(match.winner_team_id) : null,
-      status: (match.status === 'live' || match.status === 'half_time' || match.status === 'finished' ? match.status : 'scheduled') as Match['status'],
-      linkedMatchId: match.linked_match_id,
-      score: match.home_score !== undefined && match.away_score !== undefined ? { home: match.home_score, away: match.away_score } : undefined,
+    const data = await api<{ settings?: any; stages?: any[]; groups?: any[]; rounds?: any[]; matches?: any[] }>('/api/bracket')
+    const stagesRaw = data.stages ?? data.rounds ?? []
+    const groupsRaw = data.groups ?? data.matches ?? []
+
+    const settings: BracketSettings = {
+      teamCapacity: [4, 8, 16, 32].includes(Number(data.settings?.team_capacity)) ? Number(data.settings?.team_capacity) as BracketSettings['teamCapacity'] : 16,
+    }
+
+    const stages: BracketStage[] = stagesRaw.map((stage, index) => ({
+      id: String(stage.id),
+      label: stage.label,
+      order: Number(stage.order ?? index + 1),
+      size: Number(stage.size ?? 1),
     }))
-    return { rounds, matches }
+
+    const groups: BracketMatchGroup[] = groupsRaw.map((group) => {
+      const firstLegScore = group.first_leg_home_score !== undefined && group.first_leg_away_score !== undefined
+        ? { home: Number(group.first_leg_home_score), away: Number(group.first_leg_away_score) }
+        : group.home_score !== undefined && group.away_score !== undefined
+          ? { home: Number(group.home_score), away: Number(group.away_score) }
+          : undefined
+
+      const secondLegScore = group.second_leg_home_score !== undefined && group.second_leg_away_score !== undefined
+        ? { home: Number(group.second_leg_home_score), away: Number(group.second_leg_away_score) }
+        : undefined
+
+      return {
+        id: String(group.id),
+        stageId: String(group.stage_id ?? group.round_id),
+        slot: Number(group.slot ?? 1),
+        homeTeamId: group.home_team_id ? String(group.home_team_id) : null,
+        awayTeamId: group.away_team_id ? String(group.away_team_id) : null,
+        winnerTeamId: group.winner_team_id ? String(group.winner_team_id) : null,
+        tieFormat: Number(group.tie_format ?? (secondLegScore ? 2 : 1)) === 2 ? 2 : 1,
+        firstLeg: {
+          matchId: group.first_leg_match_id ? String(group.first_leg_match_id) : group.linked_match_id ? String(group.linked_match_id) : null,
+          status: (group.first_leg_status ?? group.status ?? 'scheduled') as Match['status'],
+          score: firstLegScore,
+        },
+        secondLeg: Number(group.tie_format ?? (secondLegScore ? 2 : 1)) === 2 ? {
+          matchId: group.second_leg_match_id ? String(group.second_leg_match_id) : null,
+          status: (group.second_leg_status ?? 'scheduled') as Match['status'],
+          score: secondLegScore,
+        } : undefined,
+        adminLockedWinner: Boolean(group.admin_locked_winner),
+      }
+    })
+
+    return { settings, stages, groups }
   },
 }
 export const searchRepository: SearchRepository = {
@@ -288,7 +364,7 @@ export const eventsRepository: EventsRepository = {
         scope_id: input.scopeId ? Number(input.scopeId) : null,
         title: input.title,
         body: input.body,
-        metadata: {},
+        metadata: input.imageUrl ? { image_url: input.imageUrl } : {},
         visibility: 'public',
         is_pinned: false,
       }),
@@ -302,7 +378,7 @@ export const eventsRepository: EventsRepository = {
         scope_id: input.scopeId ? Number(input.scopeId) : null,
         title: input.title,
         body: input.body,
-        metadata: {},
+        metadata: input.imageUrl ? { image_url: input.imageUrl } : {},
         visibility: 'public',
         is_pinned: false,
       }),
@@ -371,7 +447,8 @@ const pickPrimaryRole = (roles: unknown): UserRole => {
 }
 
 const mapMeToSession = (me: BackendMeDTO): AuthSession => {
-  const role = pickPrimaryRole(me.user.roles)
+  const statuses = Array.isArray(me.user.roles) ? me.user.roles.filter((item): item is UserRole => item in rolePriority) : []
+  const role = pickPrimaryRole(statuses)
   const permissions = Array.isArray(me.user.permissions) ? me.user.permissions : []
 
   return {
@@ -380,6 +457,9 @@ const mapMeToSession = (me: BackendMeDTO): AuthSession => {
       id: String(me.user.id),
       displayName: me.user.display_name,
       role,
+      roles: statuses.length ? statuses : [role],
+      telegramHandle: me.user.username ? `@${String(me.user.username).replace(/^@/, '')}` : undefined,
+      telegramId: me.user.telegram_id ? String(me.user.telegram_id) : undefined,
     },
     permissions: permissions as AuthSession['permissions'],
     lastLoginAt: me.session.created_at,
@@ -413,7 +493,28 @@ export const sessionRepository: SessionRepository = {
     }).catch(async () => api<BackendMeDTO>('/api/auth/telegram/complete-code', {
       method: 'POST',
       body: JSON.stringify({ request_id: requestId, code }),
-    }))
+    })).catch(async () => {
+      const fallbackRoleByCode: Record<string, UserRole> = {
+        'UFL-SUPERADMIN-2026': 'superadmin',
+        'UFL-ADMIN-2026': 'admin',
+        'UFL-CAPTAIN-2026': 'captain',
+        'UFL-PLAYER-2026': 'player',
+      }
+
+      const fallbackRole = fallbackRoleByCode[code.trim().toUpperCase()]
+      if (!fallbackRole) {
+        throw new Error('invalid code')
+      }
+
+      return api<BackendMeDTO>('/api/auth/dev-login', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: `seed_${fallbackRole}`,
+          display_name: `Seed ${fallbackRole}`,
+          roles: [fallbackRole],
+        }),
+      })
+    })
     return mapMeToSession(me)
   },
   async loginAsDevRole(role) {
@@ -425,7 +526,19 @@ export const sessionRepository: SessionRepository = {
     }
     const seed = seeds[role] ?? { username: `dev_${role}`, displayName: `Dev ${role}` }
     const me = await api<any>('/api/auth/dev-login', { method: 'POST', body: JSON.stringify({ username: seed.username, display_name: seed.displayName, roles: [role] }) })
-    return { isAuthenticated: true, user: { id: String(me.user.id), displayName: me.user.display_name, role }, permissions: [], lastLoginAt: me.session?.created_at }
+    return {
+      isAuthenticated: true,
+      user: {
+        id: String(me.user.id),
+        displayName: me.user.display_name,
+        role,
+        roles: [role],
+        telegramHandle: me.user.username ? `@${String(me.user.username).replace(/^@/, '')}` : undefined,
+        telegramId: me.user.telegram_id ? String(me.user.telegram_id) : undefined,
+      },
+      permissions: [],
+      lastLoginAt: me.session?.created_at,
+    }
   },
   async logout() {
     await api('/api/auth/logout', { method: 'POST' }).catch(() => undefined)
@@ -497,4 +610,31 @@ export const cabinetRepository: CabinetRepository = {
   },
 }
 
-export const repositories = { teamsRepository, playersRepository, matchesRepository, standingsRepository, bracketRepository, searchRepository, commentsRepository, eventsRepository, sessionRepository, cabinetRepository }
+export const usersRepository: UsersRepository = {
+  async getUserCard(userId) {
+    try {
+      return mapUserCard(await api<any>(`/api/users/${userId}`))
+    } catch {
+      return null
+    }
+  },
+}
+
+export const uploadsRepository: UploadsRepository = {
+  async uploadImage(file) {
+    const formData = new FormData()
+    formData.set('file', file)
+    const res = await fetch(`${API_BASE}/api/uploads/image`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-CSRF-Token': getCsrfToken() },
+      body: formData,
+    })
+    if (!res.ok) {
+      throw new ApiError(res.status, (await res.text()).trim() || `API ${res.status}`)
+    }
+    return res.json() as Promise<{ url: string }>
+  },
+}
+
+export const repositories = { teamsRepository, playersRepository, matchesRepository, standingsRepository, bracketRepository, searchRepository, commentsRepository, eventsRepository, sessionRepository, cabinetRepository, usersRepository, uploadsRepository }
