@@ -4,6 +4,7 @@ import type { CommentNode } from '../../domain/entities/types'
 import { CommentActions } from './CommentActions'
 import { CommentReactionBar } from './CommentReactionBar'
 import { CommentReplyList } from './CommentReplyList'
+import { formatDateTimeMsk } from '../../lib/date-time'
 
 interface CommentItemProps {
   comment: CommentNode
@@ -11,11 +12,13 @@ interface CommentItemProps {
   onDelete: (commentId: string) => void
   onReact: (commentId: string, reaction: 'like' | 'dislike') => void
   isThreadChild?: boolean
+  showRoleBadge?: boolean
+  showThread?: boolean
 }
 
 const MAX_TEXT = 180
 
-export const CommentItem = ({ comment, onReply, onDelete, onReact, isThreadChild = false }: CommentItemProps) => {
+export const CommentItem = ({ comment, onReply, onDelete, onReact, isThreadChild = false, showRoleBadge = true, showThread = true }: CommentItemProps) => {
   const [expandedText, setExpandedText] = useState(false)
   const [collapsedThread, setCollapsedThread] = useState(false)
 
@@ -36,10 +39,10 @@ export const CommentItem = ({ comment, onReply, onDelete, onReact, isThreadChild
           ) : (
             <span className="font-semibold text-textPrimary">{comment.authorName}</span>
           )}
-          <span className="rounded-md border border-borderSubtle px-1.5 py-0.5 text-[10px] uppercase text-textMuted">{comment.authorRole}</span>
+          {showRoleBadge && <span className="rounded-md border border-borderSubtle px-1.5 py-0.5 text-[10px] uppercase text-textMuted">{comment.authorRole}</span>}
           {comment.isOwn && <span className="text-[10px] text-accentYellow">мой комментарий</span>}
         </div>
-        <span className="text-textMuted">{comment.createdAt}</span>
+        <span className="text-textMuted">{formatDateTimeMsk(comment.createdAt)}</span>
       </div>
 
       <p className="text-sm text-textSecondary">{visibleText}</p>
@@ -59,13 +62,13 @@ export const CommentItem = ({ comment, onReply, onDelete, onReact, isThreadChild
         />
       </div>
 
-      {!isThreadChild && comment.replies.length > 0 && (
+      {!isThreadChild && showThread && comment.replies.length > 0 && (
         <button type="button" onClick={() => setCollapsedThread((prev) => !prev)} className="mt-2 text-xs text-textMuted hover:text-textSecondary">
           {collapsedThread ? `Показать ветку (${comment.replies.length})` : 'Свернуть ветку'}
         </button>
       )}
 
-      {!isThreadChild && !collapsedThread && <CommentReplyList replies={comment.replies} onReply={onReply} onDelete={onDelete} onReact={onReact} />}
+      {!isThreadChild && showThread && !collapsedThread && <CommentReplyList replies={comment.replies} onReply={onReply} onDelete={onDelete} onReact={onReact} />}
     </li>
   )
 }

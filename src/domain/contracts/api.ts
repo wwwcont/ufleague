@@ -1,5 +1,7 @@
 import type {
   AuthSession,
+  BracketSize,
+  BracketStageCode,
   CommentEntityType,
   EventContentBlock,
   EventCategory,
@@ -44,4 +46,22 @@ export interface EventsApiContract {
 export interface TeamManagementApiContract {
   updateSquad(teamId: string, changes: Array<{ playerId: string; action: 'add' | 'remove' | 'promote' | 'demote' }>): Promise<void>
   createInvite(teamId: string, payload: { playerName: string; role: 'player' | 'captain' }): Promise<{ inviteId: string }>
+}
+
+export interface TournamentAdminApiContract {
+  createTournament(input: { name: string; bracketSize: BracketSize; isActive?: boolean }): Promise<{ id: string }>
+  setActiveTournament(tournamentId: string): Promise<void>
+  updateBracketSettings(tournamentId: string, patch: Partial<{ bracketSize: BracketSize; legsPerTieDefault: 1 | 2 }>): Promise<void>
+}
+
+export interface BracketAdminApiContract {
+  createBracketTie(input: {
+    tournamentId: string
+    stageCode: BracketStageCode
+    slot: number
+    homeTeamId?: string | null
+    awayTeamId?: string | null
+    legsPlanned?: 1 | 2
+  }): Promise<{ id: string }>
+  attachMatchToTie(input: { tournamentId: string; tieId: string; matchId: string; legNumber: number }): Promise<void>
 }

@@ -9,6 +9,12 @@ const updateCommentTree = (items: CommentNode[], commentId: string, updater: (co
     return { ...item, replies: updateCommentTree(item.replies, commentId, updater) }
   })
 
+const appendReplyToTree = (items: CommentNode[], parentId: string, reply: CommentNode): CommentNode[] =>
+  items.map((item) => {
+    if (item.id === parentId) return { ...item, replies: [...item.replies, reply] }
+    return { ...item, replies: appendReplyToTree(item.replies, parentId, reply) }
+  })
+
 const extractUiError = (error: unknown): string => {
   if (error instanceof ApiError) {
     if (error.status === 401) return 'Нужна активная session. Сначала выполните вход.'
@@ -47,6 +53,23 @@ export const useEntityComments = (entityType: CommentEntityType, entityId?: stri
   const [lastSentAt, setLastSentAt] = useState<number | null>(null)
   const [nowTs, setNowTs] = useState(0)
   const [activeReplyTo, setActiveReplyTo] = useState<{ id: string; author: string } | null>(null)
+
+  const createOptimisticComment = useCallback((text: string, parentId: string | null): CommentNode => ({
+    id: `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    entityType,
+    entityId: entityId ?? '',
+    parentId,
+    authorUserId: author?.id,
+    authorName: author?.name ?? 'Вы',
+    authorRole: author?.role ?? 'guest',
+    isOwn: true,
+    createdAt: new Date().toISOString(),
+    text,
+    reactions: { likes: 0, dislikes: 0, userReaction: null },
+    canReply: true,
+    canDelete: true,
+    replies: [],
+  }), [author?.id, author?.name, author?.role, entityId, entityType])
 
   const load = useCallback(async () => {
     if (!entityId) {
@@ -100,33 +123,39 @@ export const useEntityComments = (entityType: CommentEntityType, entityId?: stri
     if (!entityId) return
     setIsSubmitting(true)
     setFeedbackMessage(null)
+    const optimisticComment = createOptimisticComment(text, null)
+    setComments((prev) => [...prev, optimisticComment])
     try {
       await commentsRepository.createComment(entityType, entityId, text)
       setLastSentAt(new Date().getTime())
       setNowTs(new Date().getTime())
-      await load()
+      void load()
     } catch (error) {
+      setComments((prev) => prev.filter((item) => item.id !== optimisticComment.id))
       setFeedbackMessage(extractUiError(error))
     } finally {
       setIsSubmitting(false)
     }
-  }, [commentsRepository, entityId, entityType, load])
+  }, [commentsRepository, createOptimisticComment, entityId, entityType, load])
 
   const addReply = useCallback(async (parentId: string, text: string) => {
     setIsSubmitting(true)
     setFeedbackMessage(null)
+    const optimisticReply = createOptimisticComment(text, parentId)
+    setComments((prev) => appendReplyToTree(prev, parentId, optimisticReply))
     try {
       await commentsRepository.replyToComment(parentId, text)
       setLastSentAt(new Date().getTime())
       setNowTs(new Date().getTime())
       setActiveReplyTo(null)
-      await load()
+      void load()
     } catch (error) {
+      setComments((prev) => updateCommentTree(prev, parentId, (comment) => ({ ...comment, replies: comment.replies.filter((reply) => reply.id !== optimisticReply.id) })))
       setFeedbackMessage(extractUiError(error))
     } finally {
       setIsSubmitting(false)
     }
-  }, [commentsRepository, load])
+  }, [commentsRepository, createOptimisticComment, load])
 
   const removeComment = useCallback(async (commentId: string) => {
     setIsSubmitting(true)

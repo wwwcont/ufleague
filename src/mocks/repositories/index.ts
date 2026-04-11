@@ -53,7 +53,7 @@ export const matchesRepository: MatchesRepository = {
     return matches.find((m) => m.id === matchId) ?? null
   },
   async createMatch() {
-    return
+    return { id: `match_mock_${Date.now()}` }
   },
 }
 
@@ -218,6 +218,12 @@ export const cabinetRepository: CabinetRepository = {
   async updateTournamentBracketSettings(cycleId, settings) {
     mockTournamentCycles = mockTournamentCycles.map((cycle) => (cycle.id === cycleId ? { ...cycle, bracketTeamCapacity: settings.teamCapacity } : cycle))
   },
+  async createBracketTie() {
+    return { id: `tie_mock_${Date.now()}` }
+  },
+  async attachMatchToTie() {
+    return
+  },
 }
 
 export const usersRepository: UsersRepository = {
@@ -238,6 +244,17 @@ export const usersRepository: UsersRepository = {
       id: userId,
       displayName: `Пользователь #${userId}`,
       statuses: ['guest'],
+      isOnline: false,
+    }
+  },
+  async findByTelegramUsername(username) {
+    const normalized = username.trim().replace(/^@/, '')
+    if (!normalized) return null
+    return {
+      id: `user_${normalized}`,
+      displayName: `@${normalized}`,
+      telegramUsername: normalized,
+      statuses: ['player'],
       isOnline: false,
     }
   },

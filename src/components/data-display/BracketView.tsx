@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CircleHelp, ShieldCheck } from 'lucide-react'
+import { CircleHelp, Plus, ShieldCheck } from 'lucide-react'
 import type { BracketMatchGroup, BracketStage, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
 
@@ -15,11 +15,26 @@ const CONNECTOR_RADIUS = 8
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
-type LayoutNode = BracketMatchGroup & { x: number; y: number }
+type PlaceholderNode = { id: string; stageId: string; slot: number; x: number; y: number; isPlaceholder: true }
+type LayoutNode = (BracketMatchGroup & { x: number; y: number; isPlaceholder?: false }) | PlaceholderNode
 
 const isFinished = (status: string) => status === 'finished'
 
-export const BracketView = ({ stages, groups, teamMap, fullScreen = false }: { stages: BracketStage[]; groups: BracketMatchGroup[]; teamMap: Record<string, Team>; fullScreen?: boolean }) => {
+export const BracketView = ({
+  stages,
+  groups,
+  teamMap,
+  fullScreen = false,
+  editable = false,
+  onCreateTie,
+}: {
+  stages: BracketStage[]
+  groups: BracketMatchGroup[]
+  teamMap: Record<string, Team>
+  fullScreen?: boolean
+  editable?: boolean
+  onCreateTie?: (stageId: string, slot: number) => void
+}) => {
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const dragRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false })
@@ -29,7 +44,30 @@ export const BracketView = ({ stages, groups, teamMap, fullScreen = false }: { s
 
   const { positionedGroups, width, height, stageCenters } = useMemo(() => {
     const byStage = new Map<string, BracketMatchGroup[]>()
-    sortedStages.forEach((stage) => byStage.set(stage.id, groups.filter((group) => group.stageId === stage.id).sort((a, b) => a.slot - b.slot)))
+    sortedStages.forEach((stage) => {
+      const existing = groups.filter((group) => group.stageId === stage.id).sort((a, b) => a.slot - b.slot)
+      if (!editable) {
+        byStage.set(stage.id, existing)
+        return
+      }
+
+      const existingSlots = new Set(existing.map((group) => group.slot))
+      const placeholders: BracketMatchGroup[] = []
+      for (let slot = 1; slot <= stage.size; slot += 1) {
+        if (existingSlots.has(slot)) continue
+        placeholders.push({
+          id: `placeholder:${stage.id}:${slot}`,
+          stageId: stage.id,
+          slot,
+          homeTeamId: null,
+          awayTeamId: null,
+          tieFormat: 1,
+          firstLeg: { matchId: null, status: 'scheduled' },
+          winnerTeamId: null,
+        })
+      }
+      byStage.set(stage.id, [...existing, ...placeholders].sort((a, b) => a.slot - b.slot))
+    })
 
     const stageLayouts = new Map<string, LayoutNode[]>()
 
@@ -38,7 +76,7 @@ export const BracketView = ({ stages, groups, teamMap, fullScreen = false }: { s
       const x = PADDING_X + stageIndex * ROUND_GAP
 
       if (stageIndex === 0) {
-        stageLayouts.set(stage.id, stageGroups.map((group, index) => ({ ...group, x, y: PADDING_Y + index * (NODE_H + FIRST_ROUND_GAP) })))
+        stageLayouts.set(stage.id, stageGroups.map((group, index) => ({ ...group, x, y: PADDING_Y + index * (NODE_H + FIRST_ROUND_GAP), ...(group.id.startsWith('placeholder:') ? { isPlaceholder: true as const } : {}) })))
         return
       }
 
@@ -50,7 +88,7 @@ export const BracketView = ({ stages, groups, teamMap, fullScreen = false }: { s
         const end = clamp(start + groupSize - 1, start, prevNodes.length - 1)
         const centers = prevNodes.slice(start, end + 1).map((node) => node.y + NODE_H / 2)
         const centerY = centers.length ? centers.reduce((sum, c) => sum + c, 0) / centers.length : PADDING_Y + index * (NODE_H + FIRST_ROUND_GAP)
-        return { ...group, x, y: centerY - NODE_H / 2 }
+        return { ...group, x, y: centerY - NODE_H / 2, ...(group.id.startsWith('placeholder:') ? { isPlaceholder: true as const } : {}) }
       }))
     })
 
@@ -62,7 +100,7 @@ export const BracketView = ({ stages, groups, teamMap, fullScreen = false }: { s
     sortedStages.forEach((stage, index) => centers.set(stage.id, PADDING_X + index * ROUND_GAP + NODE_W / 2))
 
     return { positionedGroups: positioned, width: maxX, height: maxY, stageCenters: centers }
-  }, [groups, sortedStages])
+  }, [editable, groups, sortedStages])
 
   const nodesByStage = useMemo(() => {
     const map = new Map<string, LayoutNode[]>()
@@ -170,6 +208,23 @@ export const BracketView = ({ stages, groups, teamMap, fullScreen = false }: { s
           ))}
 
           {positionedGroups.map((group) => {
+            if ('isPlaceholder' in group && group.isPlaceholder) {
+              return (
+                <button
+                  key={group.id}
+                  type="button"
+                  className={`${nodeClass} border-dashed text-textMuted hover:border-accentYellow/60 hover:text-accentYellow`}
+                  style={{ left: group.x, top: group.y, width: NODE_W, height: NODE_H }}
+                  onClick={() => onCreateTie?.(group.stageId, group.slot)}
+                >
+                  <div className="flex h-full flex-col items-center justify-center gap-2 text-xs">
+                    <Plus size={14} />
+                    <span>Создать slot #{group.slot}</span>
+                  </div>
+                </button>
+              )
+            }
+
             const firstLeg = group.firstLeg.score
             const secondLeg = group.secondLeg?.score
             const canComputeTotal = group.tieFormat === 2 && firstLeg && secondLeg

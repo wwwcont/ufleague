@@ -27,15 +27,15 @@ export const MatchCard = ({ match, home, away }: { match: Match; home: Team; awa
 
       <div className="relative grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-4">
         <div className="z-10 flex min-w-0 items-center gap-2">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-borderSubtle/80 bg-panelSoft/90 p-1.5 sm:h-16 sm:w-16 sm:p-2">
-            <TeamAvatar team={home} size="xl" fallbackLogoUrl={tournament.logoUrl} className="h-10 w-10 sm:h-11 sm:w-11" />
+          <div className="flex h-[58px] w-[58px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-borderSubtle/60 bg-panelSoft/90 p-0 sm:h-[66px] sm:w-[66px]">
+            <TeamAvatar team={home} size="xl" fit="cover" fallbackLogoUrl={tournament.logoUrl} className="h-full w-full" />
           </div>
           <span className="truncate text-sm font-semibold uppercase tracking-[0.06em] text-textPrimary sm:text-base">{home.shortName}</span>
         </div>
 
         <div className="z-10 px-1 text-center text-[30px] font-bold leading-none tabular-nums text-textPrimary sm:text-[34px]">
-          <div className="relative inline-flex items-center justify-center px-7 sm:px-8">
-            <svg className="pointer-events-none absolute right-full top-1/2 h-3.5 w-12 -translate-y-1/2" viewBox="0 0 64 16" fill="none" aria-hidden>
+          <div className="relative inline-flex items-center justify-center px-2.5 sm:px-8">
+            <svg className="pointer-events-none absolute right-full top-1/2 h-3.5 w-7 -translate-y-1/2 sm:w-12" viewBox="0 0 64 16" fill="none" aria-hidden>
               <path d="M0 8 C16 8 22 8 34 8 C44 8 50 3 63 1" stroke={`url(#${leftGradientId})`} strokeWidth="1.4" strokeLinecap="round" />
               <path d="M0 8 C16 8 22 8 34 8 C44 8 50 13 63 15" stroke={`url(#${leftGradientId})`} strokeWidth="1.4" strokeLinecap="round" />
               <defs>
@@ -46,7 +46,7 @@ export const MatchCard = ({ match, home, away }: { match: Match; home: Team; awa
                 </linearGradient>
               </defs>
             </svg>
-            <svg className="pointer-events-none absolute left-full top-1/2 h-3.5 w-12 -translate-y-1/2 scale-x-[-1]" viewBox="0 0 64 16" fill="none" aria-hidden>
+            <svg className="pointer-events-none absolute left-full top-1/2 h-3.5 w-7 -translate-y-1/2 scale-x-[-1] sm:w-12" viewBox="0 0 64 16" fill="none" aria-hidden>
               <path d="M0 8 C16 8 22 8 34 8 C44 8 50 3 63 1" stroke={`url(#${rightGradientId})`} strokeWidth="1.4" strokeLinecap="round" />
               <path d="M0 8 C16 8 22 8 34 8 C44 8 50 13 63 15" stroke={`url(#${rightGradientId})`} strokeWidth="1.4" strokeLinecap="round" />
               <defs>
@@ -63,8 +63,8 @@ export const MatchCard = ({ match, home, away }: { match: Match; home: Team; awa
 
         <div className="z-10 flex min-w-0 items-center justify-end gap-2 text-right">
           <span className="truncate text-sm font-semibold uppercase tracking-[0.06em] text-textPrimary sm:text-base">{away.shortName}</span>
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-borderSubtle/80 bg-panelSoft/90 p-1.5 sm:h-16 sm:w-16 sm:p-2">
-            <TeamAvatar team={away} size="xl" fallbackLogoUrl={tournament.logoUrl} className="h-10 w-10 sm:h-11 sm:w-11" />
+          <div className="flex h-[58px] w-[58px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-borderSubtle/60 bg-panelSoft/90 p-0 sm:h-[66px] sm:w-[66px]">
+            <TeamAvatar team={away} size="xl" fit="cover" fallbackLogoUrl={tournament.logoUrl} className="h-full w-full" />
           </div>
         </div>
       </div>

@@ -29,10 +29,7 @@ export const CommentComposer = ({ blockedReason, statusMessage, isSubmitting = f
         className="min-h-20 w-full rounded-lg border border-borderSubtle bg-panelBg px-3 py-2 text-sm text-textPrimary outline-none"
       />
 
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <p className="text-xs text-textMuted">
-          {blockedReason ?? statusMessage ?? 'Гость: reply/delete own comment/like-dislike доступны при активной session.'}
-        </p>
+      <div className="mt-2 flex items-center justify-end gap-2">
         <button
           type="button"
           disabled={Boolean(blockedReason) || !value.trim() || isSubmitting}
@@ -46,6 +43,12 @@ export const CommentComposer = ({ blockedReason, statusMessage, isSubmitting = f
           <Send size={12} /> {isSubmitting ? 'Отправка...' : 'Отправить'}
         </button>
       </div>
+
+      {(blockedReason || statusMessage) && (
+        <p className="mt-2 text-xs text-textMuted">
+          {blockedReason ?? statusMessage}
+        </p>
+      )}
     </div>
   )
 }
