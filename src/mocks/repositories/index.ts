@@ -10,7 +10,7 @@ import type {
   StandingsRepository,
   TeamsRepository,
 } from '../../domain/repositories/contracts'
-import { bracketMatches, bracketRounds } from '../data/bracket'
+import { bracketGroups, bracketSettings, bracketStages } from '../data/bracket'
 import { comments, currentCommentAuthor } from '../data/comments'
 import { events } from '../data/events'
 import { matches } from '../data/matches'
@@ -63,7 +63,7 @@ export const standingsRepository: StandingsRepository = {
 
 export const bracketRepository: BracketRepository = {
   async getBracket() {
-    return { rounds: bracketRounds, matches: bracketMatches }
+    return { stages: bracketStages, groups: bracketGroups, settings: bracketSettings }
   },
 }
 

@@ -90,22 +90,34 @@ export interface StandingRow {
   points: number
 }
 
-export interface BracketRound {
+export interface BracketStage {
   id: ID
   label: string
   order: number
+  size: number
 }
 
-export interface BracketMatch {
+export interface BracketGameRef {
+  matchId: ID | null
+  score?: { home: number; away: number }
+  status: MatchStatus
+}
+
+export interface BracketMatchGroup {
   id: ID
-  roundId: ID
+  stageId: ID
   slot: number
   homeTeamId: ID | null
   awayTeamId: ID | null
   winnerTeamId?: ID | null
-  status: MatchStatus
-  linkedMatchId?: ID
-  score?: { home: number; away: number }
+  tieFormat: 1 | 2
+  firstLeg: BracketGameRef
+  secondLeg?: BracketGameRef
+  adminLockedWinner?: boolean
+}
+
+export interface BracketSettings {
+  teamCapacity: 4 | 8 | 16 | 32
 }
 
 export interface SearchResult {

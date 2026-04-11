@@ -1,82 +1,84 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CircleHelp } from 'lucide-react'
-import type { BracketMatch, BracketRound, Team } from '../../domain/entities/types'
+import { CircleHelp, ShieldCheck } from 'lucide-react'
+import type { BracketMatchGroup, BracketStage, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
 
-const NODE_W = 142
-const NODE_H = 72
-const ROUND_GAP = 168
-const FIRST_ROUND_GAP = 58
+const NODE_W = 238
+const NODE_H = 174
+const ROUND_GAP = 274
+const FIRST_ROUND_GAP = 34
 const PADDING_X = 48
 const PADDING_Y = 44
-const CONNECTOR_STUB = 14
+const CONNECTOR_STUB = 18
 const CONNECTOR_RADIUS = 8
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
-type LayoutNode = BracketMatch & { x: number; y: number }
+type LayoutNode = BracketMatchGroup & { x: number; y: number }
 
-export const BracketView = ({ rounds, matches, teamMap, fullScreen = false }: { rounds: BracketRound[]; matches: BracketMatch[]; teamMap: Record<string, Team>; fullScreen?: boolean }) => {
+const isFinished = (status: string) => status === 'finished'
+
+export const BracketView = ({ stages, groups, teamMap, fullScreen = false }: { stages: BracketStage[]; groups: BracketMatchGroup[]; teamMap: Record<string, Team>; fullScreen?: boolean }) => {
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const dragRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false })
   const viewportRef = useRef<HTMLDivElement | null>(null)
 
-  const sortedRounds = [...rounds].sort((a, b) => a.order - b.order)
+  const sortedStages = [...stages].sort((a, b) => a.order - b.order)
 
-  const { positionedMatches, width, height, roundCenters } = useMemo(() => {
-    const byRound = new Map<string, BracketMatch[]>()
-    sortedRounds.forEach((round) => byRound.set(round.id, matches.filter((m) => m.roundId === round.id).sort((a, b) => a.slot - b.slot)))
+  const { positionedGroups, width, height, stageCenters } = useMemo(() => {
+    const byStage = new Map<string, BracketMatchGroup[]>()
+    sortedStages.forEach((stage) => byStage.set(stage.id, groups.filter((group) => group.stageId === stage.id).sort((a, b) => a.slot - b.slot)))
 
-    const roundLayouts = new Map<string, LayoutNode[]>()
+    const stageLayouts = new Map<string, LayoutNode[]>()
 
-    sortedRounds.forEach((round, roundIndex) => {
-      const roundMatches = byRound.get(round.id) ?? []
-      const x = PADDING_X + roundIndex * ROUND_GAP
+    sortedStages.forEach((stage, stageIndex) => {
+      const stageGroups = byStage.get(stage.id) ?? []
+      const x = PADDING_X + stageIndex * ROUND_GAP
 
-      if (roundIndex === 0) {
-        roundLayouts.set(round.id, roundMatches.map((match, index) => ({ ...match, x, y: PADDING_Y + index * (NODE_H + FIRST_ROUND_GAP) })))
+      if (stageIndex === 0) {
+        stageLayouts.set(stage.id, stageGroups.map((group, index) => ({ ...group, x, y: PADDING_Y + index * (NODE_H + FIRST_ROUND_GAP) })))
         return
       }
 
-      const prevNodes = roundLayouts.get(sortedRounds[roundIndex - 1].id) ?? []
-      const groupSize = prevNodes.length && roundMatches.length ? Math.max(1, Math.floor(prevNodes.length / roundMatches.length)) : 1
+      const prevNodes = stageLayouts.get(sortedStages[stageIndex - 1].id) ?? []
+      const groupSize = prevNodes.length && stageGroups.length ? Math.max(1, Math.floor(prevNodes.length / stageGroups.length)) : 1
 
-      roundLayouts.set(round.id, roundMatches.map((match, index) => {
+      stageLayouts.set(stage.id, stageGroups.map((group, index) => {
         const start = index * groupSize
         const end = clamp(start + groupSize - 1, start, prevNodes.length - 1)
         const centers = prevNodes.slice(start, end + 1).map((node) => node.y + NODE_H / 2)
         const centerY = centers.length ? centers.reduce((sum, c) => sum + c, 0) / centers.length : PADDING_Y + index * (NODE_H + FIRST_ROUND_GAP)
-        return { ...match, x, y: centerY - NODE_H / 2 }
+        return { ...group, x, y: centerY - NODE_H / 2 }
       }))
     })
 
-    const positioned = sortedRounds.flatMap((round) => roundLayouts.get(round.id) ?? [])
+    const positioned = sortedStages.flatMap((stage) => stageLayouts.get(stage.id) ?? [])
     const maxX = Math.max(...positioned.map((node) => node.x), PADDING_X) + NODE_W + PADDING_X
     const maxY = Math.max(...positioned.map((node) => node.y), PADDING_Y) + NODE_H + PADDING_Y
 
     const centers = new Map<string, number>()
-    sortedRounds.forEach((round, index) => centers.set(round.id, PADDING_X + index * ROUND_GAP + NODE_W / 2))
+    sortedStages.forEach((stage, index) => centers.set(stage.id, PADDING_X + index * ROUND_GAP + NODE_W / 2))
 
-    return { positionedMatches: positioned, width: maxX, height: maxY, roundCenters: centers }
-  }, [matches, sortedRounds])
+    return { positionedGroups: positioned, width: maxX, height: maxY, stageCenters: centers }
+  }, [groups, sortedStages])
 
-  const nodesByRound = useMemo(() => {
+  const nodesByStage = useMemo(() => {
     const map = new Map<string, LayoutNode[]>()
-    sortedRounds.forEach((round) => map.set(round.id, positionedMatches.filter((m) => m.roundId === round.id).sort((a, b) => a.slot - b.slot)))
+    sortedStages.forEach((stage) => map.set(stage.id, positionedGroups.filter((group) => group.stageId === stage.id).sort((a, b) => a.slot - b.slot)))
     return map
-  }, [positionedMatches, sortedRounds])
+  }, [positionedGroups, sortedStages])
 
   const connectors = useMemo(() => {
     const lines: Array<{ fromX: number; fromY: number; toX: number; toY: number }> = []
 
-    sortedRounds.forEach((round, roundIndex) => {
-      const nextRound = sortedRounds[roundIndex + 1]
-      if (!nextRound) return
+    sortedStages.forEach((stage, stageIndex) => {
+      const nextStage = sortedStages[stageIndex + 1]
+      if (!nextStage) return
 
-      const current = nodesByRound.get(round.id) ?? []
-      const next = nodesByRound.get(nextRound.id) ?? []
+      const current = nodesByStage.get(stage.id) ?? []
+      const next = nodesByStage.get(nextStage.id) ?? []
       if (!current.length || !next.length) return
 
       const groupSize = Math.max(1, Math.floor(current.length / next.length))
@@ -89,7 +91,7 @@ export const BracketView = ({ rounds, matches, teamMap, fullScreen = false }: { 
     })
 
     return lines
-  }, [nodesByRound, sortedRounds])
+  }, [nodesByStage, sortedStages])
 
   const clampOffset = (nextX: number, nextY: number, localScale: number) => {
     const viewport = viewportRef.current?.getBoundingClientRect()
@@ -105,13 +107,13 @@ export const BracketView = ({ rounds, matches, teamMap, fullScreen = false }: { 
 
   const zoom = (delta: number) => {
     setScale((prev) => {
-      const nextScale = clamp(Number((prev + delta).toFixed(2)), 0.75, 1.7)
+      const nextScale = clamp(Number((prev + delta).toFixed(2)), 0.68, 1.7)
       setOffset((prevOffset) => clampOffset(prevOffset.x, prevOffset.y, nextScale))
       return nextScale
     })
   }
 
-  const nodeClass = 'absolute block rounded-lg border border-white/10 bg-panelAlt/80 px-2 py-2 shadow-soft backdrop-blur'
+  const nodeClass = 'absolute block rounded-xl border border-white/10 bg-panelAlt/85 px-2.5 py-2 shadow-soft backdrop-blur'
   const viewportClass = fullScreen ? 'relative h-[calc(100vh-11.6rem)] touch-none overflow-hidden' : 'relative h-[68vh] touch-none overflow-hidden rounded-xl'
 
   return (
@@ -161,37 +163,73 @@ export const BracketView = ({ rounds, matches, teamMap, fullScreen = false }: { 
             })}
           </svg>
 
-          {sortedRounds.map((round) => (
-            <p key={round.id} className="absolute -translate-x-1/2 text-[11px] uppercase tracking-[0.13em] text-textMuted" style={{ left: roundCenters.get(round.id), top: 6 }}>
-              {round.label}
+          {sortedStages.map((stage) => (
+            <p key={stage.id} className="absolute -translate-x-1/2 text-[11px] uppercase tracking-[0.13em] text-textMuted" style={{ left: stageCenters.get(stage.id), top: 6 }}>
+              {stage.label}
             </p>
           ))}
 
-          {positionedMatches.map((match) => {
-            const homeWinner = match.winnerTeamId && match.homeTeamId === match.winnerTeamId
-            const awayWinner = match.winnerTeamId && match.awayTeamId === match.winnerTeamId
+          {positionedGroups.map((group) => {
+            const firstLeg = group.firstLeg.score
+            const secondLeg = group.secondLeg?.score
+            const canComputeTotal = group.tieFormat === 2 && firstLeg && secondLeg
+            const totalHome = canComputeTotal ? firstLeg.home + secondLeg.home : null
+            const totalAway = canComputeTotal ? firstLeg.away + secondLeg.away : null
+            const hasAllGamesFinished = group.tieFormat === 1
+              ? isFinished(group.firstLeg.status)
+              : isFinished(group.firstLeg.status) && isFinished(group.secondLeg?.status ?? 'scheduled')
+
+            const homeWinner = group.winnerTeamId ? group.homeTeamId === group.winnerTeamId : false
+            const awayWinner = group.winnerTeamId ? group.awayTeamId === group.winnerTeamId : false
 
             const teamRow = (teamId: string | null, winner: boolean, score?: number) => {
               const team = teamId ? teamMap[teamId] : null
+              const faded = hasAllGamesFinished && group.winnerTeamId && !winner
 
               return (
-                <div className={`flex items-center justify-between text-sm ${winner ? 'text-accentYellow' : 'text-textPrimary'}`}>
-                  <div className="flex items-center gap-2">
-                    {team ? <TeamAvatar team={team} size="sm" /> : <CircleHelp size={16} className="text-textMuted" />}
-                    <span>{team ? team.shortName : 'TBD'}</span>
+                <div className={`flex items-center justify-between text-xs ${winner ? 'text-accentYellow' : 'text-textPrimary'} ${faded ? 'opacity-45' : ''}`}>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {team ? <TeamAvatar team={team} size="sm" /> : <CircleHelp size={14} className="text-textMuted" />}
+                    <span className="truncate">{team ? team.shortName : 'TBD'}</span>
                   </div>
-                  <span className="text-xs font-semibold tabular-nums text-textMuted">{score ?? '—'}</span>
+                  <span className="font-semibold tabular-nums text-textMuted">{score ?? '—'}</span>
                 </div>
               )
             }
 
-            const content = (<><div className="leading-4">{teamRow(match.homeTeamId, Boolean(homeWinner), match.score?.home)}</div><div className="mt-1 leading-4">{teamRow(match.awayTeamId, Boolean(awayWinner), match.score?.away)}</div></>)
+            const content = (
+              <>
+                <div className="leading-4">{teamRow(group.homeTeamId, homeWinner, firstLeg?.home)}</div>
+                <div className="mt-1 leading-4">{teamRow(group.awayTeamId, awayWinner, firstLeg?.away)}</div>
 
-            if (match.linkedMatchId) {
-              return <Link key={match.id} to={`/matches/${match.linkedMatchId}`} className={nodeClass} style={{ left: match.x, top: match.y, width: NODE_W, height: NODE_H }}>{content}</Link>
+                {group.tieFormat === 2 && (
+                  <>
+                    <div className="mt-1.5 border-t border-white/10 pt-1.5">
+                      <div className="text-[10px] uppercase tracking-[0.08em] text-textMuted">2-й матч</div>
+                      <div className="mt-1 leading-4">{teamRow(group.homeTeamId, homeWinner, secondLeg?.home)}</div>
+                      <div className="mt-1 leading-4">{teamRow(group.awayTeamId, awayWinner, secondLeg?.away)}</div>
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between border-t border-white/10 pt-1 text-[10px] uppercase tracking-[0.08em] text-textMuted">
+                      <span>Тотал</span>
+                      <span className="font-semibold tabular-nums text-textPrimary">{totalHome === null || totalAway === null ? '- : -' : `${totalHome}:${totalAway}`}</span>
+                    </div>
+                  </>
+                )}
+
+                {group.adminLockedWinner && (
+                  <div className="mt-1 inline-flex items-center gap-1 rounded-md border border-accentYellow/40 bg-accentYellow/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.08em] text-accentYellow">
+                    <ShieldCheck size={10} /> winner by admin
+                  </div>
+                )}
+              </>
+            )
+
+            const primaryMatch = group.firstLeg.matchId
+            if (primaryMatch) {
+              return <Link key={group.id} to={`/matches/${primaryMatch}`} className={nodeClass} style={{ left: group.x, top: group.y, width: NODE_W, height: NODE_H }}>{content}</Link>
             }
 
-            return <div key={match.id} className={nodeClass} style={{ left: match.x, top: match.y, width: NODE_W, height: NODE_H }}>{content}</div>
+            return <div key={group.id} className={nodeClass} style={{ left: group.x, top: group.y, width: NODE_W, height: NODE_H }}>{content}</div>
           })}
         </div>
       </div>
