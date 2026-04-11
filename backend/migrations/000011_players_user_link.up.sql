@@ -1,0 +1,4 @@
+ALTER TABLE players
+    ADD COLUMN IF NOT EXISTS user_id BIGINT UNIQUE REFERENCES users(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_players_user_id ON players(user_id);

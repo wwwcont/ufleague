@@ -19,6 +19,10 @@ export const matches: Match[] = [
       { id: 'e5', minute: 72, type: 'goal', teamId: 'team_1', playerId: 'p1', note: 'Пенальти в левый угол' },
     ],
     featured: true,
+    stage: 'Групповой этап',
+    tour: 'Тур 7',
+    referee: 'И. Петров',
+    broadcastUrl: 'https://example.com/stream/m1',
   },
   {
     id: 'm2',
@@ -32,6 +36,9 @@ export const matches: Match[] = [
     score: { home: 0, away: 0 },
     events: [],
     featured: false,
+    stage: 'Групповой этап',
+    tour: 'Тур 7',
+    referee: 'А. Смирнов',
   },
   {
     id: 'm3',
@@ -45,6 +52,9 @@ export const matches: Match[] = [
     score: { home: 0, away: 0 },
     events: [],
     featured: false,
+    stage: 'Групповой этап',
+    tour: 'Тур 7',
+    referee: 'В. Лебедев',
   },
   {
     id: 'm4',
@@ -58,6 +68,9 @@ export const matches: Match[] = [
     score: { home: 0, away: 0 },
     events: [],
     featured: false,
+    stage: 'Групповой этап',
+    tour: 'Тур 7',
+    referee: 'М. Кузнецов',
   },
   {
     id: 'm5',
@@ -74,5 +87,8 @@ export const matches: Match[] = [
       { id: 'e7', minute: 78, type: 'goal', teamId: 'team_5', playerId: 'p14' },
     ],
     featured: false,
+    stage: 'Плей-офф',
+    tour: '1/4',
+    referee: 'С. Орлов',
   },
 ]
