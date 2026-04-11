@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { CommentNode } from '../../domain/entities/types'
 import { CommentActions } from './CommentActions'
 import { CommentReactionBar } from './CommentReactionBar'
@@ -28,7 +29,13 @@ export const CommentItem = ({ comment, onReply, onDelete, onReact, isThreadChild
     <li className="rounded-xl border border-borderSubtle bg-mutedBg px-3 py-3">
       <div className="mb-1 flex items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-2">
-          <span className="font-semibold text-textPrimary">{comment.authorName}</span>
+          {comment.authorUserId ? (
+            <Link to={`/users/${comment.authorUserId}`} className="font-semibold text-textPrimary underline-offset-2 hover:underline">
+              {comment.authorName}
+            </Link>
+          ) : (
+            <span className="font-semibold text-textPrimary">{comment.authorName}</span>
+          )}
           <span className="rounded-md border border-borderSubtle px-1.5 py-0.5 text-[10px] uppercase text-textMuted">{comment.authorRole}</span>
           {comment.isOwn && <span className="text-[10px] text-accentYellow">мой комментарий</span>}
         </div>

@@ -16,6 +16,7 @@ type Team struct {
 
 type Player struct {
 	ID          int64             `json:"id"`
+	UserID      *int64            `json:"user_id,omitempty"`
 	TeamID      *int64            `json:"team_id,omitempty"`
 	FullName    string            `json:"full_name"`
 	Nickname    string            `json:"nickname,omitempty"`
@@ -71,6 +72,7 @@ type CreateTeamRequest struct {
 type UpdateTeamRequest = CreateTeamRequest
 
 type CreatePlayerRequest struct {
+	UserID      *int64            `json:"user_id"`
 	TeamID      *int64            `json:"team_id"`
 	FullName    string            `json:"full_name"`
 	Nickname    string            `json:"nickname"`

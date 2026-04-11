@@ -9,8 +9,9 @@ import type {
   SessionRepository,
   StandingsRepository,
   TeamsRepository,
+  UsersRepository,
 } from '../../domain/repositories/contracts'
-import type { AuthSession, BackendMeDTO, BracketMatchGroup, BracketSettings, BracketStage, CommentAuthorState, CommentNode, Match, Player, PublicEvent, SearchResult, StandingRow, Team, UserRole } from '../../domain/entities/types'
+import type { AuthSession, BackendMeDTO, BracketMatchGroup, BracketSettings, BracketStage, CommentAuthorState, CommentNode, Match, Player, PublicEvent, PublicUserCard, SearchResult, StandingRow, Team, UserRole } from '../../domain/entities/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 
@@ -117,6 +118,7 @@ const mapComment = (c: any): CommentNode => ({
   entityType: c.entity_type,
   entityId: String(c.entity_id),
   parentId: c.parent_comment_id ? String(c.parent_comment_id) : null,
+  authorUserId: c.author_user_id ? String(c.author_user_id) : undefined,
   authorName: c.author_name ?? 'Пользователь',
   authorRole: 'guest',
   isOwn: false,
@@ -126,6 +128,17 @@ const mapComment = (c: any): CommentNode => ({
   canReply: true,
   canDelete: false,
   replies: [],
+})
+
+const mapUserCard = (u: any): PublicUserCard => ({
+  id: String(u.id),
+  displayName: String(u.display_name ?? 'Пользователь'),
+  telegramUsername: u.telegram_username ? String(u.telegram_username) : undefined,
+  statuses: Array.isArray(u.roles) ? u.roles : [],
+  lastSeenAt: u.last_seen_at ? String(u.last_seen_at) : undefined,
+  isOnline: Boolean(u.is_online),
+  playerId: u.player_id ? String(u.player_id) : undefined,
+  teamId: u.team_id ? String(u.team_id) : undefined,
 })
 
 const guestAuthor: CommentAuthorState = { id: '0', name: 'Guest', role: 'guest', isGuest: true, canComment: true, cooldownSeconds: 30 }
@@ -432,7 +445,8 @@ const pickPrimaryRole = (roles: unknown): UserRole => {
 }
 
 const mapMeToSession = (me: BackendMeDTO): AuthSession => {
-  const role = pickPrimaryRole(me.user.roles)
+  const statuses = Array.isArray(me.user.roles) ? me.user.roles.filter((item): item is UserRole => item in rolePriority) : []
+  const role = pickPrimaryRole(statuses)
   const permissions = Array.isArray(me.user.permissions) ? me.user.permissions : []
 
   return {
@@ -441,6 +455,7 @@ const mapMeToSession = (me: BackendMeDTO): AuthSession => {
       id: String(me.user.id),
       displayName: me.user.display_name,
       role,
+      roles: statuses.length ? statuses : [role],
       telegramHandle: me.user.username ? `@${String(me.user.username).replace(/^@/, '')}` : undefined,
       telegramId: me.user.telegram_id ? String(me.user.telegram_id) : undefined,
     },
@@ -515,6 +530,7 @@ export const sessionRepository: SessionRepository = {
         id: String(me.user.id),
         displayName: me.user.display_name,
         role,
+        roles: [role],
         telegramHandle: me.user.username ? `@${String(me.user.username).replace(/^@/, '')}` : undefined,
         telegramId: me.user.telegram_id ? String(me.user.telegram_id) : undefined,
       },
@@ -592,4 +608,14 @@ export const cabinetRepository: CabinetRepository = {
   },
 }
 
-export const repositories = { teamsRepository, playersRepository, matchesRepository, standingsRepository, bracketRepository, searchRepository, commentsRepository, eventsRepository, sessionRepository, cabinetRepository }
+export const usersRepository: UsersRepository = {
+  async getUserCard(userId) {
+    try {
+      return mapUserCard(await api<any>(`/api/users/${userId}`))
+    } catch {
+      return null
+    }
+  },
+}
+
+export const repositories = { teamsRepository, playersRepository, matchesRepository, standingsRepository, bracketRepository, searchRepository, commentsRepository, eventsRepository, sessionRepository, cabinetRepository, usersRepository }

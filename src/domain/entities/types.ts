@@ -185,6 +185,7 @@ export interface CommentNode {
   entityType: CommentEntityType
   entityId: ID
   parentId: ID | null
+  authorUserId?: ID
   authorName: string
   authorRole: UserRole
   isOwn: boolean
@@ -249,9 +250,21 @@ export interface SessionUser {
   id: ID
   displayName: string
   role: UserRole
+  roles?: UserRole[]
   teamId?: ID
   telegramHandle?: string
   telegramId?: string
+}
+
+export interface PublicUserCard {
+  id: ID
+  displayName: string
+  telegramUsername?: string
+  statuses: UserRole[]
+  lastSeenAt?: string
+  isOnline: boolean
+  playerId?: ID
+  teamId?: ID
 }
 
 export interface AuthSession {

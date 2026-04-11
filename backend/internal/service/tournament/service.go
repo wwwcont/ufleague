@@ -111,7 +111,7 @@ func (s Service) CreatePlayer(ctx context.Context, actor domain.User, req domain
 		}
 	}
 	return s.repo.CreatePlayer(ctx, domain.Player{
-		TeamID: req.TeamID, FullName: req.FullName, Nickname: req.Nickname, AvatarURL: req.AvatarURL,
+		UserID: req.UserID, TeamID: req.TeamID, FullName: req.FullName, Nickname: req.Nickname, AvatarURL: req.AvatarURL,
 		Socials: req.Socials, Position: req.Position, ShirtNumber: req.ShirtNumber,
 	})
 }
@@ -130,7 +130,7 @@ func (s Service) UpdatePlayer(ctx context.Context, actor domain.User, id int64, 
 		return domain.Player{}, ErrForbidden
 	}
 	return s.repo.UpdatePlayer(ctx, id, domain.Player{
-		TeamID: req.TeamID, FullName: req.FullName, Nickname: req.Nickname, AvatarURL: req.AvatarURL,
+		UserID: req.UserID, TeamID: req.TeamID, FullName: req.FullName, Nickname: req.Nickname, AvatarURL: req.AvatarURL,
 		Socials: req.Socials, Position: req.Position, ShirtNumber: req.ShirtNumber,
 	})
 }

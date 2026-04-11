@@ -9,6 +9,7 @@ import type {
   Match,
   Player,
   PublicEvent,
+  PublicUserCard,
   SearchResult,
   StandingRow,
   Team,
@@ -75,6 +76,10 @@ export interface SessionRepository {
   completeTelegramLoginWithCode(requestId: string, code: string): Promise<AuthSession>
   loginAsDevRole?(role: UserRole): Promise<AuthSession>
   logout(): Promise<void>
+}
+
+export interface UsersRepository {
+  getUserCard(userId: string): Promise<PublicUserCard | null>
 }
 
 export interface CabinetRepository {

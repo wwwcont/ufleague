@@ -60,7 +60,7 @@ func (r *TournamentRepository) CountTeamsByCaptain(ctx context.Context, userID i
 }
 
 func (r *TournamentRepository) ListPlayers(ctx context.Context) ([]domain.Player, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id,team_id,full_name,COALESCE(nickname,''),COALESCE(avatar_url,''),socials,COALESCE(position,''),shirt_number,created_at,updated_at FROM players ORDER BY id DESC`)
+	rows, err := r.pool.Query(ctx, `SELECT id,user_id,team_id,full_name,COALESCE(nickname,''),COALESCE(avatar_url,''),socials,COALESCE(position,''),shirt_number,created_at,updated_at FROM players ORDER BY id DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -76,25 +76,25 @@ func (r *TournamentRepository) ListPlayers(ctx context.Context) ([]domain.Player
 	return out, rows.Err()
 }
 func (r *TournamentRepository) GetPlayer(ctx context.Context, id int64) (domain.Player, error) {
-	row := r.pool.QueryRow(ctx, `SELECT id,team_id,full_name,COALESCE(nickname,''),COALESCE(avatar_url,''),socials,COALESCE(position,''),shirt_number,created_at,updated_at FROM players WHERE id=$1`, id)
+	row := r.pool.QueryRow(ctx, `SELECT id,user_id,team_id,full_name,COALESCE(nickname,''),COALESCE(avatar_url,''),socials,COALESCE(position,''),shirt_number,created_at,updated_at FROM players WHERE id=$1`, id)
 	return scanPlayer(row)
 }
 func (r *TournamentRepository) CreatePlayer(ctx context.Context, p domain.Player) (domain.Player, error) {
 	socials, _ := json.Marshal(p.Socials)
 	row := r.pool.QueryRow(ctx, `
-	INSERT INTO players (team_id,full_name,nickname,avatar_url,socials,position,shirt_number)
-	VALUES ($1,$2,NULLIF($3,''),NULLIF($4,''),$5,NULLIF($6,''),$7)
-	RETURNING id,team_id,full_name,COALESCE(nickname,''),COALESCE(avatar_url,''),socials,COALESCE(position,''),shirt_number,created_at,updated_at`,
-		p.TeamID, p.FullName, p.Nickname, p.AvatarURL, socials, p.Position, p.ShirtNumber)
+	INSERT INTO players (user_id,team_id,full_name,nickname,avatar_url,socials,position,shirt_number)
+	VALUES ($1,$2,$3,NULLIF($4,''),NULLIF($5,''),$6,NULLIF($7,''),$8)
+	RETURNING id,user_id,team_id,full_name,COALESCE(nickname,''),COALESCE(avatar_url,''),socials,COALESCE(position,''),shirt_number,created_at,updated_at`,
+		p.UserID, p.TeamID, p.FullName, p.Nickname, p.AvatarURL, socials, p.Position, p.ShirtNumber)
 	return scanPlayer(row)
 }
 func (r *TournamentRepository) UpdatePlayer(ctx context.Context, id int64, p domain.Player) (domain.Player, error) {
 	socials, _ := json.Marshal(p.Socials)
 	row := r.pool.QueryRow(ctx, `
-	UPDATE players SET team_id=$2,full_name=$3,nickname=NULLIF($4,''),avatar_url=NULLIF($5,''),socials=$6,position=NULLIF($7,''),shirt_number=$8,updated_at=NOW()
+	UPDATE players SET user_id=$2,team_id=$3,full_name=$4,nickname=NULLIF($5,''),avatar_url=NULLIF($6,''),socials=$7,position=NULLIF($8,''),shirt_number=$9,updated_at=NOW()
 	WHERE id=$1
-	RETURNING id,team_id,full_name,COALESCE(nickname,''),COALESCE(avatar_url,''),socials,COALESCE(position,''),shirt_number,created_at,updated_at`,
-		id, p.TeamID, p.FullName, p.Nickname, p.AvatarURL, socials, p.Position, p.ShirtNumber)
+	RETURNING id,user_id,team_id,full_name,COALESCE(nickname,''),COALESCE(avatar_url,''),socials,COALESCE(position,''),shirt_number,created_at,updated_at`,
+		id, p.UserID, p.TeamID, p.FullName, p.Nickname, p.AvatarURL, socials, p.Position, p.ShirtNumber)
 	return scanPlayer(row)
 }
 
@@ -155,7 +155,7 @@ func scanTeam(row scanner) (domain.Team, error) {
 func scanPlayer(row scanner) (domain.Player, error) {
 	var p domain.Player
 	var socials []byte
-	err := row.Scan(&p.ID, &p.TeamID, &p.FullName, &p.Nickname, &p.AvatarURL, &socials, &p.Position, &p.ShirtNumber, &p.CreatedAt, &p.UpdatedAt)
+	err := row.Scan(&p.ID, &p.UserID, &p.TeamID, &p.FullName, &p.Nickname, &p.AvatarURL, &socials, &p.Position, &p.ShirtNumber, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return p, err
 	}

@@ -9,6 +9,7 @@ import type {
   SessionRepository,
   StandingsRepository,
   TeamsRepository,
+  UsersRepository,
 } from '../../domain/repositories/contracts'
 import { bracketGroups, bracketSettings, bracketStages } from '../data/bracket'
 import { comments, currentCommentAuthor } from '../data/comments'
@@ -199,6 +200,29 @@ export const cabinetRepository: CabinetRepository = {
   },
 }
 
+export const usersRepository: UsersRepository = {
+  async getUserCard(userId) {
+    if (userId === '102') {
+      return {
+        id: '102',
+        displayName: 'М. Картер',
+        telegramUsername: 'mcarter',
+        statuses: ['player'],
+        lastSeenAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+        isOnline: true,
+        playerId: 'p1',
+        teamId: 'team_1',
+      }
+    }
+    return {
+      id: userId,
+      displayName: `Пользователь #${userId}`,
+      statuses: ['guest'],
+      isOnline: false,
+    }
+  },
+}
+
 export const repositories = {
   teamsRepository,
   playersRepository,
@@ -210,4 +234,5 @@ export const repositories = {
   eventsRepository,
   sessionRepository,
   cabinetRepository,
+  usersRepository,
 }
