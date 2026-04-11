@@ -185,7 +185,7 @@ export const CabinetSectionPage = () => {
             <p className="font-semibold text-textPrimary">Team workspace</p>
             <p className="mt-1">Captain/Admin/Superadmin инструменты вынесены прямо в team detail page, здесь — быстрый переход и общие операции.</p>
           </div>
-          <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="team id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="ID команды (например: 12)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <div className="flex flex-wrap gap-2 text-xs">
             <Link to={teamId ? `/teams/${teamId}` : '/teams'} className="rounded-lg border border-borderSubtle px-3 py-2">Открыть team context</Link>
             <Link to="/teams" className="rounded-lg border border-borderSubtle px-3 py-2">Список команд</Link>
@@ -240,8 +240,8 @@ export const CabinetSectionPage = () => {
 
       {section === 'invites' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
-          <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="team id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="username" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="ID команды (например: 12)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Telegram username (без @)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
             try {
               await teamsRepository.captainInviteByUsername?.(teamId, username)
@@ -255,7 +255,7 @@ export const CabinetSectionPage = () => {
 
       {section === 'team-socials' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
-          <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="team id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="ID команды (например: 12)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <textarea value={teamSocialsRaw} onChange={(e) => setTeamSocialsRaw(e.target.value)} placeholder="telegram=https://..." className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
             try {
@@ -270,8 +270,8 @@ export const CabinetSectionPage = () => {
 
       {section === 'roster' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
-          <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="team id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <input value={playerId} onChange={(e) => setPlayerId(e.target.value)} placeholder="player id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="ID команды (например: 12)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input value={playerId} onChange={(e) => setPlayerId(e.target.value)} placeholder="ID игрока (например: 34)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <label className="text-xs text-textSecondary flex items-center gap-2"><input type="checkbox" checked={visible} onChange={(e) => setVisible(e.target.checked)} /> visible in roster</label>
           <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
             try {
@@ -286,8 +286,8 @@ export const CabinetSectionPage = () => {
 
       {section === 'team-events' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
-          <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="team id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <input value={eventId} onChange={(e) => setEventId(e.target.value)} placeholder="event id (for update/delete)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="ID команды (например: 12)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input value={eventId} onChange={(e) => setEventId(e.target.value)} placeholder="ID события для изменения/удаления" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="event title" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="event body" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <div className="flex flex-wrap gap-2">
@@ -338,7 +338,7 @@ export const CabinetSectionPage = () => {
 
           <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
             <p className="text-xs text-textMuted">Create player</p>
-            <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="team id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="ID команды (например: 12)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={newPlayerName} onChange={(e) => setNewPlayerName(e.target.value)} placeholder="full name" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={newPlayerPosition} onChange={(e) => setNewPlayerPosition(e.target.value)} placeholder="position" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={newPlayerNumber} onChange={(e) => setNewPlayerNumber(e.target.value)} placeholder="shirt number" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
@@ -354,9 +354,9 @@ export const CabinetSectionPage = () => {
 
           <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
             <p className="text-xs text-textMuted">Create match</p>
-            <input value={matchHomeTeamId} onChange={(e) => setMatchHomeTeamId(e.target.value)} placeholder="home team id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-            <input value={matchAwayTeamId} onChange={(e) => setMatchAwayTeamId(e.target.value)} placeholder="away team id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-            <input value={matchStartAt} onChange={(e) => setMatchStartAt(e.target.value)} placeholder="start_at RFC3339" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input value={matchHomeTeamId} onChange={(e) => setMatchHomeTeamId(e.target.value)} placeholder="ID домашней команды" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input value={matchAwayTeamId} onChange={(e) => setMatchAwayTeamId(e.target.value)} placeholder="ID гостевой команды" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input value={matchStartAt} onChange={(e) => setMatchStartAt(e.target.value)} placeholder="Дата и время старта (RFC3339)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={matchStatus} onChange={(e) => setMatchStatus(e.target.value as typeof matchStatus)} placeholder="status" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={matchVenue} onChange={(e) => setMatchVenue(e.target.value)} placeholder="venue" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <button type="button" disabled={!isAdminScope} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
@@ -391,7 +391,7 @@ export const CabinetSectionPage = () => {
           <input value={blockedUserId} onChange={(e) => setBlockedUserId(e.target.value)} placeholder="user id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <label className="text-xs text-textSecondary flex items-center gap-2"><input type="checkbox" checked={permanent} onChange={(e) => setPermanent(e.target.checked)} /> permanent</label>
           <input value={untilUnix} onChange={(e) => setUntilUnix(e.target.value)} placeholder="until unix" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="reason" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Причина ограничения" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
             try {
               await cabinetRepository.adminBlockComments({ userId: blockedUserId, permanent, untilUnix: Number(untilUnix) || 0, reason })

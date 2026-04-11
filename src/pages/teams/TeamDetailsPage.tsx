@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
-import { CalendarClock, ShieldCheck, Trophy, Users } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { CalendarClock, ShieldCheck, Trophy, Users, Wrench } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
 import { usePlayers } from '../../hooks/data/usePlayers'
@@ -14,6 +15,10 @@ import { SocialLinks } from '../../components/ui/SocialLinks'
 import { tournament } from '../../mocks/data/tournament'
 import { CommentsSection } from '../../components/comments'
 import { EventFeedSection } from '../../components/events'
+import { useSession } from '../../app/providers/use-session'
+import { useRepositories } from '../../app/providers/use-repositories'
+import { canManageTeam } from '../../domain/services/accessControl'
+import { ApiError } from '../../infrastructure/api/repositories'
 
 const formLabel: Record<string, string> = { W: 'В', D: 'Н', L: 'П' }
 
@@ -25,6 +30,19 @@ export const TeamDetailsPage = () => {
   const { data: standings } = useStandings()
   const { data: matches } = useMatches()
   const { data: teams } = useTeams()
+  const { session } = useSession()
+  const { teamsRepository } = useRepositories()
+  const [editableName, setEditableName] = useState('')
+  const [editableSlogan, setEditableSlogan] = useState('')
+  const [editableDescription, setEditableDescription] = useState('')
+  const [manageStatus, setManageStatus] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!team) return
+    setEditableName(team.name)
+    setEditableSlogan(team.slogan ?? '')
+    setEditableDescription(team.description ?? '')
+  }, [team])
 
   if (!team) return <PageContainer><EmptyState title="Команда не найдена" /></PageContainer>
 
@@ -44,6 +62,11 @@ export const TeamDetailsPage = () => {
     : nextMatch
       ? `Следующий • ${nextMatch.round}`
       : 'ВЫБЫЛА'
+  const canManageCurrentTeam = canManageTeam(session, team)
+  const actionError = (error: unknown) => {
+    if (error instanceof ApiError) return `Ошибка API ${error.status}: ${error.message}`
+    return error instanceof Error ? error.message : 'Не удалось сохранить'
+  }
 
   return (
     <PageContainer>
@@ -83,6 +106,32 @@ export const TeamDetailsPage = () => {
           <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">ТУР:</span> {tourStatus}</div>
         </div>
       </section>
+
+      {canManageCurrentTeam && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Wrench size={15} className="text-accentYellow" /> Редактировать команду</h2>
+          <div className="grid gap-2">
+            <input value={editableName} onChange={(event) => setEditableName(event.target.value)} placeholder="Название команды" className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm" />
+            <input value={editableSlogan} onChange={(event) => setEditableSlogan(event.target.value)} placeholder="Лозунг (необязательно)" className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm" />
+            <textarea value={editableDescription} onChange={(event) => setEditableDescription(event.target.value)} placeholder="Описание команды (необязательно)" className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm" />
+            <button
+              type="button"
+              className="w-fit rounded-lg bg-accentYellow px-3 py-2 text-sm font-semibold text-app"
+              onClick={async () => {
+                try {
+                  await teamsRepository.updateTeam?.(team.id, { name: editableName, city: editableDescription })
+                  setManageStatus('Изменения сохранены')
+                } catch (error) {
+                  setManageStatus(actionError(error))
+                }
+              }}
+            >
+              Сохранить
+            </button>
+            {manageStatus && <p className="text-xs text-textMuted">{manageStatus}</p>}
+          </div>
+        </section>
+      )}
 
       <EventFeedSection title="События команды" events={teamFeed ?? []} layout="timeline" messageWhenEmpty="События команды пока не добавлены." />
 
