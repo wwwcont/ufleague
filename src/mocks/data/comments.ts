@@ -29,6 +29,7 @@ export const comments: CommentNode[] = [
     reactions: { likes: 8, dislikes: 1, userReaction: null },
     canReply: true,
     canDelete: false,
+    canEdit: false,
     replies: [
       makeComment({
         id: 'cm_match_1_r1',
@@ -44,6 +45,7 @@ export const comments: CommentNode[] = [
         reactions: { likes: 2, dislikes: 0, userReaction: 'like' },
         canReply: true,
         canDelete: true,
+        canEdit: true,
       }),
     ],
   }),
@@ -61,6 +63,7 @@ export const comments: CommentNode[] = [
     reactions: { likes: 4, dislikes: 0, userReaction: null },
     canReply: true,
     canDelete: false,
+    canEdit: false,
   }),
   makeComment({
     id: 'cm_player_1',
@@ -76,5 +79,6 @@ export const comments: CommentNode[] = [
     reactions: { likes: 5, dislikes: 0, userReaction: 'like' },
     canReply: true,
     canDelete: true,
+    canEdit: true,
   }),
 ]

@@ -109,6 +109,9 @@ export const commentsRepository: CommentsRepository = {
   async replyToComment() {
     return
   },
+  async updateComment() {
+    return
+  },
   async deleteComment() {
     return
   },

@@ -104,6 +104,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Delete("/events/{id}", h.DeleteEvent)
 		r.With(sessionMW.RequireSession).Post("/comments", h.CreateComment)
 		r.With(sessionMW.RequireSession).Post("/comments/{id}/reply", h.ReplyComment)
+		r.With(sessionMW.RequireSession).Patch("/comments/{id}", h.UpdateComment)
 		r.With(sessionMW.RequireSession).Delete("/comments/{id}", h.DeleteComment)
 		r.With(sessionMW.RequireSession).Post("/comments/{id}/reactions", h.SetCommentReaction)
 
@@ -983,6 +984,30 @@ func (h Handler) ReplyComment(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 201, item)
 }
+func (h Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	id, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	var req domain.UpdateCommentRequest
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	item, err := h.comments.UpdateComment(r.Context(), current.User, id, req)
+	if err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, item)
+}
+
 func (h Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 	current, ok := middleware.CurrentSession(r.Context())
 	if !ok {

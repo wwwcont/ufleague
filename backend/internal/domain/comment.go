@@ -44,6 +44,10 @@ type ReplyCommentRequest struct {
 	Body string `json:"body"`
 }
 
+type UpdateCommentRequest struct {
+	Body string `json:"body"`
+}
+
 type SetReactionRequest struct {
 	ReactionType ReactionType `json:"reaction_type"`
 }

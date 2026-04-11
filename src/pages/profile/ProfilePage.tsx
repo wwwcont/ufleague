@@ -19,12 +19,12 @@ const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
   guest: [
     { title: 'Мой профиль', description: 'Основные данные аккаунта и контакты.', route: '/profile/profile-settings', icon: 'user' },
     { title: 'Моя активность', description: 'Комментарии, ответы и реакции.', route: '/profile/activity', icon: 'user' },
-    { title: 'Мои права', description: 'Что разрешено текущей роли.', route: '/profile/permissions', icon: 'shield' },
   ],
   player: [
-    { title: 'Мой профиль', description: 'Открыть обычную карточку игрока.', route: '/profile/player-profile', icon: 'user' },
-    { title: 'Настройки профиля', description: 'Обновить данные user/player profile.', route: '/profile/profile-settings', icon: 'user' },
-    { title: 'Моя команда', description: 'Связь игрока с текущей командой.', route: '/profile/team', icon: 'shield' },
+    { title: 'Мой профиль', description: 'Данные user-профиля: имя, био, возраст, фото.', route: '/profile/profile-settings', icon: 'user' },
+    { title: 'Профиль игрока', description: 'Игровой профиль и статистика.', route: '/profile/player-profile', icon: 'user' },
+    { title: 'Моя команда', description: 'Переход на страницу моей команды.', route: '/profile/team', icon: 'shield' },
+    { title: 'Мои события', description: 'События из профиля игрока.', route: '/profile/player-events', icon: 'shield' },
   ],
   captain: [
     { title: 'Моя команда', description: 'Открыть team workspace и контекст.', route: '/profile/team', icon: 'shield' },

@@ -44,7 +44,7 @@ export interface MatchesRepository {
   getMatches(): Promise<Match[]>
   getMatchById(matchId: string): Promise<Match | null>
   createMatch?(input: { homeTeamId: string; awayTeamId: string; startAt: string; status: Match['status']; venue: string; referee?: string; broadcastUrl?: string; stage?: string; tieId?: string; tournamentId?: string }): Promise<{ id: string } | void>
-  updateMatch?(matchId: string, patch: Partial<{ status: Match['status']; homeScore: number; awayScore: number; venue: string; broadcastUrl: string; stage: string; tour: string; referee: string }>): Promise<void>
+  updateMatch?(matchId: string, patch: Partial<{ status: Match['status']; homeScore: number; awayScore: number; venue: string; broadcastUrl: string; diskUrl: string; goalEvents: Match['events']; stage: string; tour: string; referee: string }>): Promise<void>
 }
 
 export interface StandingsRepository {
@@ -80,6 +80,7 @@ export interface CommentsRepository {
   getCurrentAuthor(): Promise<CommentAuthorState>
   createComment(entityType: CommentEntityType, entityId: string, text: string): Promise<void>
   replyToComment(parentCommentId: string, text: string): Promise<void>
+  updateComment(commentId: string, text: string): Promise<void>
   deleteComment(commentId: string): Promise<void>
   setReaction(commentId: string, reaction: Exclude<CommentNode['reactions']['userReaction'], null>): Promise<void>
 }

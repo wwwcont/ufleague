@@ -21,6 +21,7 @@ type Repository interface {
 	ListByEntity(ctx context.Context, entityType domain.CommentEntityType, entityID int64) ([]domain.Comment, error)
 	GetByID(ctx context.Context, id int64) (domain.Comment, error)
 	Create(ctx context.Context, c domain.Comment) (domain.Comment, error)
+	UpdateBody(ctx context.Context, id int64, body string) (domain.Comment, error)
 	SoftDelete(ctx context.Context, id int64) error
 	SetReaction(ctx context.Context, commentID, userID int64, reaction domain.ReactionType) error
 }
@@ -62,6 +63,20 @@ func (s Service) Reply(ctx context.Context, user domain.User, parentID int64, re
 		return domain.Comment{}, err
 	}
 	return s.repo.Create(ctx, domain.Comment{EntityType: parent.EntityType, EntityID: parent.EntityID, ParentCommentID: &parent.ID, AuthorUserID: user.ID, Body: strings.TrimSpace(req.Body)})
+}
+
+func (s Service) UpdateComment(ctx context.Context, user domain.User, commentID int64, req domain.UpdateCommentRequest) (domain.Comment, error) {
+	comment, err := s.repo.GetByID(ctx, commentID)
+	if err != nil {
+		return domain.Comment{}, err
+	}
+	if comment.AuthorUserID != user.ID {
+		return domain.Comment{}, ErrForbidden
+	}
+	if time.Since(comment.CreatedAt) > 12*time.Hour {
+		return domain.Comment{}, ErrForbidden
+	}
+	return s.repo.UpdateBody(ctx, commentID, strings.TrimSpace(req.Body))
 }
 
 func (s Service) DeleteComment(ctx context.Context, user domain.User, commentID int64) error {

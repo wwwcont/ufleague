@@ -1,10 +1,11 @@
 import { Link, useParams } from 'react-router-dom'
-import { Fragment, useState } from 'react'
-import { Activity, Info, Plus, Radio, Timer, Wrench } from 'lucide-react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Activity, Disc3, Info, Pencil, Plus, Radio, Timer } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useMatchDetails } from '../../hooks/data/useMatchDetails'
 import { useMatches } from '../../hooks/data/useMatches'
 import { useTeams } from '../../hooks/data/useTeams'
+import { usePlayers } from '../../hooks/data/usePlayers'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { TeamAvatar } from '../../components/ui/TeamAvatar'
 import { tournament } from '../../mocks/data/tournament'
@@ -84,6 +85,7 @@ export const MatchDetailsPage = () => {
   const { data: match } = useMatchDetails(matchId)
   const { data: allMatches } = useMatches()
   const { data: teams } = useTeams()
+  const { data: players } = usePlayers()
   const { session } = useSession()
   const { matchesRepository } = useRepositories()
 
@@ -91,16 +93,30 @@ export const MatchDetailsPage = () => {
   const home = match ? teamMap[match.homeTeamId] : null
   const away = match ? teamMap[match.awayTeamId] : null
 
-  const [broadcastUrl, setBroadcastUrl] = useState(match?.broadcastUrl ?? '')
-  const [adminStatus, setAdminStatus] = useState<string | null>(null)
   const [isInfoEditing, setIsInfoEditing] = useState(false)
   const [editableVenue, setEditableVenue] = useState(match?.venue ?? '')
   const [editableStage, setEditableStage] = useState(match?.stage ?? '')
   const [editableTour, setEditableTour] = useState(match?.tour ?? match?.round ?? '')
   const [editableReferee, setEditableReferee] = useState(match?.referee ?? '')
+  const [editableBroadcastUrl, setEditableBroadcastUrl] = useState(match?.broadcastUrl ?? '')
+  const [editableDiskUrl, setEditableDiskUrl] = useState(match?.diskUrl ?? '')
   const [metadataStatus, setMetadataStatus] = useState<string | null>(null)
+  const [scoreDraft, setScoreDraft] = useState<{ home: number; away: number } | null>(null)
+  const [localEvents, setLocalEvents] = useState(match?.events ?? [])
+  const [goalEditorOpen, setGoalEditorOpen] = useState(false)
+  const [goalTeamId, setGoalTeamId] = useState('')
+  const [goalScorerId, setGoalScorerId] = useState('')
+  const [goalAssistId, setGoalAssistId] = useState('')
+  const [goalStatus, setGoalStatus] = useState<string | null>(null)
+  const candidatePlayers = useMemo(() => (players ?? []).filter((p) => p.teamId === goalTeamId), [goalTeamId, players])
 
-  if (!match || !teams || !home || !away || !allMatches) {
+  useEffect(() => {
+    if (!match) return
+    setScoreDraft(match.score)
+    setLocalEvents(match.events)
+  }, [match])
+
+  if (!match || !teams || !home || !away || !allMatches || !players) {
     return (
       <PageContainer>
         <EmptyState title="Матч не найден" />
@@ -124,8 +140,9 @@ export const MatchDetailsPage = () => {
   const awayFormChips = getFormChips(away.id, allMatches, match.id)
   const homeStats = getTeamStats(home.id, allMatches)
   const awayStats = getTeamStats(away.id, allMatches)
+  const effectiveScore = scoreDraft ?? match.score
 
-  const liveMinute = match.events.length ? Math.max(...match.events.map((event) => event.minute)) : null
+  const liveMinute = localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : null
   const timingNote = (() => {
     if (match.status === 'live' || match.status === 'half_time') return liveMinute ? `${liveMinute}′ минута` : 'Матч в процессе'
     if (match.status === 'scheduled') return getTimeToKickoff(match.date, match.time) ?? 'Скоро'
@@ -134,8 +151,20 @@ export const MatchDetailsPage = () => {
 
   return (
     <PageContainer>
-      <section className="relative overflow-hidden rounded-2xl border border-borderStrong bg-panelBg px-5 py-5 shadow-matte sm:px-6 sm:py-6">
-        <div className="mb-2 flex items-center justify-between gap-3 text-xs sm:text-sm">
+      <section className="relative overflow-hidden rounded-2xl border border-borderStrong bg-panelBg px-5 py-6 shadow-matte sm:px-7 sm:py-7">
+
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute inset-y-0 left-0 w-1/2 overflow-hidden">
+            {home.logoUrl && <img src={home.logoUrl} alt="" className="h-full w-full scale-[1.12] object-cover blur-lg opacity-20" />}
+          </div>
+          <div className="absolute inset-y-0 right-0 w-1/2 overflow-hidden">
+            {away.logoUrl && <img src={away.logoUrl} alt="" className="h-full w-full scale-[1.12] object-cover blur-lg opacity-20" />}
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-r from-black/35 via-black/82 to-black/35" />
+        </div>
+
+        <div className="relative z-10">
+          <div className="mb-2 flex items-center justify-between gap-3 text-xs sm:text-sm">
           <p className="font-medium tracking-[0.03em] text-textSecondary">{formatMatchMetaMsk(match.date, match.time)}</p>
           <span className={`inline-flex items-center gap-2 font-semibold uppercase tracking-[0.08em] ${match.status === 'live' ? 'text-red-400' : 'text-textSecondary'}`}>
             {match.status === 'live' && <span className="live-dot inline-block h-2 w-2 rounded-full bg-red-400" />}
@@ -143,7 +172,7 @@ export const MatchDetailsPage = () => {
           </span>
         </div>
 
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:gap-5">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:gap-5">
           <Link to={`/teams/${home.id}`} className="flex min-w-0 flex-col items-start gap-1.5 rounded-xl p-1 transition hover:bg-panelSoft/70">
             <div className="flex items-center gap-2">
               <div className="flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-borderSubtle/60 bg-panelSoft/90 sm:h-[72px] sm:w-[72px]">
@@ -164,7 +193,7 @@ export const MatchDetailsPage = () => {
           </Link>
 
           <div className="px-1 text-center text-[40px] font-bold leading-none tabular-nums text-textPrimary sm:text-[56px]">
-            {match.score.home}<span className="mx-1 text-accentYellow">:</span>{match.score.away}
+            {effectiveScore.home}<span className="mx-1 text-accentYellow">:</span>{effectiveScore.away}
           </div>
 
           <Link to={`/teams/${away.id}`} className="flex min-w-0 flex-col items-end gap-1.5 rounded-xl p-1 text-right transition hover:bg-panelSoft/70">
@@ -187,42 +216,86 @@ export const MatchDetailsPage = () => {
           </Link>
         </div>
 
-        <div className="mt-3 flex items-center justify-between gap-3 text-xs text-textMuted sm:text-sm">
+          <div className="mt-3 flex items-center justify-between gap-3 text-xs text-textMuted sm:text-sm">
           <span>{timingNote}</span>
           <span>{match.venue}</span>
+        </div>
         </div>
       </section>
 
       <div className="flex items-center justify-between gap-3">
         <EntityReactions entityKey={`match:${match.id}`} />
-        {match.broadcastUrl && (
-          <a href={match.broadcastUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-accentYellow px-4 py-2 text-xs font-semibold tracking-[0.08em] text-app shadow-soft">
-            <Radio size={14} /> СМОТРЕТЬ ТРАНСЛЯЦИЮ
-          </a>
-        )}
+        <div className="flex items-center gap-2">
+          {match.diskUrl && (
+            <a href={match.diskUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-accentYellow px-4 py-2 text-xs font-semibold tracking-[0.08em] text-app shadow-soft">
+              <Disc3 size={14} /> ДИСК
+            </a>
+          )}
+          {match.broadcastUrl && (
+            <a href={match.broadcastUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-accentYellow px-4 py-2 text-xs font-semibold tracking-[0.08em] text-app shadow-soft">
+              <Radio size={14} /> СМОТРЕТЬ ТРАНСЛЯЦИЮ
+            </a>
+          )}
+        </div>
       </div>
 
+
       {isAdmin && (
-        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
-          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Wrench size={15} className="text-accentYellow" /> Admin: трансляция</h2>
-          <div className="flex gap-2">
-            <input value={broadcastUrl} onChange={(event) => setBroadcastUrl(event.target.value)} placeholder="https://stream.example.com" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm" />
-            <button
-              type="button"
-              className="rounded-lg bg-accentYellow px-3 py-2 text-sm font-semibold text-app"
-              onClick={async () => {
-                try {
-                  await matchesRepository.updateMatch?.(match.id, { broadcastUrl })
-                  setAdminStatus('Ссылка трансляции сохранена')
-                } catch (error) {
-                  setAdminStatus(actionError(error))
-                }
-              }}
-            >
-              Сохранить
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-3 shadow-soft">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-textPrimary">СЧЕТ</p>
+            <button type="button" onClick={() => setGoalEditorOpen((prev) => !prev)} className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textMuted hover:border-accentYellow hover:text-accentYellow">
+              <Pencil size={12} /> Добавить гол
             </button>
           </div>
-          {adminStatus && <p className="mt-2 text-xs text-textMuted">{adminStatus}</p>}
+          {goalEditorOpen && (
+            <div className="mt-2 grid gap-2">
+              <select value={goalTeamId} onChange={(e) => { setGoalTeamId(e.target.value); setGoalScorerId(''); setGoalAssistId('') }} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm">
+                <option value="">Выберите команду</option>
+                <option value={home.id}>{home.name}</option>
+                <option value={away.id}>{away.name}</option>
+              </select>
+              <select value={goalScorerId} onChange={(e) => setGoalScorerId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm" disabled={!goalTeamId}>
+                <option value="">Автор гола</option>
+                {candidatePlayers.map((player) => <option key={player.id} value={player.id}>{player.displayName}</option>)}
+              </select>
+              <select value={goalAssistId} onChange={(e) => setGoalAssistId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm" disabled={!goalTeamId}>
+                <option value="">Ассист (необязательно)</option>
+                {candidatePlayers.filter((player) => player.id !== goalScorerId).map((player) => <option key={player.id} value={player.id}>{player.displayName}</option>)}
+              </select>
+              <button
+                type="button"
+                disabled={!goalTeamId || !goalScorerId}
+                className="w-fit rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app disabled:opacity-50"
+                onClick={async () => {
+                  const nextScore = goalTeamId === home.id
+                    ? { home: effectiveScore.home + 1, away: effectiveScore.away }
+                    : { home: effectiveScore.home, away: effectiveScore.away + 1 }
+                  const newGoalEvent: Match['events'][number] = {
+                    id: `goal_${Date.now()}`,
+                    minute: (localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0) + 1,
+                    type: 'goal',
+                    teamId: goalTeamId,
+                    playerId: goalScorerId,
+                    assistPlayerId: goalAssistId || undefined,
+                    note: goalAssistId ? `ассист: ${goalAssistId}` : undefined,
+                  }
+                  const nextEvents = [...localEvents, newGoalEvent]
+                  setScoreDraft(nextScore)
+                  setLocalEvents(nextEvents)
+                  try {
+                    await matchesRepository.updateMatch?.(match.id, { homeScore: nextScore.home, awayScore: nextScore.away, goalEvents: nextEvents })
+                    setGoalStatus('Гол и ассист сохранены. Счет обновлен.')
+                  } catch (error) {
+                    setGoalStatus(actionError(error))
+                  }
+                }}
+              >
+                Сохранить гол
+              </button>
+            </div>
+          )}
+          {goalStatus && <p className="mt-2 text-xs text-textMuted">{goalStatus}</p>}
         </section>
       )}
 
@@ -237,6 +310,8 @@ export const MatchDetailsPage = () => {
             setEditableStage(match.stage ?? '')
             setEditableTour(match.tour ?? match.round ?? '')
             setEditableReferee(match.referee ?? '')
+            setEditableBroadcastUrl(match.broadcastUrl ?? '')
+            setEditableDiskUrl(match.diskUrl ?? '')
             setMetadataStatus(null)
             setIsInfoEditing(true)
           }}
@@ -251,6 +326,10 @@ export const MatchDetailsPage = () => {
           <EditableTextField label="Этап" value={editableStage} onChange={setEditableStage} isEditing={isInfoEditing} placeholder="Например: Полуфинал" />
           <EditableTextField label="Тур / стадия" value={editableTour} onChange={setEditableTour} isEditing={isInfoEditing} placeholder="Например: 5 тур" />
           <EditableTextField label="Судья" value={editableReferee} onChange={setEditableReferee} isEditing={isInfoEditing} placeholder="Имя судьи" />
+        </div>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <EditableTextField label="Диск" value={editableDiskUrl} onChange={setEditableDiskUrl} isEditing={isInfoEditing} placeholder="https://drive.google.com/..." />
+          <EditableTextField label="Трансляция" value={editableBroadcastUrl} onChange={setEditableBroadcastUrl} isEditing={isInfoEditing} placeholder="https://stream.example.com" />
         </div>
         <div className="mt-2">
           <EditableTextField label="Стадион / площадка" value={editableVenue} onChange={setEditableVenue} isEditing={isInfoEditing} placeholder="Название арены" />
@@ -269,6 +348,8 @@ export const MatchDetailsPage = () => {
                 stage: editableStage.trim(),
                 tour: editableTour.trim(),
                 referee: editableReferee.trim(),
+                diskUrl: editableDiskUrl.trim(),
+                broadcastUrl: editableBroadcastUrl.trim(),
               })
               setMetadataStatus('Информация обновлена')
               setIsInfoEditing(false)
@@ -291,14 +372,15 @@ export const MatchDetailsPage = () => {
             )}
           </div>
         </div>
-        {match.events.length === 0 ? (
+        {localEvents.length === 0 ? (
           <p className="rounded-xl border border-dashed border-borderStrong bg-mutedBg px-3 py-4 text-sm text-textMuted">Автособытия (старт, голы, конец, изменение времени, победитель) и admin-события появятся здесь.</p>
         ) : (
           <div className="space-y-2">
-            {match.events.slice().sort((a, b) => a.minute - b.minute).map((event) => (
+            {localEvents.slice().sort((a, b) => a.minute - b.minute).map((event) => (
               <div key={event.id} className="rounded-xl border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textSecondary">
                 <span className="mr-2 font-semibold text-textPrimary">{event.minute}′</span>
                 <span className="uppercase tracking-[0.06em] text-accentYellow">{event.type}</span>
+                {event.assistPlayerId && <span className="ml-2 text-textMuted">ассист: {event.assistPlayerId}</span>}
                 {event.note && <span className="ml-2">— {event.note}</span>}
               </div>
             ))}
