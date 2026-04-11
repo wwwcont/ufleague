@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useState } from 'react'
 import { Activity, Info, Radio, Timer, Wrench } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useMatchDetails } from '../../hooks/data/useMatchDetails'
@@ -94,11 +94,11 @@ export const MatchDetailsPage = () => {
   const awayStats = getTeamStats(away.id, allMatches)
 
   const liveMinute = match.events.length ? Math.max(...match.events.map((event) => event.minute)) : null
-  const timingNote = useMemo(() => {
+  const timingNote = (() => {
     if (match.status === 'live' || match.status === 'half_time') return liveMinute ? `${liveMinute}′ минута` : 'Матч в процессе'
     if (match.status === 'scheduled') return getTimeToKickoff(match.date, match.time) ?? 'Скоро'
     return ''
-  }, [liveMinute, match.date, match.status, match.time])
+  })()
 
   return (
     <PageContainer>
