@@ -75,6 +75,7 @@ export const TeamDetailsPage = () => {
   const [newEventTitle, setNewEventTitle] = useState('')
   const [newEventSummary, setNewEventSummary] = useState('')
   const [newEventBlocks, setNewEventBlocks] = useState<EventContentBlock[]>([])
+  const [localTeamFeed, setLocalTeamFeed] = useState(teamFeed ?? [])
   const [rosterSetupMode, setRosterSetupMode] = useState(false)
   const [inviteUsername, setInviteUsername] = useState('')
   const [rosterStatus, setRosterStatus] = useState<string | null>(null)
@@ -99,6 +100,10 @@ export const TeamDetailsPage = () => {
     setDescriptionEditing(false)
     setSocialsEditing(false)
   }, [team])
+
+  useEffect(() => {
+    setLocalTeamFeed(teamFeed ?? [])
+  }, [teamFeed])
 
   if (!team) return <PageContainer><EmptyState title="Команда не найдена" /></PageContainer>
 
@@ -396,7 +401,7 @@ export const TeamDetailsPage = () => {
         </div>
       </section>
 
-      <EventFeedSection title="События команды" events={teamFeed ?? []} layout="timeline" messageWhenEmpty="События команды пока не добавлены." />
+      <EventFeedSection title="События команды" events={localTeamFeed} layout="timeline" messageWhenEmpty="События команды пока не добавлены." />
 
       {canManageCurrentTeam && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
@@ -447,6 +452,22 @@ export const TeamDetailsPage = () => {
                         imageUrl: blocks.find((item) => item.type === 'image')?.imageUrl,
                         contentBlocks: blocks,
                       })
+                      setLocalTeamFeed((prev) => [{
+                        id: `local_${Date.now()}`,
+                        title: newEventTitle.trim(),
+                        summary: newEventSummary.trim() || deriveSummaryFromBlocks(blocks),
+                        text: blocksToPlainText(blocks),
+                        contentBlocks: blocks,
+                        timestamp: new Date().toISOString(),
+                        source: 'team',
+                        authorName: session.user.displayName,
+                        category: 'news' as const,
+                        entityType: 'team' as const,
+                        entityId: team.id,
+                        imageUrl: blocks.find((item) => item.type === 'image')?.imageUrl,
+                        canEdit: true,
+                        canDelete: true,
+                      }, ...prev].slice(0, 8))
                       setEventCreateStatus('Событие создано')
                       setEventCreateOpen(false)
                       setNewEventTitle('')
