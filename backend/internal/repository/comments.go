@@ -20,10 +20,10 @@ func (r *CommentsRepository) ListByEntity(ctx context.Context, entityType domain
 	COALESCE(SUM(CASE WHEN cr.reaction_type='like' THEN 1 ELSE 0 END),0) AS like_count,
 	COALESCE(SUM(CASE WHEN cr.reaction_type='dislike' THEN 1 ELSE 0 END),0) AS dislike_count
 	FROM comments c
-	JOIN users u ON u.id=c.author_user_id
+	LEFT JOIN users u ON u.id=c.author_user_id
 	LEFT JOIN comment_reactions cr ON cr.comment_id=c.id
 	WHERE c.entity_type=$1 AND c.entity_id=$2 AND c.deleted_at IS NULL
-	GROUP BY c.id
+	GROUP BY c.id, u.display_name, u.username
 	ORDER BY c.created_at ASC`, entityType, entityID)
 	if err != nil {
 		return nil, err
@@ -46,10 +46,10 @@ func (r *CommentsRepository) GetByID(ctx context.Context, id int64) (domain.Comm
 	COALESCE(SUM(CASE WHEN cr.reaction_type='like' THEN 1 ELSE 0 END),0) AS like_count,
 	COALESCE(SUM(CASE WHEN cr.reaction_type='dislike' THEN 1 ELSE 0 END),0) AS dislike_count
 	FROM comments c
-	JOIN users u ON u.id=c.author_user_id
+	LEFT JOIN users u ON u.id=c.author_user_id
 	LEFT JOIN comment_reactions cr ON cr.comment_id=c.id
 	WHERE c.id=$1 AND c.deleted_at IS NULL
-	GROUP BY c.id`, id)
+	GROUP BY c.id, u.display_name, u.username`, id)
 	return scanComment(row)
 }
 

@@ -1,6 +1,7 @@
 import type {
   AuthSession,
   CommentEntityType,
+  EventContentBlock,
   EventCategory,
   EventEntityType,
   PermissionKey,
@@ -31,11 +32,12 @@ export interface EventsApiContract {
     title: string
     summary: string
     text: string
+    contentBlocks?: EventContentBlock[]
     category: EventCategory
     entityType: EventEntityType
     entityId?: string
   }): Promise<{ id: string }>
-  updateEvent(eventId: string, patch: Partial<{ title: string; summary: string; text: string }>): Promise<void>
+  updateEvent(eventId: string, patch: Partial<{ title: string; summary: string; text: string; contentBlocks: EventContentBlock[] }>): Promise<void>
   deleteEvent(eventId: string): Promise<void>
 }
 

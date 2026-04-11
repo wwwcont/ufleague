@@ -22,8 +22,6 @@ const formatterDate = new Intl.DateTimeFormat('ru-RU', {
   year: 'numeric',
 })
 
-export const mskTimeZoneLabel = 'МСК'
-
 export const parseUtcLike = (value: string) => {
   const isoLike = value.includes('T') ? value : value.replace(' ', 'T')
   const withZone = /Z$|[+-]\d\d:\d\d$/.test(isoLike) ? isoLike : `${isoLike}Z`
@@ -39,19 +37,19 @@ export const parseMatchKickoff = (date: string, time: string) => {
 export const formatDateTimeMsk = (value: string | Date) => {
   const parsed = value instanceof Date ? value : parseUtcLike(value)
   if (!parsed) return typeof value === 'string' ? value : ''
-  return `${formatterDateTime.format(parsed)} (${mskTimeZoneLabel})`
+  return formatterDateTime.format(parsed)
 }
 
 export const formatMatchMetaMsk = (date: string, time: string) => {
   const parsed = parseMatchKickoff(date, time)
   if (!parsed) return `${date} ${time}`
-  return `${formatterDate.format(parsed)} • ${formatterTime.format(parsed)} (${mskTimeZoneLabel})`
+  return `${formatterDate.format(parsed)} • ${formatterTime.format(parsed)}`
 }
 
 export const formatTimeOnlyMsk = (value: string) => {
   const parsed = parseUtcLike(value)
   if (!parsed) return value
-  return `${formatterTime.format(parsed)} ${mskTimeZoneLabel}`
+  return formatterTime.format(parsed)
 }
 
 export const getTimeToKickoff = (date: string, time: string) => {

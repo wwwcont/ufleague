@@ -3,6 +3,11 @@ import { Link, useLocation } from 'react-router-dom'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { SearchField } from '../../components/ui/SearchField'
 import { useSearch } from '../../hooks/data/useSearch'
+import { useTeams } from '../../hooks/data/useTeams'
+import { usePlayers } from '../../hooks/data/usePlayers'
+import { useMatches } from '../../hooks/data/useMatches'
+import { useEvents } from '../../hooks/data/useEvents'
+import type { SearchResult } from '../../domain/entities/types'
 
 type SearchType = 'all' | 'team' | 'player' | 'match' | 'event'
 type SortDirection = 'asc' | 'desc'
@@ -70,8 +75,12 @@ export const SearchPage = () => {
   const [activeType, setActiveType] = useState<SearchType>('all')
   const [activeFilter, setActiveFilter] = useState<FilterValue>('all')
   const [sortState, setSortState] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'date', direction: 'desc' })
+  const { data: teams } = useTeams()
+  const { data: players } = usePlayers()
+  const { data: matches } = useMatches()
+  const { data: events } = useEvents({ limit: 6 })
 
-  const { results: backendResults } = useSearch(query)
+  const { results: backendResults, loading, error } = useSearch(query)
   const parseMatchTotal = (value: string) => {
     const parts = value.match(/(\d+)\s*:\s*(\d+)/)
     if (!parts) return 0
@@ -111,6 +120,62 @@ export const SearchPage = () => {
 
     return sortState.direction === 'asc' ? sorted : sorted.reverse()
   }, [activeFilter, activeType, backendResults, query, sortState])
+
+  const groupedResults = useMemo(() => {
+    const groups: Array<{ key: SearchType; title: string; items: SearchResult[] }> = []
+    ;(['team', 'player', 'match', 'event'] as const).forEach((type) => {
+      const items = results.filter((item) => item.type === type)
+      if (items.length) groups.push({ key: type, title: typeLabel[type], items })
+    })
+    return groups
+  }, [results])
+
+  const initialSuggestions = useMemo(() => {
+    const suggestedTeams: SearchResult[] = (teams ?? []).slice(0, 4).map((team) => ({
+      id: `suggested_team_${team.id}`,
+      type: 'team',
+      entityId: team.id,
+      title: team.name,
+      subtitle: team.city || team.slogan || 'Команда турнира',
+      route: `/teams/${team.id}`,
+    }))
+    const suggestedPlayers: SearchResult[] = [...(players ?? [])]
+      .sort((a, b) => (b.stats?.goals ?? 0) - (a.stats?.goals ?? 0))
+      .slice(0, 4)
+      .map((player) => ({
+        id: `suggested_player_${player.id}`,
+        type: 'player',
+        entityId: player.id,
+        title: player.displayName,
+        subtitle: `${player.position}${player.stats?.goals ? ` • ${player.stats.goals} гол.` : ''}`,
+        route: `/players/${player.id}`,
+      }))
+    const suggestedMatches: SearchResult[] = [...(matches ?? [])]
+      .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`))
+      .slice(0, 4)
+      .map((match) => ({
+        id: `suggested_match_${match.id}`,
+        type: 'match',
+        entityId: match.id,
+        title: `${match.round} • ${match.time}`,
+        subtitle: `${match.venue} • ${match.status}`,
+        route: `/matches/${match.id}`,
+      }))
+    const suggestedEvents: SearchResult[] = (events ?? []).slice(0, 4).map((event) => ({
+      id: `suggested_event_${event.id}`,
+      type: 'event',
+      entityId: event.id,
+      title: event.title,
+      subtitle: event.summary || event.source,
+      route: `/events/${event.id}`,
+    }))
+    return {
+      team: suggestedTeams,
+      player: suggestedPlayers,
+      match: suggestedMatches,
+      event: suggestedEvents,
+    }
+  }, [events, matches, players, teams])
 
   const openedFromHome = Boolean((location.state as { fromHome?: boolean } | null)?.fromHome)
   const availableFilters = filterConfig[activeType]
@@ -179,15 +244,55 @@ export const SearchPage = () => {
         </div>
       )}
 
-      <div className="space-y-2">
-        {results.map((item) => (
-          <Link key={`${item.type}_${item.id}`} to={item.route} className="matte-panel block p-3">
-            <p className="text-base font-medium">{item.title}</p>
-            <p className="text-sm text-textMuted">{item.subtitle}</p>
-          </Link>
-        ))}
-        {results.length === 0 && <p className="text-sm text-textMuted">Ничего не найдено.</p>}
-      </div>
+      {!query.trim() && (
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-borderSubtle bg-panelBg p-3 text-sm text-textSecondary">
+            Введите команду, игрока, матч или событие. Ниже — популярные сущности для быстрого старта.
+          </div>
+
+          {(['team', 'player', 'match', 'event'] as const).map((type) => (
+            <section key={type} className="space-y-2">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-textMuted">{typeLabel[type]}</h2>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {initialSuggestions[type].map((item) => (
+                  <Link key={item.id} to={item.route} className="matte-panel block p-3">
+                    <p className="text-base font-medium">{item.title}</p>
+                    <p className="text-sm text-textMuted">{item.subtitle}</p>
+                  </Link>
+                ))}
+                {initialSuggestions[type].length === 0 && <p className="text-sm text-textMuted">Пока нет данных в этой категории.</p>}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+
+      {!!query.trim() && (
+        <div className="space-y-3">
+          {loading && <p className="text-sm text-textMuted">Ищем результаты...</p>}
+          {error && <p className="text-sm text-red-300">Ошибка поиска: {error}</p>}
+
+          {!loading && !error && groupedResults.map((group) => (
+            <section key={group.key} className="space-y-2">
+              <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-textMuted">{group.title}</h2>
+              <div className="space-y-2">
+                {group.items.map((item) => (
+                  <Link key={`${item.type}_${item.id}`} to={item.route} className="matte-panel block p-3">
+                    <p className="text-base font-medium">{item.title}</p>
+                    <p className="text-sm text-textMuted">{item.subtitle}</p>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ))}
+
+          {!loading && !error && groupedResults.length === 0 && (
+            <div className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
+              По запросу <span className="font-semibold text-textPrimary">“{query.trim()}”</span> ничего не найдено. Попробуйте изменить формулировку или переключить тип поиска.
+            </div>
+          )}
+        </div>
+      )}
     </PageContainer>
   )
 }
