@@ -9,6 +9,7 @@ import { CommentsSection } from '../../components/comments'
 import { useSession } from '../../app/providers/use-session'
 import { useTeams } from '../../hooks/data/useTeams'
 import { canManageEvent } from '../../domain/services/accessControl'
+import { formatDateTimeMsk } from '../../lib/date-time'
 
 export const EventDetailsPage = () => {
   const { eventId } = useParams()
@@ -27,7 +28,7 @@ export const EventDetailsPage = () => {
       <article className="rounded-2xl border border-borderSubtle bg-panelBg p-5 shadow-soft">
         <div className="mb-2 flex items-center justify-between text-xs text-textMuted">
           <span>{event.source}</span>
-          <span>{event.timestamp}</span>
+          <span>{formatDateTimeMsk(event.timestamp)}</span>
         </div>
         <h2 className="text-2xl font-bold text-textPrimary">{event.title}</h2>
         <p className="mt-2 text-sm text-textSecondary">{event.summary}</p>

@@ -1,17 +1,13 @@
 import type { Match, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
 import { StatusBadge } from './StatusBadge'
+import { formatMatchMetaMsk } from '../../lib/date-time'
 
 interface ScoreboardProps {
   match: Match
   home: Team
   away: Team
   tournamentLogoUrl?: string
-}
-
-const formatMetaDate = (date: string, time: string) => {
-  const [year, month, day] = date.split('-')
-  return `${day}.${month}.${year} • ${time}`
 }
 
 export const Scoreboard = ({ match, home, away, tournamentLogoUrl }: ScoreboardProps) => (
@@ -45,7 +41,7 @@ export const Scoreboard = ({ match, home, away, tournamentLogoUrl }: ScoreboardP
     </div>
 
     <div className="mt-5 grid gap-2 border-t border-borderSubtle pt-3 text-sm text-textSecondary sm:grid-cols-2">
-      <span>{formatMetaDate(match.date, match.time)}</span>
+      <span>{formatMatchMetaMsk(match.date, match.time)}</span>
       <span className="sm:text-right">{match.venue}</span>
     </div>
   </section>

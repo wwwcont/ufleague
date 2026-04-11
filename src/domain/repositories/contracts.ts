@@ -1,7 +1,8 @@
 import type {
   AuthSession,
-  BracketMatch,
-  BracketRound,
+  BracketMatchGroup,
+  BracketSettings,
+  BracketStage,
   CommentAuthorState,
   CommentEntityType,
   CommentNode,
@@ -44,7 +45,7 @@ export interface StandingsRepository {
 }
 
 export interface BracketRepository {
-  getBracket(): Promise<{ rounds: BracketRound[]; matches: BracketMatch[] }>
+  getBracket(): Promise<{ stages: BracketStage[]; groups: BracketMatchGroup[]; settings: BracketSettings }>
 }
 
 export interface SearchRepository {

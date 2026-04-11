@@ -9,11 +9,11 @@ const rolePermissions: Record<UserRole, PermissionKey[]> = {
 }
 
 const usersByRole: Record<UserRole, SessionUser> = {
-  guest: { id: 'u_guest', displayName: 'Guest_42', role: 'guest', telegramHandle: '@guest42' },
-  player: { id: 'u_player', displayName: 'М. Картер', role: 'player', teamId: 'team_1', telegramHandle: '@mcarter' },
-  captain: { id: 'u_captain', displayName: 'Капитан ССК', role: 'captain', teamId: 'team_1', telegramHandle: '@captain_ssk' },
-  admin: { id: 'u_admin', displayName: 'Admin UFL', role: 'admin', telegramHandle: '@ufl_admin' },
-  superadmin: { id: 'u_superadmin', displayName: 'Superadmin UFL', role: 'superadmin', telegramHandle: '@ufl_superadmin' },
+  guest: { id: 'u_guest', displayName: 'Guest_42', role: 'guest' },
+  player: { id: 'u_player', displayName: 'М. Картер', role: 'player', teamId: 'team_1', telegramHandle: '@mcarter', telegramId: '9001001' },
+  captain: { id: 'u_captain', displayName: 'Капитан ССК', role: 'captain', teamId: 'team_1', telegramHandle: '@captain_ssk', telegramId: '9001002' },
+  admin: { id: 'u_admin', displayName: 'Admin UFL', role: 'admin', telegramHandle: '@ufl_admin', telegramId: '9001003' },
+  superadmin: { id: 'u_superadmin', displayName: 'Superadmin UFL', role: 'superadmin', telegramHandle: '@ufl_superadmin', telegramId: '9001004' },
 }
 
 export const makeSessionByRole = (role: UserRole): AuthSession => ({

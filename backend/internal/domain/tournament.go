@@ -28,17 +28,19 @@ type Player struct {
 }
 
 type Match struct {
-	ID         int64          `json:"id"`
-	HomeTeamID int64          `json:"home_team_id"`
-	AwayTeamID int64          `json:"away_team_id"`
-	StartAt    time.Time      `json:"start_at"`
-	Status     string         `json:"status"`
-	HomeScore  int            `json:"home_score"`
-	AwayScore  int            `json:"away_score"`
-	ExtraTime  map[string]any `json:"extra_time"`
-	Venue      string         `json:"venue,omitempty"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
+	ID              int64          `json:"id"`
+	HomeTeamID      int64          `json:"home_team_id"`
+	AwayTeamID      int64          `json:"away_team_id"`
+	StartAt         time.Time      `json:"start_at"`
+	Status          string         `json:"status"`
+	HomeScore       int            `json:"home_score"`
+	AwayScore       int            `json:"away_score"`
+	ExtraTime       map[string]any `json:"extra_time"`
+	Venue           string         `json:"venue,omitempty"`
+	StageSlotColumn *int           `json:"stage_slot_column,omitempty"`
+	StageSlotRow    *int           `json:"stage_slot_row,omitempty"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
 }
 
 type CreateTeamRequest struct {
@@ -64,14 +66,16 @@ type CreatePlayerRequest struct {
 type UpdatePlayerRequest = CreatePlayerRequest
 
 type CreateMatchRequest struct {
-	HomeTeamID int64          `json:"home_team_id"`
-	AwayTeamID int64          `json:"away_team_id"`
-	StartAt    time.Time      `json:"start_at"`
-	Status     string         `json:"status"`
-	HomeScore  int            `json:"home_score"`
-	AwayScore  int            `json:"away_score"`
-	ExtraTime  map[string]any `json:"extra_time"`
-	Venue      string         `json:"venue"`
+	HomeTeamID      int64          `json:"home_team_id"`
+	AwayTeamID      int64          `json:"away_team_id"`
+	StartAt         time.Time      `json:"start_at"`
+	Status          string         `json:"status"`
+	HomeScore       int            `json:"home_score"`
+	AwayScore       int            `json:"away_score"`
+	ExtraTime       map[string]any `json:"extra_time"`
+	Venue           string         `json:"venue"`
+	StageSlotColumn *int           `json:"stage_slot_column"`
+	StageSlotRow    *int           `json:"stage_slot_row"`
 }
 
 type UpdateMatchRequest = CreateMatchRequest

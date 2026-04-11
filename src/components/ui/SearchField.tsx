@@ -1,7 +1,7 @@
 import { Search, X } from 'lucide-react'
 
-export const SearchField = ({ value, onChange, placeholder = 'Поиск', autoFocus = false }: { value: string; onChange: (v: string) => void; placeholder?: string; autoFocus?: boolean }) => (
-  <div className="inset-field relative flex items-center gap-2 px-3">
+export const SearchField = ({ value, onChange, placeholder = 'Поиск', autoFocus = false, className = '' }: { value: string; onChange: (v: string) => void; placeholder?: string; autoFocus?: boolean; className?: string }) => (
+  <div className={`inset-field relative flex items-center gap-2 px-3 ${className}`}>
     <Search size={16} className="text-textMuted" />
     <input
       value={value}
