@@ -11,6 +11,23 @@ export interface Tournament {
   fallbackLogoUrl: string
 }
 
+// TODO(organizers): multi-season tournament management foundation.
+export interface TournamentCycle {
+  id: ID
+  name: string
+  bracketTeamCapacity: 4 | 8 | 16 | 32
+  isActive: boolean
+}
+
+// TODO(organizers): round is a tree vertex that can hold multiple matches and optional aggregate total.
+export interface TournamentRoundNode {
+  id: ID
+  cycleId: ID
+  label: string
+  roundNumber: number
+  parentRoundId?: ID | null
+}
+
 export interface TeamStatsSummary {
   played: number
   won: number
@@ -71,6 +88,14 @@ export interface Match {
   score: { home: number; away: number }
   events: MatchEvent[]
   featured: boolean
+  stage?: string
+  tour?: string
+  referee?: string
+  broadcastUrl?: string
+  bracketPosition?: {
+    stageSlotColumn: number | null
+    stageSlotRow: number | null
+  }
 }
 
 export interface StandingRow {
@@ -86,22 +111,34 @@ export interface StandingRow {
   points: number
 }
 
-export interface BracketRound {
+export interface BracketStage {
   id: ID
   label: string
   order: number
+  size: number
 }
 
-export interface BracketMatch {
+export interface BracketGameRef {
+  matchId: ID | null
+  score?: { home: number; away: number }
+  status: MatchStatus
+}
+
+export interface BracketMatchGroup {
   id: ID
-  roundId: ID
+  stageId: ID
   slot: number
   homeTeamId: ID | null
   awayTeamId: ID | null
   winnerTeamId?: ID | null
-  status: MatchStatus
-  linkedMatchId?: ID
-  score?: { home: number; away: number }
+  tieFormat: 1 | 2
+  firstLeg: BracketGameRef
+  secondLeg?: BracketGameRef
+  adminLockedWinner?: boolean
+}
+
+export interface BracketSettings {
+  teamCapacity: 4 | 8 | 16 | 32
 }
 
 export interface SearchResult {
@@ -200,6 +237,7 @@ export interface SessionUser {
   role: UserRole
   teamId?: ID
   telegramHandle?: string
+  telegramId?: string
 }
 
 export interface AuthSession {

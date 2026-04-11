@@ -149,6 +149,7 @@ func (s Service) CreateMatch(ctx context.Context, actor domain.User, req domain.
 	return s.repo.CreateMatch(ctx, domain.Match{
 		HomeTeamID: req.HomeTeamID, AwayTeamID: req.AwayTeamID, StartAt: req.StartAt, Status: req.Status,
 		HomeScore: req.HomeScore, AwayScore: req.AwayScore, ExtraTime: req.ExtraTime, Venue: req.Venue,
+		StageSlotColumn: req.StageSlotColumn, StageSlotRow: req.StageSlotRow,
 	})
 }
 
@@ -159,5 +160,6 @@ func (s Service) UpdateMatch(ctx context.Context, actor domain.User, id int64, r
 	return s.repo.UpdateMatch(ctx, id, domain.Match{
 		HomeTeamID: req.HomeTeamID, AwayTeamID: req.AwayTeamID, StartAt: req.StartAt, Status: req.Status,
 		HomeScore: req.HomeScore, AwayScore: req.AwayScore, ExtraTime: req.ExtraTime, Venue: req.Venue,
+		StageSlotColumn: req.StageSlotColumn, StageSlotRow: req.StageSlotRow,
 	})
 }

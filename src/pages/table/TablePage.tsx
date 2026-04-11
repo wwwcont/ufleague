@@ -15,10 +15,17 @@ const ModeSwitch = ({ mode, setMode }: { mode: 'table' | 'bracket'; setMode: (mo
 
 export const TablePage = () => {
   const [mode, setMode] = useState<'table' | 'bracket'>('table')
+  const [transitionName, setTransitionName] = useState<'swipe-left' | 'swipe-right'>('swipe-left')
   const { data: rows } = useStandings()
   const { data: bracket } = useBracket()
   const { data: teams } = useTeams()
   const teamMap = useMemo(() => Object.fromEntries((teams ?? []).map((t) => [t.id, t])), [teams])
+
+  const changeMode = (nextMode: 'table' | 'bracket') => {
+    if (nextMode === mode) return
+    setTransitionName(nextMode === 'bracket' ? 'swipe-left' : 'swipe-right')
+    setMode(nextMode)
+  }
 
   useEffect(() => {
     if (mode !== 'bracket') {
@@ -32,19 +39,18 @@ export const TablePage = () => {
     }
   }, [mode])
 
-  if (mode === 'bracket') {
-    return (
-      <div className="px-4 pb-20 pt-6 md:px-6">
-        <ModeSwitch mode={mode} setMode={setMode} />
-        {bracket && <BracketView rounds={bracket.rounds} matches={bracket.matches} teamMap={teamMap} fullScreen />}
-      </div>
-    )
-  }
-
   return (
-    <PageContainer>
-      <ModeSwitch mode={mode} setMode={setMode} />
-      {rows && <StandingsTable rows={rows} teamMap={teamMap} />}
-    </PageContainer>
+    <div className="px-4 pb-20 pt-6 md:px-6">
+      <ModeSwitch mode={mode} setMode={changeMode} />
+      <div key={mode} className={transitionName === 'swipe-left' ? 'mode-swipe-left' : 'mode-swipe-right'}>
+        {mode === 'bracket'
+          ? bracket && <BracketView stages={bracket.stages} groups={bracket.groups} teamMap={teamMap} fullScreen />
+          : rows && (
+            <PageContainer className="px-0">
+              <StandingsTable rows={rows} teamMap={teamMap} />
+            </PageContainer>
+          )}
+      </div>
+    </div>
   )
 }

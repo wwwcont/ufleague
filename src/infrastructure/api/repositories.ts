@@ -10,7 +10,7 @@ import type {
   StandingsRepository,
   TeamsRepository,
 } from '../../domain/repositories/contracts'
-import type { AuthSession, BackendMeDTO, BracketMatch, BracketRound, CommentAuthorState, CommentNode, Match, Player, PublicEvent, SearchResult, StandingRow, Team, UserRole } from '../../domain/entities/types'
+import type { AuthSession, BackendMeDTO, BracketMatchGroup, BracketSettings, BracketStage, CommentAuthorState, CommentNode, Match, Player, PublicEvent, SearchResult, StandingRow, Team, UserRole } from '../../domain/entities/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 
@@ -75,6 +75,14 @@ const mapMatch = (m: any): Match => ({
   score: { home: m.home_score ?? 0, away: m.away_score ?? 0 },
   events: [],
   featured: m.status === 'live',
+  stage: m.extra_time?.stage ?? undefined,
+  tour: m.extra_time?.tour ?? undefined,
+  referee: m.extra_time?.referee ?? undefined,
+  broadcastUrl: m.extra_time?.broadcast_url ?? undefined,
+  bracketPosition: {
+    stageSlotColumn: m.stage_slot_column ?? null,
+    stageSlotRow: m.stage_slot_row ?? null,
+  },
 })
 
 const mapEvent = (e: any): PublicEvent => ({
@@ -212,6 +220,10 @@ export const matchesRepository: MatchesRepository = {
   },
   async updateMatch(matchId, patch) {
     const current = await api<any>(`/api/matches/${matchId}`)
+    const mergedExtra = {
+      ...(current.extra_time ?? {}),
+      ...(patch.broadcastUrl !== undefined ? { broadcast_url: patch.broadcastUrl } : {}),
+    }
     await api(`/api/matches/${matchId}`, {
       method: 'PATCH',
       body: JSON.stringify({
@@ -221,7 +233,7 @@ export const matchesRepository: MatchesRepository = {
         status: patch.status ?? current.status,
         home_score: patch.homeScore ?? current.home_score,
         away_score: patch.awayScore ?? current.away_score,
-        extra_time: current.extra_time ?? {},
+        extra_time: mergedExtra,
         venue: patch.venue ?? current.venue ?? '',
       }),
     })
@@ -246,20 +258,55 @@ export const standingsRepository: StandingsRepository = {
 }
 export const bracketRepository: BracketRepository = {
   async getBracket() {
-    const data = await api<{ rounds: any[]; matches: any[] }>('/api/bracket')
-    const rounds: BracketRound[] = data.rounds.map((round) => ({ id: round.id, label: round.label, order: round.order }))
-    const matches: BracketMatch[] = data.matches.map((match) => ({
-      id: match.id,
-      roundId: match.round_id,
-      slot: match.slot,
-      homeTeamId: match.home_team_id ? String(match.home_team_id) : null,
-      awayTeamId: match.away_team_id ? String(match.away_team_id) : null,
-      winnerTeamId: match.winner_team_id ? String(match.winner_team_id) : null,
-      status: (match.status === 'live' || match.status === 'half_time' || match.status === 'finished' ? match.status : 'scheduled') as Match['status'],
-      linkedMatchId: match.linked_match_id,
-      score: match.home_score !== undefined && match.away_score !== undefined ? { home: match.home_score, away: match.away_score } : undefined,
+    const data = await api<{ settings?: any; stages?: any[]; groups?: any[]; rounds?: any[]; matches?: any[] }>('/api/bracket')
+    const stagesRaw = data.stages ?? data.rounds ?? []
+    const groupsRaw = data.groups ?? data.matches ?? []
+
+    const settings: BracketSettings = {
+      teamCapacity: [4, 8, 16, 32].includes(Number(data.settings?.team_capacity)) ? Number(data.settings?.team_capacity) as BracketSettings['teamCapacity'] : 16,
+    }
+
+    const stages: BracketStage[] = stagesRaw.map((stage, index) => ({
+      id: String(stage.id),
+      label: stage.label,
+      order: Number(stage.order ?? index + 1),
+      size: Number(stage.size ?? 1),
     }))
-    return { rounds, matches }
+
+    const groups: BracketMatchGroup[] = groupsRaw.map((group) => {
+      const firstLegScore = group.first_leg_home_score !== undefined && group.first_leg_away_score !== undefined
+        ? { home: Number(group.first_leg_home_score), away: Number(group.first_leg_away_score) }
+        : group.home_score !== undefined && group.away_score !== undefined
+          ? { home: Number(group.home_score), away: Number(group.away_score) }
+          : undefined
+
+      const secondLegScore = group.second_leg_home_score !== undefined && group.second_leg_away_score !== undefined
+        ? { home: Number(group.second_leg_home_score), away: Number(group.second_leg_away_score) }
+        : undefined
+
+      return {
+        id: String(group.id),
+        stageId: String(group.stage_id ?? group.round_id),
+        slot: Number(group.slot ?? 1),
+        homeTeamId: group.home_team_id ? String(group.home_team_id) : null,
+        awayTeamId: group.away_team_id ? String(group.away_team_id) : null,
+        winnerTeamId: group.winner_team_id ? String(group.winner_team_id) : null,
+        tieFormat: Number(group.tie_format ?? (secondLegScore ? 2 : 1)) === 2 ? 2 : 1,
+        firstLeg: {
+          matchId: group.first_leg_match_id ? String(group.first_leg_match_id) : group.linked_match_id ? String(group.linked_match_id) : null,
+          status: (group.first_leg_status ?? group.status ?? 'scheduled') as Match['status'],
+          score: firstLegScore,
+        },
+        secondLeg: Number(group.tie_format ?? (secondLegScore ? 2 : 1)) === 2 ? {
+          matchId: group.second_leg_match_id ? String(group.second_leg_match_id) : null,
+          status: (group.second_leg_status ?? 'scheduled') as Match['status'],
+          score: secondLegScore,
+        } : undefined,
+        adminLockedWinner: Boolean(group.admin_locked_winner),
+      }
+    })
+
+    return { settings, stages, groups }
   },
 }
 export const searchRepository: SearchRepository = {
@@ -380,6 +427,8 @@ const mapMeToSession = (me: BackendMeDTO): AuthSession => {
       id: String(me.user.id),
       displayName: me.user.display_name,
       role,
+      telegramHandle: me.user.username ? `@${String(me.user.username).replace(/^@/, '')}` : undefined,
+      telegramId: me.user.telegram_id ? String(me.user.telegram_id) : undefined,
     },
     permissions: permissions as AuthSession['permissions'],
     lastLoginAt: me.session.created_at,
@@ -425,7 +474,18 @@ export const sessionRepository: SessionRepository = {
     }
     const seed = seeds[role] ?? { username: `dev_${role}`, displayName: `Dev ${role}` }
     const me = await api<any>('/api/auth/dev-login', { method: 'POST', body: JSON.stringify({ username: seed.username, display_name: seed.displayName, roles: [role] }) })
-    return { isAuthenticated: true, user: { id: String(me.user.id), displayName: me.user.display_name, role }, permissions: [], lastLoginAt: me.session?.created_at }
+    return {
+      isAuthenticated: true,
+      user: {
+        id: String(me.user.id),
+        displayName: me.user.display_name,
+        role,
+        telegramHandle: me.user.username ? `@${String(me.user.username).replace(/^@/, '')}` : undefined,
+        telegramId: me.user.telegram_id ? String(me.user.telegram_id) : undefined,
+      },
+      permissions: [],
+      lastLoginAt: me.session?.created_at,
+    }
   },
   async logout() {
     await api('/api/auth/logout', { method: 'POST' }).catch(() => undefined)

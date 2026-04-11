@@ -1,29 +1,70 @@
-import type { BracketMatch, BracketRound } from '../../domain/entities/types'
+import type { BracketMatchGroup, BracketStage, BracketSettings } from '../../domain/entities/types'
 
-export const bracketRounds: BracketRound[] = [
-  { id: 'r1', label: '1/8 финала', order: 1 },
-  { id: 'r2', label: '1/4 финала', order: 2 },
-  { id: 'r3', label: 'Полуфинал', order: 3 },
-  { id: 'r4', label: 'Финал', order: 4 },
+export const bracketSettings: BracketSettings = {
+  teamCapacity: 16,
+}
+
+export const bracketStages: BracketStage[] = [
+  { id: 's1', label: '1/8 финала', order: 1, size: 8 },
+  { id: 's2', label: '1/4 финала', order: 2, size: 4 },
+  { id: 's3', label: 'Полуфинал', order: 3, size: 2 },
+  { id: 's4', label: 'Финал', order: 4, size: 1 },
 ]
 
-export const bracketMatches: BracketMatch[] = [
-  { id: 'bm1', roundId: 'r1', slot: 1, homeTeamId: 'team_1', awayTeamId: 'team_16', winnerTeamId: 'team_1', status: 'finished', score: { home: 2, away: 0 } },
-  { id: 'bm2', roundId: 'r1', slot: 2, homeTeamId: 'team_8', awayTeamId: 'team_9', winnerTeamId: 'team_9', status: 'finished', score: { home: 1, away: 3 } },
-  { id: 'bm3', roundId: 'r1', slot: 3, homeTeamId: 'team_5', awayTeamId: 'team_12', winnerTeamId: 'team_5', status: 'finished', score: { home: 2, away: 1 } },
-  { id: 'bm4', roundId: 'r1', slot: 4, homeTeamId: 'team_4', awayTeamId: 'team_13', winnerTeamId: 'team_13', status: 'finished', score: { home: 0, away: 1 } },
-  { id: 'bm5', roundId: 'r1', slot: 5, homeTeamId: 'team_2', awayTeamId: 'team_15', status: 'live', score: { home: 1, away: 1 }, linkedMatchId: 'm1' },
-  { id: 'bm6', roundId: 'r1', slot: 6, homeTeamId: 'team_7', awayTeamId: 'team_10', status: 'scheduled' },
-  { id: 'bm7', roundId: 'r1', slot: 7, homeTeamId: 'team_3', awayTeamId: 'team_14', status: 'scheduled' },
-  { id: 'bm8', roundId: 'r1', slot: 8, homeTeamId: 'team_6', awayTeamId: 'team_11', status: 'scheduled' },
+export const bracketGroups: BracketMatchGroup[] = [
+  {
+    id: 'bg1',
+    stageId: 's1',
+    slot: 1,
+    homeTeamId: 'team_1',
+    awayTeamId: 'team_16',
+    tieFormat: 2,
+    firstLeg: { matchId: 'm1', score: { home: 2, away: 0 }, status: 'finished' },
+    secondLeg: { matchId: 'm2', score: { home: 1, away: 1 }, status: 'finished' },
+    winnerTeamId: 'team_1',
+  },
+  {
+    id: 'bg2',
+    stageId: 's1',
+    slot: 2,
+    homeTeamId: 'team_8',
+    awayTeamId: 'team_9',
+    tieFormat: 1,
+    firstLeg: { matchId: 'm3', score: { home: 1, away: 3 }, status: 'finished' },
+    winnerTeamId: 'team_9',
+  },
+  {
+    id: 'bg3',
+    stageId: 's1',
+    slot: 3,
+    homeTeamId: 'team_5',
+    awayTeamId: 'team_12',
+    tieFormat: 2,
+    firstLeg: { matchId: null, status: 'scheduled' },
+    secondLeg: { matchId: null, status: 'scheduled' },
+  },
+  {
+    id: 'bg4',
+    stageId: 's1',
+    slot: 4,
+    homeTeamId: 'team_4',
+    awayTeamId: 'team_13',
+    tieFormat: 2,
+    firstLeg: { matchId: null, status: 'scheduled' },
+    secondLeg: { matchId: null, status: 'scheduled' },
+  },
+  { id: 'bg5', stageId: 's1', slot: 5, homeTeamId: 'team_2', awayTeamId: 'team_15', tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
+  { id: 'bg6', stageId: 's1', slot: 6, homeTeamId: 'team_7', awayTeamId: 'team_10', tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
+  { id: 'bg7', stageId: 's1', slot: 7, homeTeamId: 'team_3', awayTeamId: 'team_14', tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
+  { id: 'bg8', stageId: 's1', slot: 8, homeTeamId: 'team_6', awayTeamId: 'team_11', tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
 
-  { id: 'bm9', roundId: 'r2', slot: 1, homeTeamId: 'team_1', awayTeamId: 'team_9', status: 'scheduled' },
-  { id: 'bm10', roundId: 'r2', slot: 2, homeTeamId: 'team_5', awayTeamId: 'team_13', status: 'scheduled' },
-  { id: 'bm11', roundId: 'r2', slot: 3, homeTeamId: null, awayTeamId: null, status: 'scheduled' },
-  { id: 'bm12', roundId: 'r2', slot: 4, homeTeamId: null, awayTeamId: null, status: 'scheduled' },
+  { id: 'bg9', stageId: 's2', slot: 1, homeTeamId: 'team_1', awayTeamId: 'team_9', tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
+  { id: 'bg10', stageId: 's2', slot: 2, homeTeamId: null, awayTeamId: null, tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
+  { id: 'bg11', stageId: 's2', slot: 3, homeTeamId: null, awayTeamId: null, tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
+  { id: 'bg12', stageId: 's2', slot: 4, homeTeamId: null, awayTeamId: null, tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
 
-  { id: 'bm13', roundId: 'r3', slot: 1, homeTeamId: null, awayTeamId: null, status: 'scheduled' },
-  { id: 'bm14', roundId: 'r3', slot: 2, homeTeamId: null, awayTeamId: null, status: 'scheduled' },
+  { id: 'bg13', stageId: 's3', slot: 1, homeTeamId: null, awayTeamId: null, tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
+  { id: 'bg14', stageId: 's3', slot: 2, homeTeamId: null, awayTeamId: null, tieFormat: 2, firstLeg: { matchId: null, status: 'scheduled' }, secondLeg: { matchId: null, status: 'scheduled' } },
 
-  { id: 'bm15', roundId: 'r4', slot: 1, homeTeamId: null, awayTeamId: null, status: 'scheduled' },
+  { id: 'bg15', stageId: 's4', slot: 1, homeTeamId: null, awayTeamId: null, tieFormat: 1, firstLeg: { matchId: null, status: 'scheduled' } },
 ]

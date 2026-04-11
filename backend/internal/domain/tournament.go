@@ -28,17 +28,36 @@ type Player struct {
 }
 
 type Match struct {
-	ID         int64          `json:"id"`
-	HomeTeamID int64          `json:"home_team_id"`
-	AwayTeamID int64          `json:"away_team_id"`
-	StartAt    time.Time      `json:"start_at"`
-	Status     string         `json:"status"`
-	HomeScore  int            `json:"home_score"`
-	AwayScore  int            `json:"away_score"`
-	ExtraTime  map[string]any `json:"extra_time"`
-	Venue      string         `json:"venue,omitempty"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
+	ID              int64          `json:"id"`
+	HomeTeamID      int64          `json:"home_team_id"`
+	AwayTeamID      int64          `json:"away_team_id"`
+	StartAt         time.Time      `json:"start_at"`
+	Status          string         `json:"status"`
+	HomeScore       int            `json:"home_score"`
+	AwayScore       int            `json:"away_score"`
+	ExtraTime       map[string]any `json:"extra_time"`
+	Venue           string         `json:"venue,omitempty"`
+	StageSlotColumn *int           `json:"stage_slot_column,omitempty"`
+	StageSlotRow    *int           `json:"stage_slot_row,omitempty"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+}
+
+// TODO(organizers): tournament cycle support so organizers can start a new tournament without wiping historical data.
+type TournamentCycle struct {
+	ID              int64  `json:"id"`
+	Name            string `json:"name"`
+	BracketCapacity int    `json:"bracket_capacity"`
+	IsActive        bool   `json:"is_active"`
+}
+
+// TODO(organizers): round node is a tree vertex containing several matches (optionally with aggregate total).
+type TournamentRoundNode struct {
+	ID            int64  `json:"id"`
+	CycleID       int64  `json:"cycle_id"`
+	Label         string `json:"label"`
+	RoundNumber   int    `json:"round_number"`
+	ParentRoundID *int64 `json:"parent_round_id,omitempty"`
 }
 
 type CreateTeamRequest struct {
@@ -64,14 +83,16 @@ type CreatePlayerRequest struct {
 type UpdatePlayerRequest = CreatePlayerRequest
 
 type CreateMatchRequest struct {
-	HomeTeamID int64          `json:"home_team_id"`
-	AwayTeamID int64          `json:"away_team_id"`
-	StartAt    time.Time      `json:"start_at"`
-	Status     string         `json:"status"`
-	HomeScore  int            `json:"home_score"`
-	AwayScore  int            `json:"away_score"`
-	ExtraTime  map[string]any `json:"extra_time"`
-	Venue      string         `json:"venue"`
+	HomeTeamID      int64          `json:"home_team_id"`
+	AwayTeamID      int64          `json:"away_team_id"`
+	StartAt         time.Time      `json:"start_at"`
+	Status          string         `json:"status"`
+	HomeScore       int            `json:"home_score"`
+	AwayScore       int            `json:"away_score"`
+	ExtraTime       map[string]any `json:"extra_time"`
+	Venue           string         `json:"venue"`
+	StageSlotColumn *int           `json:"stage_slot_column"`
+	StageSlotRow    *int           `json:"stage_slot_row"`
 }
 
 type UpdateMatchRequest = CreateMatchRequest

@@ -99,7 +99,7 @@ func (r *TournamentRepository) UpdatePlayer(ctx context.Context, id int64, p dom
 }
 
 func (r *TournamentRepository) ListMatches(ctx context.Context) ([]domain.Match, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),created_at,updated_at FROM matches ORDER BY start_at DESC`)
+	rows, err := r.pool.Query(ctx, `SELECT id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),stage_slot_column,stage_slot_row,created_at,updated_at FROM matches ORDER BY start_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -115,25 +115,25 @@ func (r *TournamentRepository) ListMatches(ctx context.Context) ([]domain.Match,
 	return out, rows.Err()
 }
 func (r *TournamentRepository) GetMatch(ctx context.Context, id int64) (domain.Match, error) {
-	row := r.pool.QueryRow(ctx, `SELECT id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),created_at,updated_at FROM matches WHERE id=$1`, id)
+	row := r.pool.QueryRow(ctx, `SELECT id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),stage_slot_column,stage_slot_row,created_at,updated_at FROM matches WHERE id=$1`, id)
 	return scanMatch(row)
 }
 func (r *TournamentRepository) CreateMatch(ctx context.Context, m domain.Match) (domain.Match, error) {
 	extra, _ := json.Marshal(m.ExtraTime)
 	row := r.pool.QueryRow(ctx, `
-	INSERT INTO matches (home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,venue)
-	VALUES ($1,$2,$3,$4,$5,$6,$7,NULLIF($8,''))
-	RETURNING id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),created_at,updated_at`,
-		m.HomeTeamID, m.AwayTeamID, m.StartAt, m.Status, m.HomeScore, m.AwayScore, extra, m.Venue)
+	INSERT INTO matches (home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,venue,stage_slot_column,stage_slot_row)
+	VALUES ($1,$2,$3,$4,$5,$6,$7,NULLIF($8,''),$9,$10)
+	RETURNING id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),stage_slot_column,stage_slot_row,created_at,updated_at`,
+		m.HomeTeamID, m.AwayTeamID, m.StartAt, m.Status, m.HomeScore, m.AwayScore, extra, m.Venue, m.StageSlotColumn, m.StageSlotRow)
 	return scanMatch(row)
 }
 func (r *TournamentRepository) UpdateMatch(ctx context.Context, id int64, m domain.Match) (domain.Match, error) {
 	extra, _ := json.Marshal(m.ExtraTime)
 	row := r.pool.QueryRow(ctx, `
-	UPDATE matches SET home_team_id=$2,away_team_id=$3,start_at=$4,status=$5,home_score=$6,away_score=$7,extra_time=$8,venue=NULLIF($9,''),updated_at=NOW()
+	UPDATE matches SET home_team_id=$2,away_team_id=$3,start_at=$4,status=$5,home_score=$6,away_score=$7,extra_time=$8,venue=NULLIF($9,''),stage_slot_column=$10,stage_slot_row=$11,updated_at=NOW()
 	WHERE id=$1
-	RETURNING id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),created_at,updated_at`,
-		id, m.HomeTeamID, m.AwayTeamID, m.StartAt, m.Status, m.HomeScore, m.AwayScore, extra, m.Venue)
+	RETURNING id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),stage_slot_column,stage_slot_row,created_at,updated_at`,
+		id, m.HomeTeamID, m.AwayTeamID, m.StartAt, m.Status, m.HomeScore, m.AwayScore, extra, m.Venue, m.StageSlotColumn, m.StageSlotRow)
 	return scanMatch(row)
 }
 
@@ -166,7 +166,7 @@ func scanPlayer(row scanner) (domain.Player, error) {
 func scanMatch(row scanner) (domain.Match, error) {
 	var m domain.Match
 	var extra []byte
-	err := row.Scan(&m.ID, &m.HomeTeamID, &m.AwayTeamID, &m.StartAt, &m.Status, &m.HomeScore, &m.AwayScore, &extra, &m.Venue, &m.CreatedAt, &m.UpdatedAt)
+	err := row.Scan(&m.ID, &m.HomeTeamID, &m.AwayTeamID, &m.StartAt, &m.Status, &m.HomeScore, &m.AwayScore, &extra, &m.Venue, &m.StageSlotColumn, &m.StageSlotRow, &m.CreatedAt, &m.UpdatedAt)
 	if err != nil {
 		return m, err
 	}
