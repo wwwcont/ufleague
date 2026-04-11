@@ -76,23 +76,23 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 SELECT setval('players_id_seq', GREATEST((SELECT COALESCE(MAX(id),1) FROM players), 2016));
 
-INSERT INTO matches (id, home_team_id, away_team_id, start_at, status, home_score, away_score, extra_time, venue, stage_slot_column, stage_slot_row)
+INSERT INTO matches (id, home_team_id, away_team_id, start_at, status, home_score, away_score, extra_time, venue)
 VALUES
-  (3001, 1001, 1016, NOW() - INTERVAL '18 day', 'finished', 2, 0, '{"stage":"R16","tour":"First leg"}'::jsonb, 'Main Arena', 1, 1),
-  (3002, 1008, 1009, NOW() - INTERVAL '17 day', 'finished', 1, 3, '{"stage":"R16","tour":"First leg"}'::jsonb, 'North Field', 1, 2),
-  (3003, 1005, 1012, NOW() - INTERVAL '16 day', 'scheduled', 0, 0, '{"stage":"R16","tour":"First leg"}'::jsonb, 'West Arena', 1, 3),
-  (3004, 1004, 1013, NOW() - INTERVAL '15 day', 'scheduled', 0, 0, '{"stage":"R16","tour":"First leg"}'::jsonb, 'West Arena', 1, 4),
-  (3005, 1002, 1015, NOW() - INTERVAL '14 day', 'scheduled', 0, 0, '{"stage":"R16","tour":"First leg"}'::jsonb, 'South Stadium', 1, 5),
-  (3006, 1007, 1010, NOW() - INTERVAL '13 day', 'scheduled', 0, 0, '{"stage":"R16","tour":"First leg"}'::jsonb, 'South Stadium', 1, 6),
-  (3007, 1003, 1014, NOW() - INTERVAL '12 day', 'scheduled', 0, 0, '{"stage":"R16","tour":"First leg"}'::jsonb, 'East Ground', 1, 7),
-  (3008, 1006, 1011, NOW() - INTERVAL '11 day', 'scheduled', 0, 0, '{"stage":"R16","tour":"First leg"}'::jsonb, 'East Ground', 1, 8),
-  (3009, 1001, 1009, NOW() + INTERVAL '1 day', 'scheduled', 0, 0, '{"stage":"R8","tour":"Quarterfinal 1"}'::jsonb, 'Main Arena', 2, 1),
-  (3010, 1002, 1006, NOW() + INTERVAL '2 day', 'scheduled', 0, 0, '{"stage":"R8","tour":"Quarterfinal 2"}'::jsonb, 'Main Arena', 2, 2),
-  (3011, 1003, 1007, NOW() + INTERVAL '3 day', 'scheduled', 0, 0, '{"stage":"R8","tour":"Quarterfinal 3"}'::jsonb, 'Main Arena', 2, 3),
-  (3012, 1004, 1008, NOW() + INTERVAL '4 day', 'scheduled', 0, 0, '{"stage":"R8","tour":"Quarterfinal 4"}'::jsonb, 'Main Arena', 2, 4),
-  (3013, 1001, 1002, NOW() + INTERVAL '6 day', 'scheduled', 0, 0, '{"stage":"SF","tour":"Semifinal 1"}'::jsonb, 'Central Stadium', 3, 1),
-  (3014, 1003, 1004, NOW() + INTERVAL '7 day', 'scheduled', 0, 0, '{"stage":"SF","tour":"Semifinal 2"}'::jsonb, 'Central Stadium', 3, 2),
-  (3015, 1001, 1003, NOW() + INTERVAL '10 day', 'scheduled', 0, 0, '{"stage":"F","tour":"Final"}'::jsonb, 'Grand Final Arena', 4, 1)
+  (3001, 1001, 1016, NOW() - INTERVAL '18 day', 'finished', 2, 0, '{"stage":"R16","tour":"First leg"}'::jsonb, 'Main Arena'),
+  (3002, 1008, 1009, NOW() - INTERVAL '17 day', 'finished', 1, 3, '{"stage":"R16","tour":"First leg"}'::jsonb, 'North Field'),
+  (3003, 1005, 1012, NOW() - INTERVAL '16 day', 'scheduled', 0, 0, '{"stage":"R16","tour":"First leg"}'::jsonb, 'West Arena'),
+  (3004, 1004, 1013, NOW() - INTERVAL '15 day', 'scheduled', 0, 0, '{"stage":"R16","tour":"First leg"}'::jsonb, 'West Arena'),
+  (3005, 1002, 1015, NOW() - INTERVAL '14 day', 'scheduled', 0, 0, '{"stage":"R16","tour":"First leg"}'::jsonb, 'South Stadium'),
+  (3006, 1007, 1010, NOW() - INTERVAL '13 day', 'scheduled', 0, 0, '{"stage":"R16","tour":"First leg"}'::jsonb, 'South Stadium'),
+  (3007, 1003, 1014, NOW() - INTERVAL '12 day', 'scheduled', 0, 0, '{"stage":"R16","tour":"First leg"}'::jsonb, 'East Ground'),
+  (3008, 1006, 1011, NOW() - INTERVAL '11 day', 'scheduled', 0, 0, '{"stage":"R16","tour":"First leg"}'::jsonb, 'East Ground'),
+  (3009, 1001, 1009, NOW() + INTERVAL '1 day', 'scheduled', 0, 0, '{"stage":"R8","tour":"Quarterfinal 1"}'::jsonb, 'Main Arena'),
+  (3010, 1002, 1006, NOW() + INTERVAL '2 day', 'scheduled', 0, 0, '{"stage":"R8","tour":"Quarterfinal 2"}'::jsonb, 'Main Arena'),
+  (3011, 1003, 1007, NOW() + INTERVAL '3 day', 'scheduled', 0, 0, '{"stage":"R8","tour":"Quarterfinal 3"}'::jsonb, 'Main Arena'),
+  (3012, 1004, 1008, NOW() + INTERVAL '4 day', 'scheduled', 0, 0, '{"stage":"R8","tour":"Quarterfinal 4"}'::jsonb, 'Main Arena'),
+  (3013, 1001, 1002, NOW() + INTERVAL '6 day', 'scheduled', 0, 0, '{"stage":"SF","tour":"Semifinal 1"}'::jsonb, 'Central Stadium'),
+  (3014, 1003, 1004, NOW() + INTERVAL '7 day', 'scheduled', 0, 0, '{"stage":"SF","tour":"Semifinal 2"}'::jsonb, 'Central Stadium'),
+  (3015, 1001, 1003, NOW() + INTERVAL '10 day', 'scheduled', 0, 0, '{"stage":"F","tour":"Final"}'::jsonb, 'Grand Final Arena')
 ON CONFLICT (id) DO NOTHING;
 SELECT setval('matches_id_seq', GREATEST((SELECT COALESCE(MAX(id),1) FROM matches), 3015));
 
