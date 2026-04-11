@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom'
-import { useState } from 'react'
-import { UserCircle2, Wrench } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { UserCircle2 } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { usePlayerDetails } from '../../hooks/data/usePlayerDetails'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
@@ -13,6 +13,14 @@ import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { ApiError } from '../../infrastructure/api/repositories'
 import { canManagePlayer } from '../../domain/services/accessControl'
+import {
+  EditableImageField,
+  EditableSection,
+  EditableSectionHeader,
+  EditableTextField,
+  EditableTextareaField,
+  SectionActionBar,
+} from '../../components/ui/editable'
 
 const getInitials = (name: string) => name.split(' ').map((part) => part[0]).join('').slice(0, 2)
 
@@ -24,18 +32,50 @@ export const PlayerDetailsPage = () => {
   const { session } = useSession()
   const { playersRepository, uploadsRepository } = useRepositories()
 
+  const [heroEditing, setHeroEditing] = useState(false)
+  const [profileEditing, setProfileEditing] = useState(false)
+  const [sportsEditing, setSportsEditing] = useState(false)
+  const [heroSaving, setHeroSaving] = useState(false)
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [sportsSaving, setSportsSaving] = useState(false)
+  const [heroStatus, setHeroStatus] = useState<string | null>(null)
+  const [profileStatus, setProfileStatus] = useState<string | null>(null)
+  const [sportsStatus, setSportsStatus] = useState<string | null>(null)
+  const [heroTone, setHeroTone] = useState<'idle' | 'success' | 'error'>('idle')
+  const [profileTone, setProfileTone] = useState<'idle' | 'success' | 'error'>('idle')
+  const [sportsTone, setSportsTone] = useState<'idle' | 'success' | 'error'>('idle')
+
   const [displayName, setDisplayName] = useState('')
-  const [avatar, setAvatar] = useState('')
+  const [bio, setBio] = useState('')
+  const [age, setAge] = useState('')
+  const [telegram, setTelegram] = useState('')
+  const [vk, setVk] = useState('')
+  const [instagram, setInstagram] = useState('')
+  const [number, setNumber] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | undefined>(undefined)
   const [position, setPosition] = useState(player?.position ?? 'MF')
-  const [status, setStatus] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!player) return
+    setDisplayName(player.displayName)
+    setBio(player.bio ?? '')
+    setAge(String(player.age ?? ''))
+    setTelegram(player.socials?.telegram ?? '')
+    setVk(player.socials?.vk ?? '')
+    setInstagram(player.socials?.instagram ?? '')
+    setNumber(String(player.number ?? ''))
+    setPosition(player.position ?? 'MF')
+    setAvatarPreview(player.avatar ?? undefined)
+    setAvatarFile(null)
+    setHeroEditing(false)
+    setProfileEditing(false)
+    setSportsEditing(false)
+  }, [player])
 
   if (!player) return <PageContainer><EmptyState title="Игрок не найден" /></PageContainer>
 
-  const canSelfEdit = session.user.role === 'player' && session.user.id === player.id
-  const canManage = canManagePlayer(session, player, team)
-  const canEditBio = canSelfEdit || canManage
-  const canCreateEvents = canSelfEdit || canManage
+  const canEditPlayer = canManagePlayer(session, player, team)
 
   const actionError = (error: unknown) => {
     if (error instanceof ApiError) {
@@ -47,59 +87,241 @@ export const PlayerDetailsPage = () => {
 
   return (
     <PageContainer>
-      <section className="relative overflow-hidden rounded-2xl border border-borderStrong bg-panelBg p-5 shadow-matte">
+      <EditableSection isEditing={heroEditing} className="relative overflow-hidden border-borderStrong bg-panelBg p-5 shadow-matte">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/60 to-black/75" />
-          {team?.logoUrl && <img src={team.logoUrl} alt="" className="h-full w-full scale-[1.45] object-cover blur-2xl opacity-35" />}
+          {(avatarPreview || team?.logoUrl) && <img src={avatarPreview || team?.logoUrl || ''} alt="" className="h-full w-full scale-[1.45] object-cover blur-2xl opacity-35" />}
         </div>
 
         <div className="relative z-10">
+          <EditableSectionHeader
+            title="Профиль игрока"
+            subtitle="Аватар и имя"
+            canEdit={canEditPlayer}
+            isEditing={heroEditing}
+            onStartEdit={() => {
+              setDisplayName(player.displayName)
+              setAvatarPreview(player.avatar ?? undefined)
+              setAvatarFile(null)
+              setHeroStatus(null)
+              setHeroTone('idle')
+              setHeroEditing(true)
+            }}
+            onCancelEdit={() => {
+              setDisplayName(player.displayName)
+              setAvatarPreview(player.avatar ?? undefined)
+              setAvatarFile(null)
+              setHeroStatus(null)
+              setHeroTone('idle')
+              setHeroEditing(false)
+            }}
+          />
           <div className="mb-4 flex items-start gap-4">
             <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-borderStrong bg-panelSoft text-2xl font-bold text-textPrimary">
-              {player.avatar ? <img src={player.avatar} alt={player.displayName} className="h-full w-full object-cover" /> : getInitials(player.displayName)}
+              {avatarPreview ? <img src={avatarPreview} alt={displayName || player.displayName} className="h-full w-full object-cover" /> : getInitials(displayName || player.displayName)}
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-textPrimary">{player.displayName}</h1>
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold text-textPrimary">{displayName || player.displayName}</h1>
               <p className="text-sm text-textSecondary">Роль: {player.position}</p>
               <p className="text-xs text-textMuted">{player.age ? `${player.age} лет` : 'Возраст не указан'}</p>
             </div>
           </div>
 
+          <EditableTextField label="Имя игрока" value={displayName} onChange={setDisplayName} isEditing={heroEditing} placeholder="Полное имя" />
+          <div className="mt-3">
+            <EditableImageField
+              label="Аватар"
+              imageUrl={avatarPreview}
+              isEditing={heroEditing}
+              onSelectFile={(file) => {
+                setAvatarFile(file)
+                if (!file) {
+                  setAvatarPreview(player.avatar ?? undefined)
+                  return
+                }
+                setAvatarPreview(URL.createObjectURL(file))
+              }}
+            />
+          </div>
+          <SectionActionBar
+            isEditing={heroEditing}
+            isPending={heroSaving}
+            statusMessage={heroStatus}
+            statusTone={heroTone}
+            onCancel={() => {
+              setDisplayName(player.displayName)
+              setAvatarPreview(player.avatar ?? undefined)
+              setAvatarFile(null)
+              setHeroStatus(null)
+              setHeroTone('idle')
+              setHeroEditing(false)
+            }}
+            onSave={async () => {
+              if (!playersRepository.updatePlayer) return
+              setHeroSaving(true)
+              setHeroStatus('Сохраняем профиль...')
+              setHeroTone('idle')
+              try {
+                const uploadedAvatar = avatarFile ? (await uploadsRepository.uploadImage(avatarFile)).url : player.avatar || undefined
+                await playersRepository.updatePlayer(player.id, { displayName: displayName || player.displayName, avatar: uploadedAvatar })
+                setHeroStatus('Профиль обновлен')
+                setHeroTone('success')
+                setHeroEditing(false)
+              } catch (error) {
+                setHeroStatus(actionError(error))
+                setHeroTone('error')
+              } finally {
+                setHeroSaving(false)
+              }
+            }}
+          />
+
           <SocialLinks compact links={{ telegram: player.socials?.telegram, vk: player.socials?.vk, instagram: player.socials?.instagram }} />
         </div>
-      </section>
+      </EditableSection>
 
-      {(canSelfEdit || canManage) && (
-        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
-          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Wrench size={15} className="text-accentYellow" /> Действия по роли</h2>
-          <div className="space-y-2 rounded-xl border border-borderSubtle bg-mutedBg p-3 text-xs text-textSecondary">
-            <p>Редактирование БИО: {canEditBio ? 'доступно' : 'ограничено админом'}</p>
-            <p>Создание событий игрока: {canCreateEvents ? 'доступно' : 'ограничено админом'}</p>
-            <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="новое имя" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
-            <input value={avatar} onChange={(e) => setAvatar(e.target.value)} placeholder="avatar url" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
-            <input type="file" accept="image/*" onChange={(e) => setAvatarFile(e.target.files?.[0] ?? null)} className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1 text-xs" />
-            <select value={position} onChange={(e) => setPosition(e.target.value as typeof position)} className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1">
-              {['GK', 'DF', 'MF', 'FW'].map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
-            <button
-              type="button"
-              className="rounded-lg bg-accentYellow px-3 py-1 font-semibold text-app"
-              onClick={async () => {
-                try {
-                  const uploadedAvatar = avatarFile ? (await uploadsRepository.uploadImage(avatarFile)).url : undefined
-                  await playersRepository.updatePlayer?.(player.id, { displayName: displayName || player.displayName, avatar: uploadedAvatar || avatar || player.avatar, position })
-                  setStatus('Данные игрока обновлены')
-                } catch (error) {
-                  setStatus(actionError(error))
-                }
-              }}
-            >
-              Сохранить
-            </button>
-            {status && <p className="rounded-lg border border-borderSubtle bg-panelBg px-2 py-1">{status}</p>}
-          </div>
-        </section>
-      )}
+      <EditableSection isEditing={profileEditing}>
+        <EditableSectionHeader
+          title="О профиле"
+          subtitle="Bio, возраст и соцсети"
+          canEdit={canEditPlayer}
+          isEditing={profileEditing}
+          onStartEdit={() => {
+            setBio(player.bio ?? '')
+            setAge(String(player.age ?? ''))
+            setTelegram(player.socials?.telegram ?? '')
+            setVk(player.socials?.vk ?? '')
+            setInstagram(player.socials?.instagram ?? '')
+            setProfileStatus(null)
+            setProfileTone('idle')
+            setProfileEditing(true)
+          }}
+          onCancelEdit={() => {
+            setBio(player.bio ?? '')
+            setAge(String(player.age ?? ''))
+            setTelegram(player.socials?.telegram ?? '')
+            setVk(player.socials?.vk ?? '')
+            setInstagram(player.socials?.instagram ?? '')
+            setProfileStatus(null)
+            setProfileTone('idle')
+            setProfileEditing(false)
+          }}
+        />
+        <EditableTextareaField label="Bio" value={bio} onChange={setBio} isEditing={profileEditing} placeholder="Кратко о себе" />
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <EditableTextField label="Возраст" value={age} onChange={setAge} isEditing={profileEditing} placeholder="Например: 22" />
+          <EditableTextField label="Telegram" value={telegram} onChange={setTelegram} isEditing={profileEditing} placeholder="@nickname" />
+          <EditableTextField label="VK" value={vk} onChange={setVk} isEditing={profileEditing} placeholder="vk.com/..." />
+          <EditableTextField label="Instagram" value={instagram} onChange={setInstagram} isEditing={profileEditing} placeholder="instagram.com/..." />
+        </div>
+        <SectionActionBar
+          isEditing={profileEditing}
+          isPending={profileSaving}
+          statusMessage={profileStatus}
+          statusTone={profileTone}
+          onCancel={() => {
+            setBio(player.bio ?? '')
+            setAge(String(player.age ?? ''))
+            setTelegram(player.socials?.telegram ?? '')
+            setVk(player.socials?.vk ?? '')
+            setInstagram(player.socials?.instagram ?? '')
+            setProfileStatus(null)
+            setProfileTone('idle')
+            setProfileEditing(false)
+          }}
+          onSave={async () => {
+            if (!playersRepository.updatePlayer) return
+            setProfileSaving(true)
+            setProfileStatus('Сохраняем профиль...')
+            setProfileTone('idle')
+            try {
+              await playersRepository.updatePlayer(player.id, {
+                bio,
+                age: Number(age) || player.age,
+                socials: {
+                  telegram,
+                  vk,
+                  instagram,
+                },
+              })
+              setProfileStatus('Профиль обновлен')
+              setProfileTone('success')
+              setProfileEditing(false)
+            } catch (error) {
+              setProfileStatus(actionError(error))
+              setProfileTone('error')
+            } finally {
+              setProfileSaving(false)
+            }
+          }}
+        />
+      </EditableSection>
+
+      <EditableSection isEditing={sportsEditing}>
+        <EditableSectionHeader
+          title="Спортивный профиль"
+          subtitle="Позиция и номер"
+          canEdit={canEditPlayer}
+          isEditing={sportsEditing}
+          onStartEdit={() => {
+            setPosition(player.position)
+            setNumber(String(player.number))
+            setSportsStatus(null)
+            setSportsTone('idle')
+            setSportsEditing(true)
+          }}
+          onCancelEdit={() => {
+            setPosition(player.position)
+            setNumber(String(player.number))
+            setSportsStatus(null)
+            setSportsTone('idle')
+            setSportsEditing(false)
+          }}
+        />
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="space-y-1">
+            <span className="text-xs text-textMuted">Позиция</span>
+            {sportsEditing ? (
+              <select value={position} onChange={(e) => setPosition(e.target.value as typeof position)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm">
+                {['GK', 'DF', 'MF', 'FW'].map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+            ) : (
+              <p className="rounded-lg bg-mutedBg px-3 py-2 text-sm text-textSecondary">{position}</p>
+            )}
+          </label>
+          <EditableTextField label="Игровой номер" value={number} onChange={setNumber} isEditing={sportsEditing} placeholder="Например: 10" />
+        </div>
+        <SectionActionBar
+          isEditing={sportsEditing}
+          isPending={sportsSaving}
+          statusMessage={sportsStatus}
+          statusTone={sportsTone}
+          onCancel={() => {
+            setPosition(player.position)
+            setNumber(String(player.number))
+            setSportsStatus(null)
+            setSportsTone('idle')
+            setSportsEditing(false)
+          }}
+          onSave={async () => {
+            if (!playersRepository.updatePlayer) return
+            setSportsSaving(true)
+            setSportsStatus('Сохраняем спортивные данные...')
+            setSportsTone('idle')
+            try {
+              await playersRepository.updatePlayer(player.id, { position, number: Number(number) || player.number })
+              setSportsStatus('Спортивные данные обновлены')
+              setSportsTone('success')
+              setSportsEditing(false)
+            } catch (error) {
+              setSportsStatus(actionError(error))
+              setSportsTone('error')
+            } finally {
+              setSportsSaving(false)
+            }
+          }}
+        />
+      </EditableSection>
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
         <h2 className="mb-3 text-base font-semibold text-textPrimary">Статистика игрока</h2>
@@ -113,7 +335,7 @@ export const PlayerDetailsPage = () => {
         <h2 className="mb-2 flex items-center gap-2 text-base font-semibold text-textPrimary"><UserCircle2 size={16} className="text-accentYellow" /> Профиль / медиа</h2>
         <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3">
           <p className="text-xs text-textMuted">Bio</p>
-          <p className="mt-1 text-textSecondary">{player.bio ?? 'Био пока не заполнено.'}</p>
+          <p className="mt-1 text-textSecondary">{bio || 'Био пока не заполнено.'}</p>
         </div>
       </section>
 

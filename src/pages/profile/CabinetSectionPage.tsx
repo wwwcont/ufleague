@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ChevronRight, LayoutPanelTop } from 'lucide-react'
 import type { Match, UserRole } from '../../domain/entities/types'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useSession } from '../../app/providers/use-session'
@@ -34,6 +34,27 @@ const sectionRoles: Record<string, UserRole> = {
   rbac: 'superadmin',
   restrictions: 'superadmin',
   settings: 'guest',
+}
+
+const sectionMeta: Record<string, { title: string; description: string; tips: string[] }> = {
+  profile: { title: 'Мой профиль', description: 'Редактирование карточки аккаунта и контактов.', tips: ['Проверьте ФИО и дату рождения.', 'Обновите bio и ссылку на аватар.'] },
+  edit: { title: 'Редактирование профиля', description: 'Рабочая форма профиля пользователя.', tips: ['Используйте загрузку данных перед сохранением.', 'Поля socials поддерживают key=value.'] },
+  activity: { title: 'Моя активность', description: 'Работа с комментариями и реакциями.', tips: ['Откройте сущность и оставьте комментарий.', 'Проверьте ограничения доступа в реальном потоке.'] },
+  permissions: { title: 'Мои права', description: 'Видимость текущих ролей и permission-поверхности.', tips: ['Сверьте роль и доступные действия.', 'Переходите в рабочие разделы по кнопкам ниже.'] },
+  'player-profile': { title: 'Player profile', description: 'Управление игровым профилем пользователя.', tips: ['Секция работает совместно со страницей игрока.', 'Проверяйте связь user ↔ player profile.'] },
+  'player-media': { title: 'Player media', description: 'Фото и медиа-поля профиля игрока.', tips: ['Используйте изображения с доступным URL.', 'Сохраняйте медиа отдельно от спортивных данных.'] },
+  team: { title: 'Моя команда', description: 'Быстрый вход в team workspace.', tips: ['Откройте карточку команды для inline-редактирования.', 'Используйте team context для событий/состава.'] },
+  invites: { title: 'Приглашения', description: 'Приглашение игроков в команду.', tips: ['Укажите корректный ID команды.', 'Username вводится без @.'] },
+  roster: { title: 'Управление составом', description: 'Видимость игроков в ростере.', tips: ['Проверьте ID команды и игрока.', 'Изменение применяется сразу после submit.'] },
+  'team-events': { title: 'События команды', description: 'Создание/обновление/удаление событий.', tips: ['Поддерживается загрузка изображения.', 'Для update/delete укажите event ID.'] },
+  'team-socials': { title: 'Соцсети команды', description: 'Обновление публичных ссылок команды.', tips: ['Формат ввода: key=value.', 'Сохраняйте только валидные URL.'] },
+  tournament: { title: 'Турнирный workspace', description: 'Создание команд/игроков/матчей.', tips: ['Матчи доступны admin/superadmin.', 'Команды и игроки создаются через API.'] },
+  moderation: { title: 'Модерация', description: 'Управление комментариями.', tips: ['Используйте ID комментария.', 'Действие логируется на backend.'] },
+  'comment-blocks': { title: 'Блокировки', description: 'Ограничение комментариев пользователей.', tips: ['Заполните reason и срок.', 'Permanent отключает временной лимит.'] },
+  roles: { title: 'Роли пользователей', description: 'Назначение ролей вручную.', tips: ['Роли вводятся через запятую.', 'Используйте только разрешенные role codes.'] },
+  rbac: { title: 'Permissions', description: 'Точная настройка прав.', tips: ['Permissions задаются CSV-списком.', 'Проверяйте влияние на роль после назначения.'] },
+  restrictions: { title: 'Restrictions', description: 'Глобальные ограничения пользователя.', tips: ['Restrictions задаются CSV-списком.', 'Проверяйте итоговые ограничения в профиле.'] },
+  settings: { title: 'Глобальные настройки', description: 'Системные флаги и конфигурации.', tips: ['Value должно быть валидным JSON.', 'Глобальные изменения — только superadmin.'] },
 }
 
 const parseCSV = (raw: string) => raw.split(',').map((item) => item.trim()).filter(Boolean)
@@ -91,10 +112,30 @@ export const CabinetSectionPage = () => {
   const [matchStartAt, setMatchStartAt] = useState('')
   const [matchStatus, setMatchStatus] = useState<Match['status']>('scheduled')
   const [matchVenue, setMatchVenue] = useState('')
+  const [tournamentCycles, setTournamentCycles] = useState<Array<{ id: string; name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive: boolean }>>([])
+  const [selectedCycleId, setSelectedCycleId] = useState('')
+  const [newCycleName, setNewCycleName] = useState('')
+  const [newCycleCapacity, setNewCycleCapacity] = useState<4 | 8 | 16 | 32>(16)
+  const [bracketCapacityDraft, setBracketCapacityDraft] = useState<4 | 8 | 16 | 32>(16)
 
   const minRole = section ? sectionRoles[section] : null
+  const meta = section ? sectionMeta[section] : null
   const allowed = minRole ? roleRank[session.user.role] >= roleRank[minRole] : false
   const isAdminScope = roleRank[session.user.role] >= roleRank.admin
+
+  useEffect(() => {
+    if (section !== 'tournament') return
+    if (!cabinetRepository.getTournamentCycles) return
+
+    void cabinetRepository.getTournamentCycles().then((cycles) => {
+      setTournamentCycles(cycles)
+      const active = cycles.find((item) => item.isActive) ?? cycles[0]
+      if (active) {
+        setSelectedCycleId(active.id)
+        setBracketCapacityDraft(active.bracketTeamCapacity)
+      }
+    }).catch(() => undefined)
+  }, [cabinetRepository, section])
 
   const socials = useMemo(() => Object.fromEntries(parseCSV(socialsRaw).map((line) => {
     const idx = line.indexOf('=')
@@ -122,7 +163,7 @@ export const CabinetSectionPage = () => {
     return ''
   }, [birthDate])
 
-  if (!section || !minRole) {
+  if (!section || !minRole || !meta) {
     return (
       <PageContainer>
         <section className="matte-panel p-4">
@@ -152,8 +193,24 @@ export const CabinetSectionPage = () => {
   return (
     <PageContainer>
       <section className="rounded-2xl border border-borderStrong bg-panelBg p-4 shadow-matte">
-        <h2 className="text-lg font-semibold text-textPrimary">{section}</h2>
-        <p className="mt-1 text-sm text-textSecondary">Раздел подключен к backend action handlers.</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="inline-flex items-center gap-1 rounded-full border border-borderSubtle px-2 py-0.5 text-[11px] text-textMuted">
+              <LayoutPanelTop size={12} /> Личный кабинет
+            </p>
+            <h2 className="mt-2 text-lg font-semibold text-textPrimary">{meta.title}</h2>
+            <p className="mt-1 text-sm text-textSecondary">{meta.description}</p>
+          </div>
+          <span className="rounded-full border border-borderSubtle px-2 py-0.5 text-[11px] text-textMuted">min role: {minRole}</span>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {meta.tips.map((tip) => (
+            <p key={tip} className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-xs text-textSecondary">{tip}</p>
+          ))}
+        </div>
+        <Link to="/profile" className="mt-3 inline-flex items-center gap-1 text-xs text-accentYellow">
+          Назад к секциям кабинета <ChevronRight size={12} />
+        </Link>
       </section>
 
       {section === 'activity' && (
@@ -375,8 +432,96 @@ export const CabinetSectionPage = () => {
 
       {section === 'tournament' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-3">
+          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 text-xs text-textSecondary">
+            <p>Команды и игроки сохраняются между турнирами. Матчи, сетка и таблица относятся к выбранному tournament cycle.</p>
+          </div>
+
           <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
-            <p className="text-xs text-textMuted">Create team</p>
+            <p className="text-xs text-textMuted">Список турниров / активный турнир</p>
+            {!tournamentCycles.length ? (
+              <p className="text-xs text-textMuted">Пока нет данных о циклах турнира.</p>
+            ) : (
+              <div className="space-y-2">
+                {tournamentCycles.map((cycle) => (
+                  <div key={cycle.id} className="flex items-center justify-between rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-xs">
+                    <div>
+                      <p className="text-textPrimary">{cycle.name}</p>
+                      <p className="text-textMuted">Bracket size: {cycle.bracketTeamCapacity}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {cycle.isActive && <span className="rounded-full border border-emerald-700/40 px-2 py-0.5 text-[10px] text-emerald-300">active</span>}
+                      {!cycle.isActive && (
+                        <button
+                          type="button"
+                          className="rounded border border-borderSubtle px-2 py-1"
+                          onClick={async () => {
+                            try {
+                              await cabinetRepository.setActiveTournamentCycle?.(cycle.id)
+                              const refreshed = await cabinetRepository.getTournamentCycles?.()
+                              if (refreshed?.length) setTournamentCycles(refreshed)
+                              setSelectedCycleId(cycle.id)
+                              setStatus('ok: active tournament switched')
+                            } catch (error) {
+                              setStatus(`error: ${(error as Error).message}`)
+                            }
+                          }}
+                        >
+                          Сделать активным
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
+            <p className="text-xs text-textMuted">Create tournament cycle</p>
+            <input value={newCycleName} onChange={(e) => setNewCycleName(e.target.value)} placeholder="Название цикла (например: Сезон 2027)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <select value={newCycleCapacity} onChange={(e) => setNewCycleCapacity(Number(e.target.value) as 4 | 8 | 16 | 32)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+              {[4, 8, 16, 32].map((size) => <option key={size} value={size}>{size} команд в сетке</option>)}
+            </select>
+            <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
+              try {
+                await cabinetRepository.createTournamentCycle?.({ name: newCycleName || `Сезон ${new Date().getFullYear()}`, bracketTeamCapacity: newCycleCapacity, isActive: false })
+                const refreshed = await cabinetRepository.getTournamentCycles?.()
+                if (refreshed?.length) setTournamentCycles(refreshed)
+                setStatus('ok: tournament cycle created')
+              } catch (error) {
+                setStatus(`error: ${(error as Error).message}`)
+              }
+            }}>Создать турнир</button>
+          </div>
+
+          <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
+            <p className="text-xs text-textMuted">Tournament settings / bracket settings</p>
+            <select value={selectedCycleId} onChange={(e) => {
+              const nextId = e.target.value
+              setSelectedCycleId(nextId)
+              const selected = tournamentCycles.find((item) => item.id === nextId)
+              if (selected) setBracketCapacityDraft(selected.bracketTeamCapacity)
+            }} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+              <option value="">Выберите турнир</option>
+              {tournamentCycles.map((cycle) => <option key={cycle.id} value={cycle.id}>{cycle.name}</option>)}
+            </select>
+            <select value={bracketCapacityDraft} onChange={(e) => setBracketCapacityDraft(Number(e.target.value) as 4 | 8 | 16 | 32)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+              {[4, 8, 16, 32].map((size) => <option key={size} value={size}>{size} команд в сетке</option>)}
+            </select>
+            <button type="button" disabled={!selectedCycleId} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
+              try {
+                await cabinetRepository.updateTournamentBracketSettings?.(selectedCycleId, { teamCapacity: bracketCapacityDraft })
+                const refreshed = await cabinetRepository.getTournamentCycles?.()
+                if (refreshed?.length) setTournamentCycles(refreshed)
+                setStatus('ok: bracket settings updated')
+              } catch (error) {
+                setStatus(`error: ${(error as Error).message}`)
+              }
+            }}>Сохранить настройки сетки</button>
+          </div>
+
+          <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
+            <p className="text-xs text-textMuted">Current tournament admin view: teams</p>
             <input value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="team name" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={newTeamSlug} onChange={(e) => setNewTeamSlug(e.target.value)} placeholder="team slug" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={newTeamDescription} onChange={(e) => setNewTeamDescription(e.target.value)} placeholder="team description" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
@@ -393,7 +538,7 @@ export const CabinetSectionPage = () => {
           </div>
 
           <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
-            <p className="text-xs text-textMuted">Create player</p>
+            <p className="text-xs text-textMuted">Current tournament admin view: players</p>
             <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="ID команды (например: 12)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={newPlayerName} onChange={(e) => setNewPlayerName(e.target.value)} placeholder="full name" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={newPlayerPosition} onChange={(e) => setNewPlayerPosition(e.target.value)} placeholder="position" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
@@ -411,7 +556,7 @@ export const CabinetSectionPage = () => {
           </div>
 
           <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
-            <p className="text-xs text-textMuted">Create match</p>
+            <p className="text-xs text-textMuted">Current tournament admin view: matches (привязка к турниру backend-side)</p>
             <input value={matchHomeTeamId} onChange={(e) => setMatchHomeTeamId(e.target.value)} placeholder="ID домашней команды" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={matchAwayTeamId} onChange={(e) => setMatchAwayTeamId(e.target.value)} placeholder="ID гостевой команды" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={matchStartAt} onChange={(e) => setMatchStartAt(e.target.value)} placeholder="Дата и время старта (RFC3339)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />

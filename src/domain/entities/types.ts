@@ -63,6 +63,7 @@ export interface Team {
 export interface Player {
   id: ID
   teamId: ID
+  userId?: ID
   displayName: string
   number: number
   position: PlayerPosition
@@ -210,12 +211,21 @@ export interface CommentAuthorState {
 
 export type EventEntityType = 'global' | 'team' | 'player' | 'match'
 export type EventCategory = 'news' | 'announcement' | 'report' | 'injury' | 'discipline' | 'tactical'
+export type EventContentBlockType = 'text' | 'image'
+
+export interface EventContentBlock {
+  id: ID
+  type: EventContentBlockType
+  text?: string
+  imageUrl?: string
+}
 
 export interface PublicEvent {
   id: ID
   title: string
   summary: string
   text: string
+  contentBlocks: EventContentBlock[]
   timestamp: string
   source: string
   authorName: string
@@ -251,6 +261,7 @@ export interface SessionUser {
   displayName: string
   role: UserRole
   roles?: UserRole[]
+  playerProfileId?: ID
   teamId?: ID
   telegramHandle?: string
   telegramId?: string
@@ -303,6 +314,8 @@ export interface BackendMeDTO {
     permissions: PermissionKey[] | string[]
     restrictions?: string[]
     telegram_id?: number | null
+    player_id?: number | string | null
+    team_id?: number | string | null
   }
   session: {
     id: string
