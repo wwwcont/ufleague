@@ -55,24 +55,24 @@ ON CONFLICT (id) DO NOTHING;
 
 SELECT setval('teams_id_seq', GREATEST((SELECT COALESCE(MAX(id),1) FROM teams), 1016));
 
-INSERT INTO players (id, user_id, team_id, full_name, nickname, avatar_url, socials, position, shirt_number)
+INSERT INTO players (id, team_id, full_name, nickname, avatar_url, socials, position, shirt_number)
 VALUES
-  (2001, 9003, 1001, 'Alex Striker', 'Alex', '', '{}'::jsonb, 'FW', 9),
-  (2002, 9004, 1002, 'Boris Keeper', 'Boris', '', '{}'::jsonb, 'GK', 1),
-  (2003, 9006, 1003, 'Chris Gamma', 'Chris', '', '{"age":"24"}'::jsonb, 'MF', 8),
-  (2004, 9007, 1004, 'Den Delta', 'Den', '', '{"age":"25"}'::jsonb, 'DF', 5),
-  (2005, 9008, 1005, 'Evan Epsilon', 'Evan', '', '{"age":"23"}'::jsonb, 'FW', 11),
-  (2006, 9009, 1006, 'Zed Zeta', 'Zed', '', '{"age":"22"}'::jsonb, 'MF', 6),
-  (2007, 9010, 1007, 'Eric Eta', 'Eric', '', '{"age":"26"}'::jsonb, 'DF', 4),
-  (2008, 9011, 1008, 'Theo Theta', 'Theo', '', '{"age":"27"}'::jsonb, 'FW', 10),
-  (2009, 9012, 1009, 'Ian Iota', 'Ian', '', '{"age":"21"}'::jsonb, 'MF', 7),
-  (2010, 9013, 1010, 'Karl Kappa', 'Karl', '', '{"age":"28"}'::jsonb, 'GK', 1),
-  (2011, 9014, 1011, 'Leo Lambda', 'Leo', '', '{"age":"24"}'::jsonb, 'FW', 19),
-  (2012, 9015, 1012, 'Max Mu', 'Max', '', '{"age":"22"}'::jsonb, 'DF', 3),
-  (2013, 9016, 1013, 'Niko Nu', 'Niko', '', '{"age":"25"}'::jsonb, 'MF', 14),
-  (2014, 9017, 1014, 'Xander Xi', 'Xan', '', '{"age":"23"}'::jsonb, 'FW', 9),
-  (2015, 9018, 1015, 'Omar Omicron', 'Omar', '', '{"age":"27"}'::jsonb, 'DF', 2),
-  (2016, 9005, 1016, 'Sam Sigma', 'Sam', '', '{"age":"20"}'::jsonb, 'MF', 16)
+  (2001, 1001, 'Alex Striker', 'Alex', '', '{}'::jsonb, 'FW', 9),
+  (2002, 1002, 'Boris Keeper', 'Boris', '', '{}'::jsonb, 'GK', 1),
+  (2003, 1003, 'Chris Gamma', 'Chris', '', '{"age":"24"}'::jsonb, 'MF', 8),
+  (2004, 1004, 'Den Delta', 'Den', '', '{"age":"25"}'::jsonb, 'DF', 5),
+  (2005, 1005, 'Evan Epsilon', 'Evan', '', '{"age":"23"}'::jsonb, 'FW', 11),
+  (2006, 1006, 'Zed Zeta', 'Zed', '', '{"age":"22"}'::jsonb, 'MF', 6),
+  (2007, 1007, 'Eric Eta', 'Eric', '', '{"age":"26"}'::jsonb, 'DF', 4),
+  (2008, 1008, 'Theo Theta', 'Theo', '', '{"age":"27"}'::jsonb, 'FW', 10),
+  (2009, 1009, 'Ian Iota', 'Ian', '', '{"age":"21"}'::jsonb, 'MF', 7),
+  (2010, 1010, 'Karl Kappa', 'Karl', '', '{"age":"28"}'::jsonb, 'GK', 1),
+  (2011, 1011, 'Leo Lambda', 'Leo', '', '{"age":"24"}'::jsonb, 'FW', 19),
+  (2012, 1012, 'Max Mu', 'Max', '', '{"age":"22"}'::jsonb, 'DF', 3),
+  (2013, 1013, 'Niko Nu', 'Niko', '', '{"age":"25"}'::jsonb, 'MF', 14),
+  (2014, 1014, 'Xander Xi', 'Xan', '', '{"age":"23"}'::jsonb, 'FW', 9),
+  (2015, 1015, 'Omar Omicron', 'Omar', '', '{"age":"27"}'::jsonb, 'DF', 2),
+  (2016, 1016, 'Sam Sigma', 'Sam', '', '{"age":"20"}'::jsonb, 'MF', 16)
 ON CONFLICT (id) DO NOTHING;
 SELECT setval('players_id_seq', GREATEST((SELECT COALESCE(MAX(id),1) FROM players), 2016));
 
