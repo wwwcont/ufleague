@@ -353,12 +353,24 @@ export const bracketRepository: BracketRepository = {
       teamCapacity: [4, 8, 16, 32].includes(Number(data.settings?.team_capacity)) ? Number(data.settings?.team_capacity) as BracketSettings['teamCapacity'] : 16,
     }
 
-    const stages: BracketStage[] = stagesRaw.map((stage, index) => ({
+    const stagesFromApi: BracketStage[] = stagesRaw.map((stage, index) => ({
       id: String(stage.id),
       label: stage.label,
       order: Number(stage.order ?? index + 1),
       size: Number(stage.size ?? 1),
     }))
+    const expectedStageCount = Math.max(1, Math.round(Math.log2(settings.teamCapacity)))
+    const stages: BracketStage[] = Array.from({ length: expectedStageCount }, (_, index) => {
+      const stageOrder = index + 1
+      const mapped = stagesFromApi.find((stage) => stage.order === stageOrder) ?? stagesFromApi[index]
+      const computedSize = Math.max(1, Math.floor(settings.teamCapacity / (2 ** stageOrder)))
+      return {
+        id: mapped?.id ?? `stage_${stageOrder}`,
+        label: mapped?.label ?? (computedSize === 1 ? 'Финал' : `1/${computedSize * 2} финала`),
+        order: stageOrder,
+        size: computedSize,
+      }
+    })
 
     const groups: BracketMatchGroup[] = groupsRaw.map((group) => {
       const firstLegScore = group.first_leg_home_score !== undefined && group.first_leg_away_score !== undefined
@@ -373,8 +385,8 @@ export const bracketRepository: BracketRepository = {
 
       return {
         id: String(group.id),
-        stageId: String(group.stage_id ?? group.round_id),
-        slot: Number(group.slot ?? 1),
+        stageId: String(group.stage_id ?? group.round_id ?? `stage_${group.stage_slot_column ?? 1}`),
+        slot: Number(group.slot ?? group.stage_slot_row ?? 1),
         homeTeamId: group.home_team_id ? String(group.home_team_id) : null,
         awayTeamId: group.away_team_id ? String(group.away_team_id) : null,
         winnerTeamId: group.winner_team_id ? String(group.winner_team_id) : null,

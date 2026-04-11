@@ -671,12 +671,18 @@ export const CabinetSectionPage = () => {
 
       {section === 'tournament' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-3">
+          <div className="rounded-xl border border-accentYellow/30 bg-accentYellow/5 p-3">
+            <p className="text-sm font-semibold text-accentYellow">Tournament administration</p>
+            <p className="text-xs text-textMuted mt-1">Отдельные секции: создание турнира, выбор активного, настройки сетки и ручное управление tie/slot.</p>
+            {selectedCycleId && <p className="mt-1 text-xs text-textSecondary">Активный контекст: tournament #{selectedCycleId}</p>}
+          </div>
+
           <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 text-xs text-textSecondary">
             <p>Команды и игроки сохраняются между турнирами. Матчи, сетка и таблица относятся к выбранному tournament cycle.</p>
           </div>
 
           <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
-            <p className="text-xs text-textMuted">Список турниров / активный турнир</p>
+            <p className="text-xs font-semibold text-textPrimary">1) Список турниров и выбор активного</p>
             {!tournamentCycles.length ? (
               <p className="text-xs text-textMuted">Пока нет данных о циклах турнира.</p>
             ) : (
@@ -716,7 +722,7 @@ export const CabinetSectionPage = () => {
           </div>
 
           <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
-            <p className="text-xs text-textMuted">Create tournament cycle</p>
+            <p className="text-xs font-semibold text-textPrimary">2) Создание турнира (cycle)</p>
             <input value={newCycleName} onChange={(e) => setNewCycleName(e.target.value)} placeholder="Название цикла (например: Сезон 2027)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <select value={newCycleCapacity} onChange={(e) => setNewCycleCapacity(Number(e.target.value) as 4 | 8 | 16 | 32)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
               {[4, 8, 16, 32].map((size) => <option key={size} value={size}>{size} команд в сетке</option>)}
@@ -734,7 +740,7 @@ export const CabinetSectionPage = () => {
           </div>
 
           <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
-            <p className="text-xs text-textMuted">Tournament settings / bracket settings</p>
+            <p className="text-xs font-semibold text-textPrimary">3) Настройки сетки турнира</p>
             <select value={selectedCycleId} onChange={(e) => {
               const nextId = e.target.value
               setSelectedCycleId(nextId)
@@ -760,7 +766,7 @@ export const CabinetSectionPage = () => {
           </div>
 
           <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
-            <p className="text-xs text-textMuted">Bracket slot / tie creation (admin/superadmin)</p>
+            <p className="text-xs font-semibold text-textPrimary">4) Управление стадиями / tie / slot</p>
             <select value={tieStageId} onChange={(e) => setTieStageId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
               <option value="">Выберите стадию</option>
               {(bracket?.stages ?? []).map((stage) => <option key={stage.id} value={stage.id}>{stage.label}</option>)}
