@@ -78,12 +78,24 @@ export const BracketView = ({
 
     const stageLayouts = new Map<string, LayoutNode[]>()
 
+    const verticalStep = NODE_H + FIRST_ROUND_GAP
+
     sortedStages.forEach((stage, stageIndex) => {
       const stageGroups = byStage.get(stage.id) ?? []
       const x = PADDING_X + stageIndex * ROUND_GAP
 
+      if (editable) {
+        const blockSize = 2 ** stageIndex
+        stageLayouts.set(stage.id, stageGroups.map((group) => {
+          const slotIndex = Math.max(0, group.slot - 1)
+          const centerY = PADDING_Y + NODE_H / 2 + (slotIndex * blockSize + (blockSize - 1) / 2) * verticalStep
+          return { ...group, x, y: centerY - NODE_H / 2, ...(group.id.startsWith('placeholder:') ? { isPlaceholder: true as const } : {}) }
+        }))
+        return
+      }
+
       if (stageIndex === 0) {
-        stageLayouts.set(stage.id, stageGroups.map((group, index) => ({ ...group, x, y: PADDING_Y + index * (NODE_H + FIRST_ROUND_GAP), ...(group.id.startsWith('placeholder:') ? { isPlaceholder: true as const } : {}) })))
+        stageLayouts.set(stage.id, stageGroups.map((group, index) => ({ ...group, x, y: PADDING_Y + index * verticalStep, ...(group.id.startsWith('placeholder:') ? { isPlaceholder: true as const } : {}) })))
         return
       }
 
@@ -94,7 +106,7 @@ export const BracketView = ({
         const start = index * groupSize
         const end = clamp(start + groupSize - 1, start, prevNodes.length - 1)
         const centers = prevNodes.slice(start, end + 1).map((node) => node.y + NODE_H / 2)
-        const centerY = centers.length ? centers.reduce((sum, c) => sum + c, 0) / centers.length : PADDING_Y + index * (NODE_H + FIRST_ROUND_GAP)
+        const centerY = centers.length ? centers.reduce((sum, c) => sum + c, 0) / centers.length : PADDING_Y + index * verticalStep
         return { ...group, x, y: centerY - NODE_H / 2, ...(group.id.startsWith('placeholder:') ? { isPlaceholder: true as const } : {}) }
       }))
     })
