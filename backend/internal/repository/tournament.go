@@ -17,7 +17,7 @@ func NewTournamentRepository(pool *pgxpool.Pool) *TournamentRepository {
 }
 
 func (r *TournamentRepository) ListTeams(ctx context.Context) ([]domain.Team, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id,name,slug,COALESCE(description,''),COALESCE(logo_url,''),socials,captain_user_id,created_at,updated_at FROM teams ORDER BY id DESC`)
+	rows, err := r.pool.Query(ctx, `SELECT id,name,COALESCE(short_name,''),slug,COALESCE(description,''),COALESCE(logo_url,''),socials,captain_user_id,created_at,updated_at FROM teams ORDER BY id DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -33,25 +33,25 @@ func (r *TournamentRepository) ListTeams(ctx context.Context) ([]domain.Team, er
 	return out, rows.Err()
 }
 func (r *TournamentRepository) GetTeam(ctx context.Context, id int64) (domain.Team, error) {
-	row := r.pool.QueryRow(ctx, `SELECT id,name,slug,COALESCE(description,''),COALESCE(logo_url,''),socials,captain_user_id,created_at,updated_at FROM teams WHERE id=$1`, id)
+	row := r.pool.QueryRow(ctx, `SELECT id,name,COALESCE(short_name,''),slug,COALESCE(description,''),COALESCE(logo_url,''),socials,captain_user_id,created_at,updated_at FROM teams WHERE id=$1`, id)
 	return scanTeam(row)
 }
 func (r *TournamentRepository) CreateTeam(ctx context.Context, team domain.Team) (domain.Team, error) {
 	socials, _ := json.Marshal(team.Socials)
 	row := r.pool.QueryRow(ctx, `
-	INSERT INTO teams (name,slug,description,logo_url,socials,captain_user_id)
-	VALUES ($1,$2,$3,NULLIF($4,''),$5,$6)
-	RETURNING id,name,slug,COALESCE(description,''),COALESCE(logo_url,''),socials,captain_user_id,created_at,updated_at`,
-		team.Name, team.Slug, team.Description, team.LogoURL, socials, team.CaptainUserID)
+	INSERT INTO teams (name,short_name,slug,description,logo_url,socials,captain_user_id)
+	VALUES ($1,$2,$3,$4,NULLIF($5,''),$6,$7)
+	RETURNING id,name,COALESCE(short_name,''),slug,COALESCE(description,''),COALESCE(logo_url,''),socials,captain_user_id,created_at,updated_at`,
+		team.Name, team.ShortName, team.Slug, team.Description, team.LogoURL, socials, team.CaptainUserID)
 	return scanTeam(row)
 }
 func (r *TournamentRepository) UpdateTeam(ctx context.Context, id int64, team domain.Team) (domain.Team, error) {
 	socials, _ := json.Marshal(team.Socials)
 	row := r.pool.QueryRow(ctx, `
-	UPDATE teams SET name=$2,slug=$3,description=$4,logo_url=NULLIF($5,''),socials=$6,updated_at=NOW()
+	UPDATE teams SET name=$2,short_name=$3,slug=$4,description=$5,logo_url=NULLIF($6,''),socials=$7,updated_at=NOW()
 	WHERE id=$1
-	RETURNING id,name,slug,COALESCE(description,''),COALESCE(logo_url,''),socials,captain_user_id,created_at,updated_at`,
-		id, team.Name, team.Slug, team.Description, team.LogoURL, socials)
+	RETURNING id,name,COALESCE(short_name,''),slug,COALESCE(description,''),COALESCE(logo_url,''),socials,captain_user_id,created_at,updated_at`,
+		id, team.Name, team.ShortName, team.Slug, team.Description, team.LogoURL, socials)
 	return scanTeam(row)
 }
 func (r *TournamentRepository) CountTeamsByCaptain(ctx context.Context, userID int64) (int, error) {
@@ -154,7 +154,7 @@ func scanTeam(row scanner) (domain.Team, error) {
 	var t domain.Team
 	var socials []byte
 	var captain *int64
-	err := row.Scan(&t.ID, &t.Name, &t.Slug, &t.Description, &t.LogoURL, &socials, &captain, &t.CreatedAt, &t.UpdatedAt)
+	err := row.Scan(&t.ID, &t.Name, &t.ShortName, &t.Slug, &t.Description, &t.LogoURL, &socials, &captain, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
 		return t, err
 	}

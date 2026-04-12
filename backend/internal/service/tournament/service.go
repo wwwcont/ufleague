@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"football_ui/backend/internal/domain"
 )
@@ -73,6 +74,7 @@ func (s Service) CreateTeam(ctx context.Context, actor domain.User, req domain.C
 
 	team := domain.Team{
 		Name:        strings.TrimSpace(req.Name),
+		ShortName:   buildShortName(req.ShortName, req.Name),
 		Slug:        buildTeamSlug(req.Slug, req.Name, actor.ID),
 		Description: req.Description,
 		LogoURL:     req.LogoURL,
@@ -110,8 +112,32 @@ func (s Service) UpdateTeam(ctx context.Context, actor domain.User, id int64, re
 	} else if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
 		return domain.Team{}, ErrForbidden
 	}
-	patch := domain.Team{Name: req.Name, Slug: req.Slug, Description: req.Description, LogoURL: req.LogoURL, Socials: req.Socials}
+	patch := domain.Team{Name: req.Name, ShortName: buildShortName(req.ShortName, req.Name), Slug: req.Slug, Description: req.Description, LogoURL: req.LogoURL, Socials: req.Socials}
 	return s.repo.UpdateTeam(ctx, id, patch)
+}
+
+func buildShortName(raw string, teamName string) string {
+	normalized := strings.ToUpper(strings.TrimSpace(raw))
+	if normalized != "" {
+		runes := []rune(normalized)
+		if len(runes) >= 3 {
+			return string(runes[:3])
+		}
+		return normalized + strings.Repeat("X", 3-len(runes))
+	}
+	letters := make([]rune, 0, 3)
+	for _, r := range []rune(strings.ToUpper(teamName)) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			letters = append(letters, r)
+		}
+		if len(letters) == 3 {
+			break
+		}
+	}
+	for len(letters) < 3 {
+		letters = append(letters, 'X')
+	}
+	return string(letters)
 }
 
 func (s Service) ListPlayers(ctx context.Context) ([]domain.Player, error) {

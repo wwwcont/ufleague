@@ -45,7 +45,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 const mapTeam = (t: any): Team => ({
   id: String(t.id),
   name: t.name,
-  shortName: t.name?.slice(0, 3)?.toUpperCase() ?? 'TBD',
+  shortName: (t.short_name ? String(t.short_name) : t.name?.slice(0, 3)?.toUpperCase()) ?? 'TBD',
   logoUrl: t.logo_url || null,
   captainUserId: t.captain_user_id ? String(t.captain_user_id) : null,
   city: t.socials?.city || 'UFL Development',
@@ -215,6 +215,7 @@ export const teamsRepository: TeamsRepository = {
       method: 'POST',
       body: JSON.stringify({
         name: input.name,
+        short_name: input.shortName ?? input.name.slice(0, 3).toUpperCase(),
         slug: input.slug ?? '',
         description: input.description,
         logo_url: input.logoUrl ?? '',
@@ -243,6 +244,7 @@ export const teamsRepository: TeamsRepository = {
       method: 'PATCH',
       body: JSON.stringify({
         name: patch.name ?? current.name,
+        short_name: patch.shortName ?? current.short_name ?? current.name?.slice(0, 3)?.toUpperCase() ?? 'TBD',
         slug: current.slug,
         description: patch.description ?? current.description ?? '',
         logo_url: patch.logoUrl ?? current.logo_url ?? '',

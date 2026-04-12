@@ -21,7 +21,6 @@ import { canManageTeam } from '../../domain/services/accessControl'
 import { ApiError } from '../../infrastructure/api/repositories'
 import type { EventContentBlock } from '../../domain/entities/types'
 import {
-  EditableImageField,
   EditableSection,
   EditableSectionHeader,
   EditableTextField,
@@ -37,7 +36,7 @@ export const TeamDetailsPage = () => {
   const [searchParams] = useSearchParams()
   const { data: team } = useTeamDetails(teamId)
   const { data: players } = usePlayers(teamId)
-  const { data: teamFeed } = useEvents({ entityType: 'team', entityId: teamId, limit: 4 })
+  const { data: teamFeed } = useEvents({ entityType: 'team', entityId: teamId })
   const { data: standings } = useStandings()
   const { data: matches } = useMatches()
   const { data: teams } = useTeams()
@@ -45,20 +44,16 @@ export const TeamDetailsPage = () => {
   const { teamsRepository, eventsRepository, uploadsRepository, playersRepository, usersRepository } = useRepositories()
   const [heroEditing, setHeroEditing] = useState(false)
   const [descriptionEditing, setDescriptionEditing] = useState(false)
-  const [socialsEditing, setSocialsEditing] = useState(false)
-
   const [heroSaving, setHeroSaving] = useState(false)
   const [descriptionSaving, setDescriptionSaving] = useState(false)
-  const [socialsSaving, setSocialsSaving] = useState(false)
 
   const [heroStatus, setHeroStatus] = useState<string | null>(null)
   const [heroTone, setHeroTone] = useState<'idle' | 'success' | 'error'>('idle')
   const [descriptionStatus, setDescriptionStatus] = useState<string | null>(null)
   const [descriptionTone, setDescriptionTone] = useState<'idle' | 'success' | 'error'>('idle')
-  const [socialsStatus, setSocialsStatus] = useState<string | null>(null)
-  const [socialsTone, setSocialsTone] = useState<'idle' | 'success' | 'error'>('idle')
 
   const [editableName, setEditableName] = useState('')
+  const [editableShortName, setEditableShortName] = useState('')
   const [editableSlogan, setEditableSlogan] = useState('')
   const [editableDescription, setEditableDescription] = useState('')
   const [editableTelegram, setEditableTelegram] = useState('')
@@ -87,6 +82,7 @@ export const TeamDetailsPage = () => {
   useEffect(() => {
     if (!team) return
     setEditableName(team.name)
+    setEditableShortName(team.shortName)
     setEditableSlogan(team.slogan ?? '')
     setEditableDescription(team.description ?? '')
     setEditableTelegram(team.socials?.telegram ?? '')
@@ -100,7 +96,6 @@ export const TeamDetailsPage = () => {
     setLogoFile(null)
     setHeroEditing(false)
     setDescriptionEditing(false)
-    setSocialsEditing(false)
   }, [team])
 
   useEffect(() => {
@@ -139,14 +134,9 @@ export const TeamDetailsPage = () => {
 
   const syncHeroDraft = () => {
     setEditableName(team.name)
+    setEditableShortName(team.shortName)
     setEditableSlogan(team.slogan ?? '')
     setEditableLogoUrl(team.logoUrl ?? undefined)
-    setLogoFile(null)
-  }
-  const syncDescriptionDraft = () => {
-    setEditableDescription(team.description ?? '')
-  }
-  const syncSocialsDraft = () => {
     setEditableTelegram(team.socials?.telegram ?? '')
     setEditableVk(team.socials?.vk ?? '')
     setEditableInstagram(team.socials?.instagram ?? '')
@@ -154,8 +144,11 @@ export const TeamDetailsPage = () => {
     setCustomUrl1(team.socials?.custom?.[0]?.url ?? '')
     setCustomLabel2(team.socials?.custom?.[1]?.label ?? '')
     setCustomUrl2(team.socials?.custom?.[1]?.url ?? '')
+    setLogoFile(null)
   }
-
+  const syncDescriptionDraft = () => {
+    setEditableDescription(team.description ?? '')
+  }
   return (
     <PageContainer>
       <EditableSection isEditing={heroEditing} className="relative overflow-hidden border-borderStrong bg-panelBg p-5 shadow-matte">
@@ -173,8 +166,8 @@ export const TeamDetailsPage = () => {
 
         <div className="relative z-10">
           <EditableSectionHeader
-            title="Hero команды"
-            subtitle="Лого, название и слоган"
+            title="Полное название команды"
+            subtitle="Основной блок команды: лого, сокращение, слоган и соцсети"
             canEdit={canManageCurrentTeam}
             isEditing={heroEditing}
             onStartEdit={() => {
@@ -192,28 +185,46 @@ export const TeamDetailsPage = () => {
           />
 
           <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center">
-            <TeamAvatar team={{ ...team, logoUrl: editableLogoUrl ?? team.logoUrl }} size="xl" fallbackLogoUrl={tournament.logoUrl} className="h-20 w-20 border border-borderStrong bg-panelSoft p-2" />
+            <TeamAvatar team={{ ...team, logoUrl: editableLogoUrl ?? team.logoUrl }} size="xl" fallbackLogoUrl={tournament.logoUrl} className="h-28 w-28 border border-borderStrong bg-panelSoft p-2" />
             <div className="flex-1">
               {heroEditing ? (
                 <div className="space-y-2">
-                  <EditableTextField label="Название" value={editableName} onChange={setEditableName} isEditing placeholder="Название команды" />
+                  <EditableTextField label="Полное название" value={editableName} onChange={setEditableName} isEditing placeholder="Название команды" />
+                  <EditableTextField label="Сокращение (3 символа)" value={editableShortName} onChange={(value) => setEditableShortName(value.toUpperCase().slice(0, 3))} isEditing placeholder="ABC" />
                   <EditableTextField label="Слоган" value={editableSlogan} onChange={setEditableSlogan} isEditing placeholder="Слоган (необязательно)" />
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <EditableTextField label="Telegram" value={editableTelegram} onChange={setEditableTelegram} isEditing placeholder="@team_channel" />
+                    <EditableTextField label="VK" value={editableVk} onChange={setEditableVk} isEditing placeholder="vk.com/team" />
+                    <EditableTextField label="Instagram" value={editableInstagram} onChange={setEditableInstagram} isEditing placeholder="instagram.com/team" />
+                    <EditableTextField label="Custom link #1 (label)" value={customLabel1} onChange={setCustomLabel1} isEditing placeholder="Партнер" />
+                    <EditableTextField label="Custom link #1 (url)" value={customUrl1} onChange={setCustomUrl1} isEditing placeholder="https://..." />
+                    <EditableTextField label="Custom link #2 (label)" value={customLabel2} onChange={setCustomLabel2} isEditing placeholder="Мерч" />
+                    <EditableTextField label="Custom link #2 (url)" value={customUrl2} onChange={setCustomUrl2} isEditing placeholder="https://..." />
+                  </div>
                 </div>
               ) : (
                 <>
                   <h1 className="text-3xl font-bold text-textPrimary">{team.name}</h1>
                   {team.slogan && <p className="mt-1 text-sm text-textSecondary">{team.slogan}</p>}
+                  <p className="mt-2 text-2xl font-black uppercase tracking-[0.12em] text-accentYellow">{team.shortName}</p>
+                  <div className="mt-2">
+                    <SocialLinks
+                      compact
+                      links={{ telegram: team.socials?.telegram, vk: team.socials?.vk, instagram: team.socials?.instagram }}
+                      custom={team.socials?.custom}
+                    />
+                  </div>
                 </>
               )}
             </div>
           </div>
 
           {heroEditing && (
-            <EditableImageField
-              label="Сменить логотип"
-              imageUrl={editableLogoUrl}
-              isEditing
-              onSelectFile={(file) => {
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null
                 setLogoFile(file)
                 if (!file) {
                   setEditableLogoUrl(team.logoUrl ?? undefined)
@@ -221,6 +232,7 @@ export const TeamDetailsPage = () => {
                 }
                 setEditableLogoUrl(URL.createObjectURL(file))
               }}
+              className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-xs text-textSecondary"
             />
           )}
 
@@ -244,8 +256,18 @@ export const TeamDetailsPage = () => {
                 const logoUrl = logoFile ? (await uploadsRepository.uploadImage(logoFile)).url : team.logoUrl ?? undefined
                 await teamsRepository.updateTeam(team.id, {
                   name: editableName,
+                  shortName: editableShortName,
                   slogan: editableSlogan,
                   logoUrl,
+                  socials: {
+                    telegram: editableTelegram,
+                    vk: editableVk,
+                    instagram: editableInstagram,
+                    custom: [
+                      ...(customLabel1 && customUrl1 ? [{ label: customLabel1, url: customUrl1 }] : []),
+                      ...(customLabel2 && customUrl2 ? [{ label: customLabel2, url: customUrl2 }] : []),
+                    ],
+                  },
                 })
                 setHeroStatus('Hero обновлен')
                 setHeroTone('success')
@@ -257,12 +279,6 @@ export const TeamDetailsPage = () => {
                 setHeroSaving(false)
               }
             }}
-          />
-
-          <SocialLinks
-            compact
-            links={{ telegram: team.socials?.telegram, vk: team.socials?.vk, instagram: team.socials?.instagram }}
-            custom={team.socials?.custom}
           />
         </div>
       </EditableSection>
@@ -316,82 +332,6 @@ export const TeamDetailsPage = () => {
               setDescriptionTone('error')
             } finally {
               setDescriptionSaving(false)
-            }
-          }}
-        />
-      </EditableSection>
-
-      <EditableSection isEditing={socialsEditing}>
-        <EditableSectionHeader
-          title="Соцсети"
-          canEdit={canManageCurrentTeam}
-          isEditing={socialsEditing}
-          onStartEdit={() => {
-            syncSocialsDraft()
-            setSocialsStatus(null)
-            setSocialsTone('idle')
-            setSocialsEditing(true)
-          }}
-          onCancelEdit={() => {
-            syncSocialsDraft()
-            setSocialsStatus(null)
-            setSocialsTone('idle')
-            setSocialsEditing(false)
-          }}
-        />
-        {socialsEditing ? (
-          <div className="grid gap-2 sm:grid-cols-2">
-            <EditableTextField label="Telegram" value={editableTelegram} onChange={setEditableTelegram} isEditing placeholder="@team_channel" />
-            <EditableTextField label="VK" value={editableVk} onChange={setEditableVk} isEditing placeholder="vk.com/team" />
-            <EditableTextField label="Instagram" value={editableInstagram} onChange={setEditableInstagram} isEditing placeholder="instagram.com/team" />
-            <EditableTextField label="Custom link #1 (label)" value={customLabel1} onChange={setCustomLabel1} isEditing placeholder="Партнер" />
-            <EditableTextField label="Custom link #1 (url)" value={customUrl1} onChange={setCustomUrl1} isEditing placeholder="https://..." />
-            <EditableTextField label="Custom link #2 (label)" value={customLabel2} onChange={setCustomLabel2} isEditing placeholder="Мерч" />
-            <EditableTextField label="Custom link #2 (url)" value={customUrl2} onChange={setCustomUrl2} isEditing placeholder="https://..." />
-          </div>
-        ) : (
-          <SocialLinks
-            compact
-            links={{ telegram: team.socials?.telegram, vk: team.socials?.vk, instagram: team.socials?.instagram }}
-            custom={team.socials?.custom}
-          />
-        )}
-        <SectionActionBar
-          isEditing={socialsEditing}
-          isPending={socialsSaving}
-          statusMessage={socialsStatus}
-          statusTone={socialsTone}
-          onCancel={() => {
-            syncSocialsDraft()
-            setSocialsStatus(null)
-            setSocialsTone('idle')
-            setSocialsEditing(false)
-          }}
-          onSave={async () => {
-            if (!teamsRepository.updateTeam) return
-            setSocialsSaving(true)
-            setSocialsStatus('Сохраняем соцсети...')
-            setSocialsTone('idle')
-            try {
-              await teamsRepository.updateTeam(team.id, {
-                socials: {
-                  telegram: editableTelegram,
-                  vk: editableVk,
-                  instagram: editableInstagram,
-                  custom: [
-                    ...(customLabel1 && customUrl1 ? [{ label: customLabel1, url: customUrl1 }] : []),
-                    ...(customLabel2 && customUrl2 ? [{ label: customLabel2, url: customUrl2 }] : []),
-                  ],
-                },
-              })
-              setSocialsStatus('Соцсети обновлены')
-              setSocialsTone('success')
-              setSocialsEditing(false)
-            } catch (error) {
-              setSocialsStatus(actionError(error))
-              setSocialsTone('error')
-            } finally {
-              setSocialsSaving(false)
             }
           }}
         />

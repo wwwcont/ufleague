@@ -25,8 +25,8 @@ import type {
 export interface TeamsRepository {
   getTeams(): Promise<Team[]>
   getTeamById(teamId: string): Promise<Team | null>
-  createTeam?(input: { name: string; slug?: string; description: string; logoUrl?: string }): Promise<{ id: string } | void>
-  updateTeam?(teamId: string, patch: Partial<Pick<Team, 'name' | 'logoUrl' | 'description' | 'slogan' | 'socials'>>): Promise<void>
+  createTeam?(input: { name: string; shortName?: string; slug?: string; description: string; logoUrl?: string }): Promise<{ id: string } | void>
+  updateTeam?(teamId: string, patch: Partial<Pick<Team, 'name' | 'shortName' | 'logoUrl' | 'description' | 'slogan' | 'socials'>>): Promise<void>
   captainInviteByUsername?(teamId: string, username: string): Promise<void>
   captainUpdateSocials?(teamId: string, socials: Record<string, string>): Promise<void>
   captainSetRosterVisibility?(teamId: string, playerId: string, isVisible: boolean): Promise<void>
