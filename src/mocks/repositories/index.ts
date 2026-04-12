@@ -267,6 +267,19 @@ export const usersRepository: UsersRepository = {
       isOnline: false,
     }
   },
+  async getUserProfile(userId) {
+    return {
+      userId,
+      username: `user_${userId}`,
+      displayName: `Пользователь #${userId}`,
+      bio: '',
+      avatarUrl: '',
+      socials: {},
+    }
+  },
+  async updateUserProfile() {
+    return
+  },
 }
 
 export const uploadsRepository: UploadsRepository = {

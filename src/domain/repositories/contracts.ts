@@ -103,6 +103,8 @@ export interface SessionRepository {
 
 export interface UsersRepository {
   getUserCard(userId: string): Promise<PublicUserCard | null>
+  getUserProfile?(userId: string): Promise<{ userId: string; username: string; displayName: string; bio: string; avatarUrl: string; socials: Record<string, string> } | null>
+  updateUserProfile?(userId: string, input: { displayName: string; bio: string; avatarUrl: string; socials: Record<string, string> }): Promise<void>
   findByTelegramUsername?(username: string): Promise<PublicUserCard | null>
 }
 

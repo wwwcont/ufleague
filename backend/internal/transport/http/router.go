@@ -116,6 +116,8 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Patch("/captain/teams/{id}/roster/{playerId}", h.CaptainSetRosterVisibility)
 		r.With(sessionMW.RequireSession).Post("/admin/comments/{id}/moderate-delete", h.AdminModerateComment)
 		r.With(sessionMW.RequireSession).Post("/admin/teams/{id}/transfer-captain", h.AdminTransferCaptain)
+		r.With(sessionMW.RequireSession).Get("/admin/users/{id}/profile", h.AdminGetUserProfile)
+		r.With(sessionMW.RequireSession).Patch("/admin/users/{id}/profile", h.AdminUpdateUserProfile)
 		r.With(sessionMW.RequireSession).Post("/admin/users/{id}/comment-block", h.AdminBlockComments)
 		r.With(sessionMW.RequireSession).Post("/superadmin/users/{id}/roles", h.SuperadminAssignRoles)
 		r.With(sessionMW.RequireSession).Post("/superadmin/users/{id}/permissions", h.SuperadminAssignPermissions)
@@ -1237,6 +1239,47 @@ func (h Handler) AdminBlockComments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+func (h Handler) AdminGetUserProfile(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	userID, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	item, err := h.cabinet.AdminGetUserProfile(r.Context(), current.User, userID)
+	if err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, item)
+}
+func (h Handler) AdminUpdateUserProfile(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	userID, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	var req domain.UpdateProfileRequest
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	item, err := h.cabinet.AdminUpdateUserProfile(r.Context(), current.User, userID, req)
+	if err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, item)
 }
 func (h Handler) SuperadminAssignRoles(w http.ResponseWriter, r *http.Request) {
 	current, ok := middleware.CurrentSession(r.Context())

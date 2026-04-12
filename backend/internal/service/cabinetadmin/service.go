@@ -49,6 +49,21 @@ func (s Service) UpdateMyProfile(ctx context.Context, user domain.User, req doma
 	}
 	return s.repo.UpdateProfile(ctx, user.ID, req)
 }
+func (s Service) AdminGetUserProfile(ctx context.Context, actor domain.User, userID int64) (domain.UserProfile, error) {
+	if !s.policy.CanAdminModerate(actor) {
+		return domain.UserProfile{}, fmt.Errorf("forbidden")
+	}
+	return s.repo.GetProfile(ctx, userID)
+}
+func (s Service) AdminUpdateUserProfile(ctx context.Context, actor domain.User, userID int64, req domain.UpdateProfileRequest) (domain.UserProfile, error) {
+	if !s.policy.CanAdminModerate(actor) {
+		return domain.UserProfile{}, fmt.Errorf("forbidden")
+	}
+	if len(req.DisplayName) > 80 || len(req.Bio) > 1000 {
+		return domain.UserProfile{}, fmt.Errorf("validation failed")
+	}
+	return s.repo.UpdateProfile(ctx, userID, req)
+}
 
 func (s Service) CaptainInviteByUsername(ctx context.Context, actor domain.User, teamID int64, username string) error {
 	team, err := s.repo.GetTeamByID(ctx, teamID)

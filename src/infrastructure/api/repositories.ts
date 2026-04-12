@@ -870,6 +870,42 @@ export const usersRepository: UsersRepository = {
       }
     }
   },
+  async getUserProfile(userId) {
+    try {
+      const item = await api<any>(`/api/admin/users/${userId}/profile`)
+      return {
+        userId: String(item.user_id),
+        username: String(item.username ?? ''),
+        displayName: String(item.display_name ?? ''),
+        bio: String(item.bio ?? ''),
+        avatarUrl: String(item.avatar_url ?? ''),
+        socials: (item.socials ?? {}) as Record<string, string>,
+      }
+    } catch {
+      try {
+        const me = await api<any>(`/api/me/profile`)
+        if (String(me.user_id) !== String(userId)) return null
+        return {
+          userId: String(me.user_id),
+          username: String(me.username ?? ''),
+          displayName: String(me.display_name ?? ''),
+          bio: String(me.bio ?? ''),
+          avatarUrl: String(me.avatar_url ?? ''),
+          socials: (me.socials ?? {}) as Record<string, string>,
+        }
+      } catch {
+        return null
+      }
+    }
+  },
+  async updateUserProfile(userId, input) {
+    try {
+      await api(`/api/admin/users/${userId}/profile`, { method: 'PATCH', body: JSON.stringify({ display_name: input.displayName, bio: input.bio, avatar_url: input.avatarUrl, socials: input.socials }) })
+      return
+    } catch {
+      await api(`/api/me/profile`, { method: 'PATCH', body: JSON.stringify({ display_name: input.displayName, bio: input.bio, avatar_url: input.avatarUrl, socials: input.socials }) })
+    }
+  },
 }
 
 export const uploadsRepository: UploadsRepository = {
