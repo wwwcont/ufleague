@@ -200,6 +200,10 @@ func (r *AuthRepository) GetUserByID(ctx context.Context, userID int64) (domain.
 	if user.Restrictions, err = queryStrings(ctx, r.pool, `SELECT restriction FROM user_restrictions WHERE user_id = $1 ORDER BY restriction`, userID); err != nil {
 		return domain.User{}, err
 	}
+	_ = r.pool.QueryRow(ctx, `SELECT id, team_id FROM players WHERE user_id = $1 LIMIT 1`, userID).Scan(&user.PlayerID, &user.TeamID)
+	if user.TeamID == nil {
+		_ = r.pool.QueryRow(ctx, `SELECT id FROM teams WHERE captain_user_id = $1 LIMIT 1`, userID).Scan(&user.TeamID)
+	}
 
 	return user, nil
 }

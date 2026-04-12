@@ -18,6 +18,8 @@ type User struct {
 	TelegramName string    `json:"telegram_username,omitempty"`
 	Username     string    `json:"username"`
 	DisplayName  string    `json:"display_name"`
+	PlayerID     *int64    `json:"player_id,omitempty"`
+	TeamID       *int64    `json:"team_id,omitempty"`
 	IsActive     bool      `json:"is_active"`
 	Roles        []Role    `json:"roles"`
 	Permissions  []string  `json:"permissions"`
@@ -26,14 +28,14 @@ type User struct {
 }
 
 type PublicUserCard struct {
-	ID              int64    `json:"id"`
-	DisplayName     string   `json:"display_name"`
-	TelegramUsername string  `json:"telegram_username,omitempty"`
-	Roles           []Role   `json:"roles"`
-	LastSeenAt      *time.Time `json:"last_seen_at,omitempty"`
-	IsOnline        bool     `json:"is_online"`
-	PlayerID        *int64   `json:"player_id,omitempty"`
-	TeamID          *int64   `json:"team_id,omitempty"`
+	ID               int64      `json:"id"`
+	DisplayName      string     `json:"display_name"`
+	TelegramUsername string     `json:"telegram_username,omitempty"`
+	Roles            []Role     `json:"roles"`
+	LastSeenAt       *time.Time `json:"last_seen_at,omitempty"`
+	IsOnline         bool       `json:"is_online"`
+	PlayerID         *int64     `json:"player_id,omitempty"`
+	TeamID           *int64     `json:"team_id,omitempty"`
 }
 
 type Session struct {

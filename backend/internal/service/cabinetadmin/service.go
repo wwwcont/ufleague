@@ -16,6 +16,7 @@ type Repository interface {
 	GetTeamByID(ctx context.Context, teamID int64) (domain.Team, error)
 	FindUserByUsername(ctx context.Context, username string) (int64, error)
 	CreateTeamInvite(ctx context.Context, teamID, invitedID, byID int64) error
+	EnsureUserRole(ctx context.Context, userID int64, role domain.Role) error
 	UpdateTeamSocials(ctx context.Context, teamID int64, socials map[string]string) error
 	SetPlayerVisible(ctx context.Context, playerID int64, visible bool) error
 	TransferCaptain(ctx context.Context, teamID, newCaptain int64) error
@@ -108,6 +109,12 @@ func (s Service) CaptainInviteByUsername(ctx context.Context, actor domain.User,
 		return err
 	}
 	if err = s.repo.CreateTeamInvite(ctx, teamID, uid, actor.ID); err != nil {
+		return err
+	}
+	if err = s.EnsureCaptainPlayerProfile(ctx, uid, teamID, username); err != nil {
+		return err
+	}
+	if err = s.repo.EnsureUserRole(ctx, uid, domain.RolePlayer); err != nil {
 		return err
 	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "captain.invite", "team", strconv.FormatInt(teamID, 10), map[string]any{"username": username})

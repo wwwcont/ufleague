@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"football_ui/backend/internal/domain"
@@ -69,6 +70,34 @@ func (r *CabinetAdminRepository) UpdateProfile(ctx context.Context, userID int64
 	if err != nil {
 		return domain.UserProfile{}, err
 	}
+	fullName := strings.TrimSpace(strings.TrimSpace(req.FirstName + " " + req.LastName))
+	if fullName == "" {
+		fullName = strings.TrimSpace(req.DisplayName)
+	}
+	age := ""
+	if birthDate := strings.TrimSpace(req.Socials["birth_date"]); birthDate != "" {
+		if parsed, err := time.Parse("02.01.2006", birthDate); err == nil {
+			years := int(time.Since(parsed).Hours() / 24 / 365.25)
+			if years > 0 {
+				age = strconv.Itoa(years)
+			}
+		}
+	}
+	if fullName != "" {
+		if age != "" {
+			_, _ = r.pool.Exec(ctx, `
+				UPDATE players
+				SET full_name=$2, avatar_url=NULLIF($3,''), socials=jsonb_set(COALESCE(socials,'{}'::jsonb), '{age}', to_jsonb($4::text), true), updated_at=NOW()
+				WHERE user_id=$1
+			`, userID, fullName, req.AvatarURL, age)
+		} else {
+			_, _ = r.pool.Exec(ctx, `
+				UPDATE players
+				SET full_name=$2, avatar_url=NULLIF($3,''), updated_at=NOW()
+				WHERE user_id=$1
+			`, userID, fullName, req.AvatarURL)
+		}
+	}
 	return r.GetProfile(ctx, userID)
 }
 
@@ -79,6 +108,14 @@ func (r *CabinetAdminRepository) FindUserByUsername(ctx context.Context, usernam
 }
 func (r *CabinetAdminRepository) CreateTeamInvite(ctx context.Context, teamID, invitedID, byID int64) error {
 	_, err := r.pool.Exec(ctx, `INSERT INTO team_invites (team_id,invited_user_id,invited_by_user_id,status) VALUES ($1,$2,$3,'pending')`, teamID, invitedID, byID)
+	return err
+}
+func (r *CabinetAdminRepository) EnsureUserRole(ctx context.Context, userID int64, role domain.Role) error {
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO user_roles (user_id, role_id)
+		SELECT $1, id FROM roles WHERE code = $2
+		ON CONFLICT DO NOTHING
+	`, userID, role)
 	return err
 }
 func (r *CabinetAdminRepository) UpdateTeamSocials(ctx context.Context, teamID int64, socials map[string]string) error {
@@ -117,14 +154,41 @@ func (r *CabinetAdminRepository) GetPlayerByUserID(ctx context.Context, userID i
 }
 func (r *CabinetAdminRepository) CreateCaptainPlayerProfile(ctx context.Context, userID, teamID int64, displayName string) error {
 	shirtNumber := 0
+	firstName := ""
+	lastName := ""
+	avatarURL := ""
+	birthDate := ""
+	_ = r.pool.QueryRow(ctx, `
+		SELECT COALESCE(up.first_name,''), COALESCE(up.last_name,''), COALESCE(up.avatar_url,''), COALESCE(up.socials->>'birth_date','')
+		FROM users u
+		LEFT JOIN user_profiles up ON up.user_id = u.id
+		WHERE u.id=$1
+	`, userID).Scan(&firstName, &lastName, &avatarURL, &birthDate)
+	fullName := strings.TrimSpace(strings.TrimSpace(firstName + " " + lastName))
+	if fullName == "" {
+		fullName = strings.TrimSpace(displayName)
+	}
+	if fullName == "" {
+		fullName = "Player"
+	}
+	socials := map[string]string{}
+	if birthDate != "" {
+		if parsed, err := time.Parse("02.01.2006", birthDate); err == nil {
+			years := int(time.Since(parsed).Hours() / 24 / 365.25)
+			if years > 0 {
+				socials["age"] = strconv.Itoa(years)
+			}
+		}
+	}
 	tr := NewTournamentRepository(r.pool)
 	_, err := tr.CreatePlayer(ctx, domain.Player{
 		UserID:      &userID,
 		TeamID:      &teamID,
-		FullName:    displayName,
+		FullName:    fullName,
 		Position:    "MF",
 		ShirtNumber: &shirtNumber,
-		Socials:     map[string]string{},
+		AvatarURL:   avatarURL,
+		Socials:     socials,
 	})
 	return err
 }

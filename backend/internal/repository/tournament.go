@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"football_ui/backend/internal/domain"
 
@@ -86,7 +87,12 @@ func (r *TournamentRepository) CreatePlayer(ctx context.Context, p domain.Player
 	VALUES ($1,$2,$3,NULLIF($4,''),NULLIF($5,''),$6,NULLIF($7,''),$8)
 	RETURNING id,user_id,team_id,full_name,COALESCE(nickname,''),COALESCE(avatar_url,''),socials,COALESCE(position,''),shirt_number,created_at,updated_at`,
 		p.UserID, p.TeamID, p.FullName, p.Nickname, p.AvatarURL, socials, p.Position, p.ShirtNumber)
-	return scanPlayer(row)
+	created, err := scanPlayer(row)
+	if err != nil {
+		return created, err
+	}
+	_ = r.syncUserProfileFromPlayer(ctx, created)
+	return created, nil
 }
 func (r *TournamentRepository) UpdatePlayer(ctx context.Context, id int64, p domain.Player) (domain.Player, error) {
 	socials, _ := json.Marshal(p.Socials)
@@ -95,7 +101,12 @@ func (r *TournamentRepository) UpdatePlayer(ctx context.Context, id int64, p dom
 	WHERE id=$1
 	RETURNING id,user_id,team_id,full_name,COALESCE(nickname,''),COALESCE(avatar_url,''),socials,COALESCE(position,''),shirt_number,created_at,updated_at`,
 		id, p.UserID, p.TeamID, p.FullName, p.Nickname, p.AvatarURL, socials, p.Position, p.ShirtNumber)
-	return scanPlayer(row)
+	updated, err := scanPlayer(row)
+	if err != nil {
+		return updated, err
+	}
+	_ = r.syncUserProfileFromPlayer(ctx, updated)
+	return updated, nil
 }
 
 func (r *TournamentRepository) ListMatches(ctx context.Context) ([]domain.Match, error) {
@@ -173,4 +184,32 @@ func scanMatch(row scanner) (domain.Match, error) {
 	m.ExtraTime = map[string]any{}
 	_ = json.Unmarshal(extra, &m.ExtraTime)
 	return m, nil
+}
+
+func (r *TournamentRepository) syncUserProfileFromPlayer(ctx context.Context, player domain.Player) error {
+	if player.UserID == nil {
+		return nil
+	}
+	fullName := strings.TrimSpace(player.FullName)
+	firstName := fullName
+	lastName := ""
+	if parts := strings.Fields(fullName); len(parts) > 1 {
+		firstName = parts[0]
+		lastName = strings.Join(parts[1:], " ")
+	}
+	if firstName == "" {
+		firstName = "Player"
+	}
+	_, err := r.pool.Exec(ctx, `UPDATE users SET display_name=$2, updated_at=NOW() WHERE id=$1`, *player.UserID, fullName)
+	if err != nil {
+		return err
+	}
+	socialsRaw, _ := json.Marshal(player.Socials)
+	_, err = r.pool.Exec(ctx, `
+		INSERT INTO user_profiles (user_id, first_name, last_name, avatar_url, socials, updated_at)
+		VALUES ($1,$2,$3,NULLIF($4,''),$5,NOW())
+		ON CONFLICT (user_id)
+		DO UPDATE SET first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name, avatar_url=EXCLUDED.avatar_url, socials=EXCLUDED.socials, updated_at=NOW()
+	`, *player.UserID, firstName, lastName, player.AvatarURL, socialsRaw)
+	return err
 }
