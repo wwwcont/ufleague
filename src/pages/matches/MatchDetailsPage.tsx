@@ -6,6 +6,7 @@ import { useMatchDetails } from '../../hooks/data/useMatchDetails'
 import { useMatches } from '../../hooks/data/useMatches'
 import { useTeams } from '../../hooks/data/useTeams'
 import { usePlayers } from '../../hooks/data/usePlayers'
+import { useBracket } from '../../hooks/data/useBracket'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { TeamAvatar } from '../../components/ui/TeamAvatar'
 import { tournament } from '../../mocks/data/tournament'
@@ -87,7 +88,9 @@ export const MatchDetailsPage = () => {
   const { data: teams } = useTeams()
   const { data: players } = usePlayers()
   const { session } = useSession()
-  const { matchesRepository } = useRepositories()
+  const { matchesRepository, cabinetRepository } = useRepositories()
+  const { data: bracket } = useBracket()
+  const isAdmin = canManageMatch(session)
 
   const teamMap = Object.fromEntries((teams ?? []).map((team) => [team.id, team]))
   const home = match ? teamMap[match.homeTeamId] : null
@@ -106,7 +109,31 @@ export const MatchDetailsPage = () => {
   const [goalScorerId, setGoalScorerId] = useState('')
   const [goalAssistId, setGoalAssistId] = useState('')
   const [goalStatus, setGoalStatus] = useState<string | null>(null)
+  const [activeTournamentId, setActiveTournamentId] = useState('')
+  const [selectedTieId, setSelectedTieId] = useState('')
+  const [tieAttachStatus, setTieAttachStatus] = useState<string | null>(null)
   const candidatePlayers = useMemo(() => (players ?? []).filter((p) => p.teamId === goalTeamId), [goalTeamId, players])
+
+  const tiesForCurrentMatch = useMemo(() => {
+    if (!bracket) return []
+    return bracket.groups.filter((group) => {
+      const direct = group.homeTeamId === match?.homeTeamId && group.awayTeamId === match?.awayTeamId
+      const reverse = group.homeTeamId === match?.awayTeamId && group.awayTeamId === match?.homeTeamId
+      if (!(direct || reverse)) return false
+      const attachedMatchIds = [group.firstLeg.matchId, group.secondLeg?.matchId, group.thirdLeg?.matchId].filter(Boolean)
+      const alreadyContainsThisMatch = attachedMatchIds.includes(match?.id ?? '')
+      return !alreadyContainsThisMatch && attachedMatchIds.length < 3
+    })
+  }, [bracket, match?.awayTeamId, match?.homeTeamId, match?.id])
+
+  useEffect(() => {
+    if (!isAdmin) return
+    void (async () => {
+      const cycles = await cabinetRepository.getTournamentCycles?.()
+      const active = cycles?.find((item) => item.isActive)
+      if (active) setActiveTournamentId(active.id)
+    })()
+  }, [cabinetRepository, isAdmin])
 
   useEffect(() => {
     if (!match) return
@@ -122,7 +149,6 @@ export const MatchDetailsPage = () => {
     )
   }
 
-  const isAdmin = canManageMatch(session)
   const actionError = (error: unknown) => {
     if (error instanceof ApiError) {
       if (error.status === 403) return 'Недостаточно прав (403).'
@@ -294,6 +320,42 @@ export const MatchDetailsPage = () => {
             </div>
           )}
           {goalStatus && <p className="mt-2 text-xs text-textMuted">{goalStatus}</p>}
+        </section>
+      )}
+
+      {isAdmin && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-3 shadow-soft">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-textPrimary">ПЛЕЙ-ОФФ</p>
+          </div>
+          <p className="mt-1 text-xs text-textMuted">Добавьте матч в подходящую вершину сетки. В один плей-офф можно привязать до трех матчей, при 2+ используется тотал.</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <select value={selectedTieId} onChange={(event) => setSelectedTieId(event.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm">
+              <option value="">Выберите плей-офф</option>
+              {tiesForCurrentMatch.map((group) => {
+                const count = [group.firstLeg.matchId, group.secondLeg?.matchId, group.thirdLeg?.matchId].filter(Boolean).length
+                return <option key={group.id} value={group.id}>#{group.id} • {group.stageId} / слот {group.slot} • матчей: {count}/3</option>
+              })}
+            </select>
+            <button
+              type="button"
+              disabled={!selectedTieId || !activeTournamentId}
+              className="rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app disabled:opacity-50"
+              onClick={async () => {
+                try {
+                  await cabinetRepository.attachMatchToTie?.({ tournamentId: activeTournamentId, tieId: selectedTieId, matchId: match.id })
+                  setTieAttachStatus('Матч добавлен в плей-офф.')
+                  setSelectedTieId('')
+                } catch (error) {
+                  setTieAttachStatus(actionError(error))
+                }
+              }}
+            >
+              Добавить в плей-офф
+            </button>
+          </div>
+          {tiesForCurrentMatch.length === 0 && <p className="mt-2 text-xs text-textMuted">Подходящих плей-офф с этими командами и свободным слотом пока нет.</p>}
+          {tieAttachStatus && <p className="mt-2 text-xs text-textMuted">{tieAttachStatus}</p>}
         </section>
       )}
 
