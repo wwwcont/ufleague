@@ -8,15 +8,35 @@ import (
 
 	"football_ui/backend/internal/domain"
 	"football_ui/backend/internal/policy"
-	"football_ui/backend/internal/repository"
 )
 
+type Repository interface {
+	GetProfile(ctx context.Context, userID int64) (domain.UserProfile, error)
+	UpdateProfile(ctx context.Context, userID int64, req domain.UpdateProfileRequest) (domain.UserProfile, error)
+	GetTeamByID(ctx context.Context, teamID int64) (domain.Team, error)
+	FindUserByUsername(ctx context.Context, username string) (int64, error)
+	CreateTeamInvite(ctx context.Context, teamID, invitedID, byID int64) error
+	UpdateTeamSocials(ctx context.Context, teamID int64, socials map[string]string) error
+	SetPlayerVisible(ctx context.Context, playerID int64, visible bool) error
+	TransferCaptain(ctx context.Context, teamID, newCaptain int64) error
+	ModerateDeleteComment(ctx context.Context, commentID int64) error
+	ReplaceUserRoles(ctx context.Context, userID int64, roles []domain.Role) error
+	ReplaceUserPermissions(ctx context.Context, userID int64, perms []string) error
+	ReplaceUserRestrictions(ctx context.Context, userID int64, rs []string) error
+	UpsertGlobalSetting(ctx context.Context, key string, value map[string]any, by int64) error
+	AddAuditLog(ctx context.Context, actor int64, action, targetType, targetID string, metadata map[string]any) error
+	GetPlayerByUserID(ctx context.Context, userID int64) (*domain.Player, error)
+	CreateCaptainPlayerProfile(ctx context.Context, userID, teamID int64, displayName string) error
+	ReassignPlayerTeam(ctx context.Context, playerID, teamID int64) error
+	ListAuditActionsByActor(ctx context.Context, userID int64, limit int) ([]domain.UserActionItem, error)
+}
+
 type Service struct {
-	repo   *repository.CabinetAdminRepository
+	repo   Repository
 	policy policy.Engine
 }
 
-func NewService(repo *repository.CabinetAdminRepository) Service {
+func NewService(repo Repository) Service {
 	return Service{repo: repo, policy: policy.New()}
 }
 
@@ -90,6 +110,9 @@ func (s Service) AdminTransferCaptain(ctx context.Context, actor domain.User, te
 	if err := s.repo.TransferCaptain(ctx, teamID, newCaptain); err != nil {
 		return err
 	}
+	if err := s.EnsureCaptainPlayerProfile(ctx, newCaptain, teamID, "Captain"); err != nil {
+		return err
+	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "admin.transfer_captain", "team", strconv.FormatInt(teamID, 10), map[string]any{"new_captain": newCaptain})
 }
 func (s Service) AdminBlockComments(ctx context.Context, actor domain.User, userID int64, req domain.CommentBlockRequest) error {
@@ -143,4 +166,29 @@ func (s Service) SuperadminSetGlobalSetting(ctx context.Context, actor domain.Us
 		return err
 	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "superadmin.global_setting", "setting", key, map[string]any{"at": time.Now().UTC()})
+}
+
+func (s Service) EnsureCaptainPlayerProfile(ctx context.Context, userID, teamID int64, fallbackDisplayName string) error {
+	player, err := s.repo.GetPlayerByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if player == nil {
+		displayName := fallbackDisplayName
+		if displayName == "" {
+			displayName = "Captain"
+		}
+		return s.repo.CreateCaptainPlayerProfile(ctx, userID, teamID, displayName)
+	}
+	if player.TeamID != nil && *player.TeamID == teamID {
+		return nil
+	}
+	return s.repo.ReassignPlayerTeam(ctx, player.ID, teamID)
+}
+
+func (s Service) GetMyActions(ctx context.Context, user domain.User, limit int) ([]domain.UserActionItem, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	return s.repo.ListAuditActionsByActor(ctx, user.ID, limit)
 }

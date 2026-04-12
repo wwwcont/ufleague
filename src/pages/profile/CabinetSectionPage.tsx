@@ -21,6 +21,9 @@ const sectionRoles: Record<string, UserRole> = {
   'profile-settings': 'guest',
   edit: 'guest',
   activity: 'guest',
+  'my-user': 'guest',
+  'my-actions': 'guest',
+  'user-settings': 'guest',
   reactions: 'guest',
   'player-profile': 'player',
   'my-player': 'player',
@@ -47,6 +50,9 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   'profile-settings': { title: 'Настройки профиля', description: 'Безопасное обновление user/player profile.', tips: ['Форма автоматически загружается из backend.', 'Сохранение отправляет merged payload, чтобы не затирать данные.'] },
   edit: { title: 'Редактирование профиля', description: 'Рабочая форма профиля пользователя.', tips: ['Используйте загрузку данных перед сохранением.', 'Поля socials поддерживают key=value.'] },
   activity: { title: 'Моя активность', description: 'Работа с комментариями и реакциями.', tips: ['Откройте сущность и оставьте комментарий.', 'Проверьте ограничения доступа в реальном потоке.'] },
+  'my-user': { title: 'Профиль пользователя', description: 'Быстрый переход в карточку пользователя.', tips: ['Открывается ваш user-профиль.', 'Редактирование доступно владельцу.'] },
+  'my-actions': { title: 'Мои действия', description: 'Лента действий пользователя.', tips: ['События сортируются по времени.', 'Каждый элемент ведет к месту действия.'] },
+  'user-settings': { title: 'Настройки', description: 'Персональные настройки пользователя.', tips: ['Секция подготовлена под будущий функционал.'] },
   'player-profile': { title: 'Профиль игрока', description: 'Игровой профиль пользователя (отдельно от user-профиля).', tips: ['Переходите в user-профиль для ФИО/био.', 'Проверяйте связь user ↔ player profile.'] },
   'my-player': { title: 'Профиль игрока', description: 'Мгновенный переход в профиль игрока.', tips: ['Используется playerProfileId из сессии.', 'Если profile не привязан — показывается сообщение.'] },
   'player-events': { title: 'Мои события', description: 'Все события, связанные с профилем игрока.', tips: ['События открываются на странице игрока.', 'Используйте фильтр по игроку в ленте.'] },
@@ -80,6 +86,7 @@ export const CabinetSectionPage = () => {
   const { data: teams } = useTeams()
 
   const [status, setStatus] = useState('')
+  const [myActions, setMyActions] = useState<Array<{ id: string; action: string; targetType: string; targetId: string; route: string; createdAt: string }>>([])
 
   const [displayName, setDisplayName] = useState('')
   const [firstName, setFirstName] = useState('')
@@ -230,13 +237,34 @@ export const CabinetSectionPage = () => {
 
   useEffect(() => {
     if (section !== 'my-team') return
+    if (!session.user.teamId && !teams) return
     navigate(managedTeamId ? `/teams/${managedTeamId}` : '/teams', { replace: true })
-  }, [managedTeamId, navigate, section])
+  }, [managedTeamId, navigate, section, session.user.teamId, teams])
 
   useEffect(() => {
     if (section !== 'my-player') return
     navigate(session.user.playerProfileId ? `/players/${session.user.playerProfileId}` : '/profile/player-profile', { replace: true })
   }, [navigate, section, session.user.playerProfileId])
+
+  useEffect(() => {
+    if (section !== 'my-user') return
+    navigate(`/users/${session.user.id}`, { replace: true })
+  }, [navigate, section, session.user.id])
+
+  useEffect(() => {
+    if (section !== 'my-actions') return
+    if (!cabinetRepository.getMyActions) return
+    void cabinetRepository.getMyActions().then((items) => {
+      setMyActions(items.map((item) => ({
+        id: item.id,
+        action: item.action,
+        targetType: item.targetType,
+        targetId: item.targetId,
+        createdAt: item.createdAt,
+        route: item.targetType === 'team' ? `/teams/${item.targetId}` : item.targetType === 'player' ? `/players/${item.targetId}` : item.targetType === 'event' ? `/events/${item.targetId}` : item.targetType === 'comment' ? `/comments/team/${item.targetId}` : '/',
+      })))
+    }).catch(() => setMyActions([]))
+  }, [cabinetRepository, section])
 
   if (!section || !minRole || !meta) {
     return (
@@ -389,13 +417,8 @@ export const CabinetSectionPage = () => {
 
       {section === 'team' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
-          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 text-sm text-textSecondary">
-            <p className="font-semibold text-textPrimary">Управление командой</p>
-            <p className="mt-1">Если команды еще нет — создайте ее. Если команда есть — используйте три раздела: «Состав», «События команды», «Страница команды».</p>
-          </div>
           {!managedTeamId && currentRoles.some((role) => roleRank[role] >= roleRank.captain) && (
             <div className="space-y-2 rounded-xl border border-borderSubtle bg-mutedBg p-3">
-              <p className="text-xs text-textMuted">У вас пока нет команды. Создайте новую и сразу станьте ее капитаном.</p>
               <input value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="Название команды" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
               <input value={newTeamDescription} onChange={(e) => setNewTeamDescription(e.target.value)} placeholder="Описание (опционально)" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
               <button type="button" disabled={!newTeamName.trim()} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
@@ -418,8 +441,8 @@ export const CabinetSectionPage = () => {
           )}
           {managedTeamId && (
             <div className="grid gap-2 text-xs sm:grid-cols-2">
-              <Link to={`/teams/${managedTeamId}/roster`} className="rounded-lg border border-borderSubtle px-3 py-3 text-center">Состав команды</Link>
-              <Link to={`/teams/${managedTeamId}/events`} className="rounded-lg border border-borderSubtle px-3 py-3 text-center">Лента событий</Link>
+              <Link to={`/teams/${managedTeamId}/roster`} className="rounded-lg bg-accentYellow px-3 py-3 text-center font-semibold text-app">Состав команды</Link>
+              <Link to={`/teams/${managedTeamId}/events`} className="rounded-lg bg-accentYellow px-3 py-3 text-center font-semibold text-app">Лента событий</Link>
             </div>
           )}
         </section>
@@ -437,6 +460,23 @@ export const CabinetSectionPage = () => {
           ) : (
             <p className="text-xs text-textMuted">Профиль игрока не привязан к вашему аккаунту.</p>
           )}
+        </section>
+      )}
+
+      {section === 'my-actions' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          {myActions.length ? myActions.map((item) => (
+            <Link key={item.id} to={item.route} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
+              <p className="text-sm text-textPrimary">{item.action}</p>
+              <p className="mt-1 text-xs text-textMuted">{item.createdAt}</p>
+            </Link>
+          )) : <p className="text-xs text-textMuted">Пока нет действий.</p>}
+        </section>
+      )}
+
+      {section === 'user-settings' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4">
+          <p className="text-sm text-textSecondary">Настройки пользователя появятся в следующем релизе.</p>
         </section>
       )}
 
@@ -992,7 +1032,7 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {!['profile', 'profile-settings', 'edit', 'activity', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
+      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
           Раздел синхронизирован по правам доступа и готов к расширению бизнес-формами.
         </section>

@@ -86,7 +86,7 @@ const mapPlayer = (p: any): Player | null => {
       vk: p.socials?.vk,
       instagram: p.socials?.instagram,
     },
-    isHidden: p.is_visible === false || p.visible === false || p.hidden === true,
+    isHidden: p.is_visible === false || p.visible === false || p.hidden === true || p.position === 'hidden',
     stats: { goals: 0, assists: 0, appearances: Number(p.appearances ?? 0) },
   }
 }
@@ -770,6 +770,16 @@ export const cabinetRepository: CabinetRepository = {
   },
   async superadminSetGlobalSetting(input) {
     await api(`/api/superadmin/settings/${encodeURIComponent(input.key)}`, { method: 'PUT', body: JSON.stringify({ value: input.value }) })
+  },
+  async getMyActions() {
+    const rows = await api<any[]>(`/api/me/actions`)
+    return rows.map((item) => ({
+      id: String(item.id),
+      action: String(item.action ?? ''),
+      targetType: String(item.target_type ?? ''),
+      targetId: String(item.target_id ?? ''),
+      createdAt: item.created_at ? new Date(Number(item.created_at) * 1000).toISOString() : new Date().toISOString(),
+    }))
   },
   async getTournamentCycles() {
     try {

@@ -109,6 +109,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Post("/comments/{id}/reactions", h.SetCommentReaction)
 
 		r.With(sessionMW.RequireSession).Get("/me/profile", h.GetMyProfile)
+		r.With(sessionMW.RequireSession).Get("/me/actions", h.GetMyActions)
 		r.With(sessionMW.RequireSession).Patch("/me/profile", h.UpdateMyProfile)
 		r.With(sessionMW.RequireSession).Post("/captain/teams/{id}/invite", h.CaptainInviteByUsername)
 		r.With(sessionMW.RequireSession).Patch("/captain/teams/{id}/socials", h.CaptainUpdateTeamSocials)
@@ -398,6 +399,9 @@ func (h Handler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		handleDomainErr(w, err)
 		return
+	}
+	if item.CaptainUserID != nil {
+		_ = h.cabinet.EnsureCaptainPlayerProfile(r.Context(), *item.CaptainUserID, item.ID, current.User.DisplayName)
 	}
 	writeJSON(w, 201, item)
 }
@@ -1060,6 +1064,25 @@ func (h Handler) GetMyProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, item)
+}
+func (h Handler) GetMyActions(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	limit := 50
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			limit = parsed
+		}
+	}
+	items, err := h.cabinet.GetMyActions(r.Context(), current.User, limit)
+	if err != nil {
+		http.Error(w, "failed", 400)
+		return
+	}
+	writeJSON(w, 200, items)
 }
 func (h Handler) UpdateMyProfile(w http.ResponseWriter, r *http.Request) {
 	current, ok := middleware.CurrentSession(r.Context())

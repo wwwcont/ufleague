@@ -206,6 +206,12 @@ export const cabinetRepository: CabinetRepository = {
   async superadminSetGlobalSetting() {
     return
   },
+  async getMyActions() {
+    return [
+      { id: 'a1', action: 'comment.create', targetType: 'team', targetId: '1', createdAt: new Date().toISOString() },
+      { id: 'a2', action: 'event.create', targetType: 'event', targetId: '1', createdAt: new Date(Date.now() - 3600_000).toISOString() },
+    ]
+  },
   async getTournamentCycles() {
     return mockTournamentCycles
   },
