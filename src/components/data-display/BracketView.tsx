@@ -4,12 +4,12 @@ import { CircleHelp, LocateFixed, Minus, Pencil, Plus, ShieldCheck, Trash2 } fro
 import type { BracketMatchGroup, BracketStage, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
 
-const NODE_W = 238
-const NODE_H = 174
-const ROUND_GAP = 274
-const FIRST_ROUND_GAP = 34
-const PADDING_X = 48
-const PADDING_Y = 44
+const NODE_W = 170
+const NODE_H = 116
+const ROUND_GAP = 208
+const FIRST_ROUND_GAP = 16
+const PADDING_X = 24
+const PADDING_Y = 24
 const CONNECTOR_STUB = 18
 const CONNECTOR_RADIUS = 8
 const MIN_SCALE = 0.24
