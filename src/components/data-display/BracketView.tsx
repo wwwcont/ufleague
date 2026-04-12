@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CircleHelp, Minus, Pencil, Plus, ShieldCheck } from 'lucide-react'
+import { CircleHelp, Minus, Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react'
 import type { BracketMatchGroup, BracketStage, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
 
@@ -28,6 +28,7 @@ export const BracketView = ({
   editable = false,
   onCreateTie,
   onEditTie,
+  onDeleteTie,
 }: {
   stages: BracketStage[]
   groups: BracketMatchGroup[]
@@ -36,6 +37,7 @@ export const BracketView = ({
   editable?: boolean
   onCreateTie?: (stageId: string, slot: number) => void
   onEditTie?: (group: BracketMatchGroup) => void
+  onDeleteTie?: (group: BracketMatchGroup) => void
 }) => {
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
@@ -333,26 +335,40 @@ export const BracketView = ({
             )
 
             const primaryMatch = group.firstLeg.matchId
-            const editButton = editable ? (
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  onEditTie?.(group)
-                }}
-                className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md border border-borderSubtle bg-panelBg/80 text-textMuted hover:border-accentYellow/70 hover:text-accentYellow"
-                aria-label="Редактировать плей-офф"
-              >
-                <Pencil size={12} />
-              </button>
+            const editControls = editable ? (
+              <div className="absolute right-2 top-2 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    onEditTie?.(group)
+                  }}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-borderSubtle bg-panelBg/80 text-textMuted hover:border-accentYellow/70 hover:text-accentYellow"
+                  aria-label="Редактировать плей-офф"
+                >
+                  <Pencil size={12} />
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    onDeleteTie?.(group)
+                  }}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-borderSubtle bg-panelBg/80 text-textMuted hover:border-rose-500/70 hover:text-rose-400"
+                  aria-label="Удалить плей-офф"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
             ) : null
 
             if (primaryMatch && !editable) {
               return <Link key={group.id} to={`/matches/${primaryMatch}`} className={nodeClass} style={{ left: group.x, top: group.y, width: NODE_W, height: NODE_H }}>{content}</Link>
             }
 
-            return <div key={group.id} className={`${nodeClass} relative`} style={{ left: group.x, top: group.y, width: NODE_W, height: NODE_H }}>{editButton}{content}</div>
+            return <div key={group.id} className={`${nodeClass} relative`} style={{ left: group.x, top: group.y, width: NODE_W, height: NODE_H }}>{editControls}{content}</div>
           })}
         </div>
       </div>

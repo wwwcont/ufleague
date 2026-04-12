@@ -43,6 +43,7 @@ export const TablePage = () => {
   const [playoffSize, setPlayoffSize] = useState<4 | 8 | 16>(16)
   const [localTieOverrides, setLocalTieOverrides] = useState<Record<string, { homeTeamId: string; awayTeamId: string }>>({})
   const [selectedPlayoffNumber, setSelectedPlayoffNumber] = useState<string>('')
+  const [hiddenTieIds, setHiddenTieIds] = useState<Set<string>>(new Set())
 
   const getPlayoffNumber = (groupOrSlot: { tieId?: string; stageId: string; slot: number }) => groupOrSlot.tieId ? String(groupOrSlot.tieId).replace(/\D/g, '') || String(groupOrSlot.tieId) : `${groupOrSlot.stageId}-${groupOrSlot.slot}`
 
@@ -88,9 +89,10 @@ export const TablePage = () => {
     if (!bracket) return []
     const sorted = [...bracket.stages].sort((a, b) => a.order - b.order)
     const required = Math.max(1, Math.log2(playoffSize))
+    const stageWindow = sorted.length > required ? sorted.slice(-required) : sorted
 
     return Array.from({ length: required }, (_, index) => {
-      const stage = sorted[index]
+      const stage = stageWindow[index]
       const size = Math.max(1, playoffSize / (2 ** (index + 1)))
       return {
         id: stage?.id ?? `virtual_stage_${index + 1}`,
@@ -106,6 +108,7 @@ export const TablePage = () => {
   const playoffGroups = useMemo((): BracketMatchGroup[] => {
     if (!bracket) return []
     return bracket.groups
+      .filter((group) => !hiddenTieIds.has(group.id))
       .filter((group) => visibleStageIds.has(group.stageId))
       .map((group) => {
         const key = `${group.stageId}:${group.slot}`
@@ -117,7 +120,7 @@ export const TablePage = () => {
           awayTeamId: override.awayTeamId,
         }
       })
-  }, [bracket, localTieOverrides, visibleStageIds])
+  }, [bracket, hiddenTieIds, localTieOverrides, visibleStageIds])
 
   const changePlayoffSize = async (nextSize: 4 | 8 | 16) => {
     setPlayoffSize(nextSize)
@@ -237,6 +240,22 @@ export const TablePage = () => {
                     setTieHomeTeamId(group.homeTeamId ?? '')
                     setTieAwayTeamId(group.awayTeamId ?? '')
                     setBracketStatus(null)
+                  }}
+                  onDeleteTie={(group) => {
+                    setHiddenTieIds((prev) => new Set(prev).add(group.id))
+                    setLocalTieOverrides((prev) => {
+                      const key = `${group.stageId}:${group.slot}`
+                      if (!prev[key]) return prev
+                      const next = { ...prev }
+                      delete next[key]
+                      return next
+                    })
+                    setBracketStatus('Плей-офф удален из сетки локально (до синхронизации с API).')
+                    if (selectedSlot?.tieId === group.id) {
+                      setSelectedSlot(null)
+                      setTieHomeTeamId('')
+                      setTieAwayTeamId('')
+                    }
                   }}
                 />
               )}
