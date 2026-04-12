@@ -7,7 +7,7 @@ import { TeamAvatar } from '../ui/TeamAvatar'
 const NODE_W = 170
 const NODE_H = 116
 const ROUND_GAP = 208
-const FIRST_ROUND_GAP = 16
+const FIRST_ROUND_GAP = 8
 const PADDING_X = 24
 const PADDING_Y = 24
 const CONNECTOR_STUB = 18
@@ -84,29 +84,12 @@ export const BracketView = ({
       const stageGroups = byStage.get(stage.id) ?? []
       const x = PADDING_X + stageIndex * ROUND_GAP
 
-      if (editable) {
-        const blockSize = 2 ** stageIndex
-        stageLayouts.set(stage.id, stageGroups.map((group) => {
-          const slotIndex = Math.max(0, group.slot - 1)
-          const centerY = PADDING_Y + NODE_H / 2 + (slotIndex * blockSize + (blockSize - 1) / 2) * verticalStep
-          return { ...group, x, y: centerY - NODE_H / 2, ...(group.id.startsWith('placeholder:') ? { isPlaceholder: true as const } : {}) }
-        }))
-        return
-      }
-
-      if (stageIndex === 0) {
-        stageLayouts.set(stage.id, stageGroups.map((group, index) => ({ ...group, x, y: PADDING_Y + index * verticalStep, ...(group.id.startsWith('placeholder:') ? { isPlaceholder: true as const } : {}) })))
-        return
-      }
-
-      const prevNodes = stageLayouts.get(sortedStages[stageIndex - 1].id) ?? []
-      const groupSize = prevNodes.length && stageGroups.length ? Math.max(1, Math.floor(prevNodes.length / stageGroups.length)) : 1
-
+      const blockSize = 2 ** stageIndex
       stageLayouts.set(stage.id, stageGroups.map((group, index) => {
-        const start = index * groupSize
-        const end = clamp(start + groupSize - 1, start, prevNodes.length - 1)
-        const centers = prevNodes.slice(start, end + 1).map((node) => node.y + NODE_H / 2)
-        const centerY = centers.length ? centers.reduce((sum, c) => sum + c, 0) / centers.length : PADDING_Y + index * verticalStep
+        const slotIndex = Math.max(0, group.slot - 1)
+        const fallbackIndex = Math.max(0, index)
+        const effectiveSlot = Number.isFinite(slotIndex) ? slotIndex : fallbackIndex
+        const centerY = PADDING_Y + NODE_H / 2 + (effectiveSlot * blockSize + (blockSize - 1) / 2) * verticalStep
         return { ...group, x, y: centerY - NODE_H / 2, ...(group.id.startsWith('placeholder:') ? { isPlaceholder: true as const } : {}) }
       }))
     })
@@ -134,16 +117,16 @@ export const BracketView = ({
       const nextStage = sortedStages[stageIndex + 1]
       if (!nextStage) return
 
-      const current = nodesByStage.get(stage.id) ?? []
-      const next = nodesByStage.get(nextStage.id) ?? []
+      const current = (nodesByStage.get(stage.id) ?? []).slice().sort((a, b) => a.slot - b.slot)
+      const next = (nodesByStage.get(nextStage.id) ?? []).slice().sort((a, b) => a.slot - b.slot)
       if (!current.length || !next.length) return
 
-      const groupSize = Math.max(1, Math.floor(current.length / next.length))
-
-      next.forEach((nextNode, nextIndex) => {
-        const start = nextIndex * groupSize
-        const end = clamp(start + groupSize - 1, start, current.length - 1)
-        current.slice(start, end + 1).forEach((fromNode) => lines.push({ fromX: fromNode.x + NODE_W, fromY: fromNode.y + NODE_H / 2, toX: nextNode.x, toY: nextNode.y + NODE_H / 2 }))
+      next.forEach((nextNode) => {
+        const firstSourceSlot = nextNode.slot * 2 - 1
+        const lastSourceSlot = nextNode.slot * 2
+        current
+          .filter((fromNode) => fromNode.slot >= firstSourceSlot && fromNode.slot <= lastSourceSlot)
+          .forEach((fromNode) => lines.push({ fromX: fromNode.x + NODE_W, fromY: fromNode.y + NODE_H / 2, toX: nextNode.x, toY: nextNode.y + NODE_H / 2 }))
       })
     })
 
@@ -154,11 +137,12 @@ export const BracketView = ({
     const viewport = viewportRef.current?.getBoundingClientRect()
     if (!viewport) return { x: nextX, y: nextY }
 
-    const minX = viewport.width - width * localScale - 20
-    const minY = viewport.height - height * localScale - 20
+    const EDGE = 8
+    const minX = viewport.width - width * localScale - EDGE
+    const minY = viewport.height - height * localScale - EDGE
     return {
-      x: clamp(nextX, Math.min(minX, 20), 20),
-      y: clamp(nextY, Math.min(minY, 20), 20),
+      x: clamp(nextX, Math.min(minX, EDGE), EDGE),
+      y: clamp(nextY, Math.min(minY, EDGE), EDGE),
     }
   }
 
