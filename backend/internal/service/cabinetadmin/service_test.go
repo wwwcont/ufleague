@@ -31,6 +31,7 @@ func (f *fakeRepo) GetTeamByID(context.Context, int64) (domain.Team, error) {
 }
 func (f *fakeRepo) FindUserByUsername(context.Context, string) (int64, error)         { return 0, nil }
 func (f *fakeRepo) CreateTeamInvite(context.Context, int64, int64, int64) error       { return nil }
+func (f *fakeRepo) EnsureUserRole(context.Context, int64, domain.Role) error          { return nil }
 func (f *fakeRepo) UpdateTeamSocials(context.Context, int64, map[string]string) error { return nil }
 func (f *fakeRepo) SetPlayerVisible(context.Context, int64, bool) error               { return nil }
 func (f *fakeRepo) TransferCaptain(context.Context, int64, int64) error               { return nil }

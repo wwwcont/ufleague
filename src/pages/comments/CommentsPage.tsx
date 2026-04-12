@@ -1,4 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect } from 'react'
 import type { CommentEntityType } from '../../domain/entities/types'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { CommentsSection } from '../../components/comments'
@@ -9,6 +10,17 @@ const allowedTypes: CommentEntityType[] = ['match', 'team', 'player', 'event']
 export const CommentsPage = () => {
   const navigate = useNavigate()
   const { entityType, entityId } = useParams()
+
+  useEffect(() => {
+    if (!window.location.hash) return
+    const commentId = window.location.hash.replace('#comment-', '')
+    if (!commentId) return
+    window.setTimeout(() => {
+      const node = document.getElementById(`comment-${commentId}`)
+      node?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 100)
+  }, [])
+
   if (!entityType || !entityId || !allowedTypes.includes(entityType as CommentEntityType)) {
     return <PageContainer><EmptyState title="Комментарии не найдены" /></PageContainer>
   }

@@ -10,16 +10,21 @@ import { useSession } from '../../app/providers/use-session'
 import { canManageMatch } from '../../domain/services/accessControl'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { ApiError } from '../../infrastructure/api/repositories'
+import { EventEditor } from '../../components/events'
+import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
+import type { EventContentBlock } from '../../domain/entities/types'
 
 export const MatchEventsPage = () => {
   const { matchId } = useParams()
   const { data: match } = useMatchDetails(matchId)
   const { data: events, isLoading, error } = useEvents({ entityType: 'match', entityId: matchId })
   const { session } = useSession()
-  const { eventsRepository } = useRepositories()
+  const { eventsRepository, uploadsRepository } = useRepositories()
 
   const [eventTitle, setEventTitle] = useState('')
-  const [eventBody, setEventBody] = useState('')
+  const [eventSummary, setEventSummary] = useState('')
+  const [eventBlocks, setEventBlocks] = useState<EventContentBlock[]>([])
+  const [createOpen, setCreateOpen] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
@@ -53,38 +58,84 @@ export const MatchEventsPage = () => {
       {canManage && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
           <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><CalendarPlus size={16} className="text-accentYellow" /> Добавить событие</h2>
-          <div className="space-y-2">
-            <input value={eventTitle} onChange={(event) => setEventTitle(event.target.value)} placeholder="Заголовок события" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm" />
-            <textarea value={eventBody} onChange={(event) => setEventBody(event.target.value)} rows={3} placeholder="Описание события" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm" />
-            <button
-              type="button"
-              disabled={pending || !eventTitle.trim() || !eventBody.trim()}
-              className="inline-flex items-center gap-1 rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-60"
-              onClick={async () => {
-                setPending(true)
-                setStatus('Сохраняем событие...')
-                try {
-                  await eventsRepository.createEventForScope?.({
-                    scopeType: 'match',
-                    scopeId: matchId,
-                    title: eventTitle.trim(),
-                    summary: eventBody.trim().slice(0, 140),
-                    body: eventBody.trim(),
-                  })
-                  setStatus('Событие создано')
-                  setEventTitle('')
-                  setEventBody('')
-                } catch (cause) {
-                  setStatus(actionError(cause))
-                } finally {
-                  setPending(false)
-                }
-              }}
-            >
-              <Timer size={12} /> Добавить событие
+          {!createOpen ? (
+            <button type="button" className="inline-flex items-center gap-1 rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={() => {
+              setCreateOpen(true)
+              setStatus(null)
+            }}>
+              <Timer size={12} /> Создать событие
             </button>
-            {status && <p className="text-xs text-textMuted">{status}</p>}
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <input value={eventTitle} onChange={(event) => setEventTitle(event.target.value)} placeholder="Заголовок события" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm" />
+              <textarea value={eventSummary} onChange={(event) => setEventSummary(event.target.value)} rows={2} placeholder="Короткое summary (необязательно)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm" />
+              <EventEditor
+                blocks={eventBlocks}
+                onChange={setEventBlocks}
+                onImageUpload={async (blockId, file) => {
+                  const next = [...eventBlocks]
+                  const index = next.findIndex((item) => item.id === blockId)
+                  if (index < 0) return
+                  if (!file) {
+                    next[index] = { ...next[index], imageUrl: '' }
+                    setEventBlocks(next)
+                    return
+                  }
+                  try {
+                    const imageUrl = (await uploadsRepository.uploadImage(file)).url
+                    next[index] = { ...next[index], imageUrl }
+                    setEventBlocks(next)
+                  } catch (cause) {
+                    setStatus(actionError(cause))
+                  }
+                }}
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={pending || !eventTitle.trim()}
+                  className="inline-flex items-center gap-1 rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-60"
+                  onClick={async () => {
+                    setPending(true)
+                    setStatus('Сохраняем событие...')
+                    try {
+                      const normalizedBlocks = normalizeEventBlocks(eventBlocks, { text: '', imageUrl: undefined })
+                      await eventsRepository.createEventForScope?.({
+                        scopeType: 'match',
+                        scopeId: matchId,
+                        title: eventTitle.trim(),
+                        summary: eventSummary.trim() || deriveSummaryFromBlocks(normalizedBlocks),
+                        body: blocksToPlainText(normalizedBlocks) || eventSummary.trim(),
+                        imageUrl: normalizedBlocks.find((item) => item.type === 'image')?.imageUrl,
+                        contentBlocks: normalizedBlocks,
+                      })
+                      setStatus('Событие создано')
+                      setEventTitle('')
+                      setEventSummary('')
+                      setEventBlocks([])
+                      setCreateOpen(false)
+                    } catch (cause) {
+                      setStatus(actionError(cause))
+                    } finally {
+                      setPending(false)
+                    }
+                  }}
+                >
+                  <Timer size={12} /> Сохранить
+                </button>
+                <button type="button" disabled={pending} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-60" onClick={() => {
+                  setCreateOpen(false)
+                  setEventTitle('')
+                  setEventSummary('')
+                  setEventBlocks([])
+                  setStatus(null)
+                }}>
+                  Отмена
+                </button>
+              </div>
+            </div>
+          )}
+          {status && <p className="mt-2 text-xs text-textMuted">{status}</p>}
         </section>
       )}
 

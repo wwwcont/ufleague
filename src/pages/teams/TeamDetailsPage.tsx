@@ -1,6 +1,6 @@
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { CalendarClock, EyeOff, Pencil, Plus, ShieldCheck, Trophy, UserPlus, Users, X } from 'lucide-react'
+import { CalendarClock, Pencil, ShieldCheck, Trophy, Users } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
 import { usePlayers } from '../../hooks/data/usePlayers'
@@ -14,27 +14,22 @@ import { TeamAvatar } from '../../components/ui/TeamAvatar'
 import { SocialLinks } from '../../components/ui/SocialLinks'
 import { tournament } from '../../mocks/data/tournament'
 import { CommentsSection } from '../../components/comments'
-import { EventEditor, EventFeedSection } from '../../components/events'
+import { EventFeedSection } from '../../components/events'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { canManageTeam } from '../../domain/services/accessControl'
 import { ApiError } from '../../infrastructure/api/repositories'
-import type { EventContentBlock } from '../../domain/entities/types'
 import {
-  EditableImageField,
   EditableSection,
-  EditableSectionHeader,
   EditableTextField,
   EditableTextareaField,
   SectionActionBar,
 } from '../../components/ui/editable'
-import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
 
 const formLabel: Record<string, string> = { W: 'В', D: 'Н', L: 'П' }
 
 export const TeamDetailsPage = () => {
   const { teamId } = useParams()
-  const [searchParams] = useSearchParams()
   const { data: team } = useTeamDetails(teamId)
   const { data: players } = usePlayers(teamId)
   const { data: teamFeed } = useEvents({ entityType: 'team', entityId: teamId, limit: 4 })
@@ -42,23 +37,15 @@ export const TeamDetailsPage = () => {
   const { data: matches } = useMatches()
   const { data: teams } = useTeams()
   const { session } = useSession()
-  const { teamsRepository, eventsRepository, uploadsRepository, playersRepository, usersRepository } = useRepositories()
+  const { teamsRepository, uploadsRepository } = useRepositories()
   const [heroEditing, setHeroEditing] = useState(false)
-  const [descriptionEditing, setDescriptionEditing] = useState(false)
-  const [socialsEditing, setSocialsEditing] = useState(false)
-
   const [heroSaving, setHeroSaving] = useState(false)
-  const [descriptionSaving, setDescriptionSaving] = useState(false)
-  const [socialsSaving, setSocialsSaving] = useState(false)
 
   const [heroStatus, setHeroStatus] = useState<string | null>(null)
   const [heroTone, setHeroTone] = useState<'idle' | 'success' | 'error'>('idle')
-  const [descriptionStatus, setDescriptionStatus] = useState<string | null>(null)
-  const [descriptionTone, setDescriptionTone] = useState<'idle' | 'success' | 'error'>('idle')
-  const [socialsStatus, setSocialsStatus] = useState<string | null>(null)
-  const [socialsTone, setSocialsTone] = useState<'idle' | 'success' | 'error'>('idle')
 
   const [editableName, setEditableName] = useState('')
+  const [editableShortName, setEditableShortName] = useState('')
   const [editableSlogan, setEditableSlogan] = useState('')
   const [editableDescription, setEditableDescription] = useState('')
   const [editableTelegram, setEditableTelegram] = useState('')
@@ -70,23 +57,12 @@ export const TeamDetailsPage = () => {
   const [customUrl2, setCustomUrl2] = useState('')
   const [editableLogoUrl, setEditableLogoUrl] = useState<string | undefined>(undefined)
   const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [eventCreateOpen, setEventCreateOpen] = useState(false)
-  const [eventCreatePending, setEventCreatePending] = useState(false)
-  const [eventCreateStatus, setEventCreateStatus] = useState<string | null>(null)
-  const [newEventTitle, setNewEventTitle] = useState('')
-  const [newEventSummary, setNewEventSummary] = useState('')
-  const [newEventBlocks, setNewEventBlocks] = useState<EventContentBlock[]>([])
   const [localTeamFeed, setLocalTeamFeed] = useState(teamFeed ?? [])
-  const [rosterSetupMode, setRosterSetupMode] = useState(false)
-  const [inviteUsername, setInviteUsername] = useState('')
-  const [rosterStatus, setRosterStatus] = useState<string | null>(null)
-  const [hiddenPlayerIds, setHiddenPlayerIds] = useState<string[]>([])
-  const [kickedPlayerIds, setKickedPlayerIds] = useState<string[]>([])
-  const manageMode = searchParams.get('manage')
 
   useEffect(() => {
     if (!team) return
     setEditableName(team.name)
+    setEditableShortName(team.shortName)
     setEditableSlogan(team.slogan ?? '')
     setEditableDescription(team.description ?? '')
     setEditableTelegram(team.socials?.telegram ?? '')
@@ -99,19 +75,11 @@ export const TeamDetailsPage = () => {
     setEditableLogoUrl(team.logoUrl ?? undefined)
     setLogoFile(null)
     setHeroEditing(false)
-    setDescriptionEditing(false)
-    setSocialsEditing(false)
   }, [team])
 
   useEffect(() => {
     setLocalTeamFeed(teamFeed ?? [])
   }, [teamFeed])
-
-  useEffect(() => {
-    if (manageMode === 'roster') {
-      setRosterSetupMode(true)
-    }
-  }, [manageMode])
 
   if (!team) return <PageContainer><EmptyState title="Команда не найдена" /></PageContainer>
 
@@ -139,14 +107,9 @@ export const TeamDetailsPage = () => {
 
   const syncHeroDraft = () => {
     setEditableName(team.name)
+    setEditableShortName(team.shortName)
     setEditableSlogan(team.slogan ?? '')
     setEditableLogoUrl(team.logoUrl ?? undefined)
-    setLogoFile(null)
-  }
-  const syncDescriptionDraft = () => {
-    setEditableDescription(team.description ?? '')
-  }
-  const syncSocialsDraft = () => {
     setEditableTelegram(team.socials?.telegram ?? '')
     setEditableVk(team.socials?.vk ?? '')
     setEditableInstagram(team.socials?.instagram ?? '')
@@ -154,8 +117,9 @@ export const TeamDetailsPage = () => {
     setCustomUrl1(team.socials?.custom?.[0]?.url ?? '')
     setCustomLabel2(team.socials?.custom?.[1]?.label ?? '')
     setCustomUrl2(team.socials?.custom?.[1]?.url ?? '')
+    setEditableDescription(team.description ?? '')
+    setLogoFile(null)
   }
-
   return (
     <PageContainer>
       <EditableSection isEditing={heroEditing} className="relative overflow-hidden border-borderStrong bg-panelBg p-5 shadow-matte">
@@ -172,48 +136,87 @@ export const TeamDetailsPage = () => {
         </div>
 
         <div className="relative z-10">
-          <EditableSectionHeader
-            title="Hero команды"
-            subtitle="Лого, название и слоган"
-            canEdit={canManageCurrentTeam}
-            isEditing={heroEditing}
-            onStartEdit={() => {
-              syncHeroDraft()
-              setHeroStatus(null)
-              setHeroTone('idle')
-              setHeroEditing(true)
-            }}
-            onCancelEdit={() => {
-              syncHeroDraft()
-              setHeroStatus(null)
-              setHeroTone('idle')
-              setHeroEditing(false)
-            }}
-          />
+          {canManageCurrentTeam && !heroEditing && (
+            <div className="absolute right-4 top-4 z-20">
+              <button
+                type="button"
+                onClick={() => {
+                  syncHeroDraft()
+                  setHeroStatus(null)
+                  setHeroTone('idle')
+                  setHeroEditing(true)
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle bg-black/30 px-2 py-1 text-xs text-textSecondary"
+                aria-label="Редактировать профиль команды"
+              >
+                <Pencil size={14} />
+                Редактировать
+              </button>
+            </div>
+          )}
 
-          <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center">
-            <TeamAvatar team={{ ...team, logoUrl: editableLogoUrl ?? team.logoUrl }} size="xl" fallbackLogoUrl={tournament.logoUrl} className="h-20 w-20 border border-borderStrong bg-panelSoft p-2" />
+          <div className="mb-4 space-y-4">
+            <div>
+              <h1 className="text-3xl font-bold text-white">{team.name}</h1>
+              {team.slogan && <p className="mt-1 text-sm text-textSecondary">{team.slogan}</p>}
+            </div>
+
+            <div className="flex items-center justify-between gap-4">
+              <TeamAvatar
+                team={{ ...team, logoUrl: editableLogoUrl ?? team.logoUrl }}
+                size="xl"
+                fallbackLogoUrl={tournament.logoUrl}
+                className="h-28 w-28 overflow-hidden rounded-full border border-borderStrong bg-panelSoft p-0 [&_img]:h-full [&_img]:w-full [&_img]:object-cover"
+              />
+              <p className="text-5xl font-black uppercase tracking-[0.14em] text-white">{team.shortName}</p>
+            </div>
+
+            <div className="rounded-xl border border-borderSubtle bg-black/25 p-3">
+              <p className="text-sm leading-relaxed text-textSecondary">{team.description || 'Описание команды пока не заполнено.'}</p>
+            </div>
+
+            <div>
+              <SocialLinks
+                compact
+                links={{ telegram: team.socials?.telegram, vk: team.socials?.vk, instagram: team.socials?.instagram }}
+                custom={team.socials?.custom}
+              />
+            </div>
+
             <div className="flex-1">
               {heroEditing ? (
                 <div className="space-y-2">
-                  <EditableTextField label="Название" value={editableName} onChange={setEditableName} isEditing placeholder="Название команды" />
-                  <EditableTextField label="Слоган" value={editableSlogan} onChange={setEditableSlogan} isEditing placeholder="Слоган (необязательно)" />
+                  <EditableTextField label="Полное название" value={editableName} onChange={setEditableName} isEditing placeholder="Например, Urban Foxes" />
+                  <EditableTextField label="Сокращение (3 символа)" value={editableShortName} onChange={(value) => setEditableShortName(value.toUpperCase().slice(0, 3))} isEditing placeholder="ABC" />
+                  <EditableTextField label={`Слоган (${editableSlogan.length}/50)`} value={editableSlogan} onChange={(value) => setEditableSlogan(value.slice(0, 50))} isEditing placeholder="Короткий слоган команды" />
+                  <EditableTextareaField
+                    label={`Описание (${editableDescription.length}/300)`}
+                    value={editableDescription}
+                    onChange={(value) => setEditableDescription(value.slice(0, 300))}
+                    isEditing
+                    placeholder="Краткое описание команды (до 300 символов)"
+                    rows={4}
+                  />
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <EditableTextField label="Telegram" value={editableTelegram} onChange={setEditableTelegram} isEditing placeholder="@team_channel" />
+                    <EditableTextField label="VK" value={editableVk} onChange={setEditableVk} isEditing placeholder="vk.com/team" />
+                    <EditableTextField label="Instagram" value={editableInstagram} onChange={setEditableInstagram} isEditing placeholder="instagram.com/team" />
+                    <EditableTextField label="Custom link #1 (label)" value={customLabel1} onChange={setCustomLabel1} isEditing placeholder="Партнер" />
+                    <EditableTextField label="Custom link #1 (url)" value={customUrl1} onChange={setCustomUrl1} isEditing placeholder="https://..." />
+                    <EditableTextField label="Custom link #2 (label)" value={customLabel2} onChange={setCustomLabel2} isEditing placeholder="Мерч" />
+                    <EditableTextField label="Custom link #2 (url)" value={customUrl2} onChange={setCustomUrl2} isEditing placeholder="https://..." />
+                  </div>
                 </div>
-              ) : (
-                <>
-                  <h1 className="text-3xl font-bold text-textPrimary">{team.name}</h1>
-                  {team.slogan && <p className="mt-1 text-sm text-textSecondary">{team.slogan}</p>}
-                </>
-              )}
+              ) : null}
             </div>
           </div>
 
           {heroEditing && (
-            <EditableImageField
-              label="Сменить логотип"
-              imageUrl={editableLogoUrl}
-              isEditing
-              onSelectFile={(file) => {
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null
                 setLogoFile(file)
                 if (!file) {
                   setEditableLogoUrl(team.logoUrl ?? undefined)
@@ -221,6 +224,7 @@ export const TeamDetailsPage = () => {
                 }
                 setEditableLogoUrl(URL.createObjectURL(file))
               }}
+              className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-xs text-textSecondary"
             />
           )}
 
@@ -244,8 +248,19 @@ export const TeamDetailsPage = () => {
                 const logoUrl = logoFile ? (await uploadsRepository.uploadImage(logoFile)).url : team.logoUrl ?? undefined
                 await teamsRepository.updateTeam(team.id, {
                   name: editableName,
+                  shortName: editableShortName,
                   slogan: editableSlogan,
+                  description: editableDescription,
                   logoUrl,
+                  socials: {
+                    telegram: editableTelegram,
+                    vk: editableVk,
+                    instagram: editableInstagram,
+                    custom: [
+                      ...(customLabel1 && customUrl1 ? [{ label: customLabel1, url: customUrl1 }] : []),
+                      ...(customLabel2 && customUrl2 ? [{ label: customLabel2, url: customUrl2 }] : []),
+                    ],
+                  },
                 })
                 setHeroStatus('Hero обновлен')
                 setHeroTone('success')
@@ -258,143 +273,7 @@ export const TeamDetailsPage = () => {
               }
             }}
           />
-
-          <SocialLinks
-            compact
-            links={{ telegram: team.socials?.telegram, vk: team.socials?.vk, instagram: team.socials?.instagram }}
-            custom={team.socials?.custom}
-          />
         </div>
-      </EditableSection>
-
-      <EditableSection isEditing={descriptionEditing}>
-        <EditableSectionHeader
-          title="Описание команды"
-          canEdit={canManageCurrentTeam}
-          isEditing={descriptionEditing}
-          onStartEdit={() => {
-            syncDescriptionDraft()
-            setDescriptionStatus(null)
-            setDescriptionTone('idle')
-            setDescriptionEditing(true)
-          }}
-          onCancelEdit={() => {
-            syncDescriptionDraft()
-            setDescriptionStatus(null)
-            setDescriptionTone('idle')
-            setDescriptionEditing(false)
-          }}
-        />
-        {descriptionEditing ? (
-          <EditableTextareaField label="Описание" value={editableDescription} onChange={setEditableDescription} isEditing placeholder="Описание команды" rows={5} />
-        ) : (
-          <p className="text-sm leading-relaxed text-textSecondary">{team.description || 'Описание команды пока не заполнено.'}</p>
-        )}
-        <SectionActionBar
-          isEditing={descriptionEditing}
-          isPending={descriptionSaving}
-          statusMessage={descriptionStatus}
-          statusTone={descriptionTone}
-          onCancel={() => {
-            syncDescriptionDraft()
-            setDescriptionStatus(null)
-            setDescriptionTone('idle')
-            setDescriptionEditing(false)
-          }}
-          onSave={async () => {
-            if (!teamsRepository.updateTeam) return
-            setDescriptionSaving(true)
-            setDescriptionStatus('Сохраняем описание...')
-            setDescriptionTone('idle')
-            try {
-              await teamsRepository.updateTeam(team.id, { description: editableDescription })
-              setDescriptionStatus('Описание обновлено')
-              setDescriptionTone('success')
-              setDescriptionEditing(false)
-            } catch (error) {
-              setDescriptionStatus(actionError(error))
-              setDescriptionTone('error')
-            } finally {
-              setDescriptionSaving(false)
-            }
-          }}
-        />
-      </EditableSection>
-
-      <EditableSection isEditing={socialsEditing}>
-        <EditableSectionHeader
-          title="Соцсети"
-          canEdit={canManageCurrentTeam}
-          isEditing={socialsEditing}
-          onStartEdit={() => {
-            syncSocialsDraft()
-            setSocialsStatus(null)
-            setSocialsTone('idle')
-            setSocialsEditing(true)
-          }}
-          onCancelEdit={() => {
-            syncSocialsDraft()
-            setSocialsStatus(null)
-            setSocialsTone('idle')
-            setSocialsEditing(false)
-          }}
-        />
-        {socialsEditing ? (
-          <div className="grid gap-2 sm:grid-cols-2">
-            <EditableTextField label="Telegram" value={editableTelegram} onChange={setEditableTelegram} isEditing placeholder="@team_channel" />
-            <EditableTextField label="VK" value={editableVk} onChange={setEditableVk} isEditing placeholder="vk.com/team" />
-            <EditableTextField label="Instagram" value={editableInstagram} onChange={setEditableInstagram} isEditing placeholder="instagram.com/team" />
-            <EditableTextField label="Custom link #1 (label)" value={customLabel1} onChange={setCustomLabel1} isEditing placeholder="Партнер" />
-            <EditableTextField label="Custom link #1 (url)" value={customUrl1} onChange={setCustomUrl1} isEditing placeholder="https://..." />
-            <EditableTextField label="Custom link #2 (label)" value={customLabel2} onChange={setCustomLabel2} isEditing placeholder="Мерч" />
-            <EditableTextField label="Custom link #2 (url)" value={customUrl2} onChange={setCustomUrl2} isEditing placeholder="https://..." />
-          </div>
-        ) : (
-          <SocialLinks
-            compact
-            links={{ telegram: team.socials?.telegram, vk: team.socials?.vk, instagram: team.socials?.instagram }}
-            custom={team.socials?.custom}
-          />
-        )}
-        <SectionActionBar
-          isEditing={socialsEditing}
-          isPending={socialsSaving}
-          statusMessage={socialsStatus}
-          statusTone={socialsTone}
-          onCancel={() => {
-            syncSocialsDraft()
-            setSocialsStatus(null)
-            setSocialsTone('idle')
-            setSocialsEditing(false)
-          }}
-          onSave={async () => {
-            if (!teamsRepository.updateTeam) return
-            setSocialsSaving(true)
-            setSocialsStatus('Сохраняем соцсети...')
-            setSocialsTone('idle')
-            try {
-              await teamsRepository.updateTeam(team.id, {
-                socials: {
-                  telegram: editableTelegram,
-                  vk: editableVk,
-                  instagram: editableInstagram,
-                  custom: [
-                    ...(customLabel1 && customUrl1 ? [{ label: customLabel1, url: customUrl1 }] : []),
-                    ...(customLabel2 && customUrl2 ? [{ label: customLabel2, url: customUrl2 }] : []),
-                  ],
-                },
-              })
-              setSocialsStatus('Соцсети обновлены')
-              setSocialsTone('success')
-              setSocialsEditing(false)
-            } catch (error) {
-              setSocialsStatus(actionError(error))
-              setSocialsTone('error')
-            } finally {
-              setSocialsSaving(false)
-            }
-          }}
-        />
       </EditableSection>
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
@@ -409,142 +288,19 @@ export const TeamDetailsPage = () => {
         </div>
       </section>
 
-      <EventFeedSection title="События команды" events={localTeamFeed} layout="timeline" messageWhenEmpty="События команды пока не добавлены." />
-
-      {canManageCurrentTeam && (
-        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
-          {!eventCreateOpen ? (
-            <button type="button" onClick={() => setEventCreateOpen(true)} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary">Создать событие</button>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm font-semibold text-textPrimary">Новое событие команды</p>
-              <input value={newEventTitle} onChange={(event) => setNewEventTitle(event.target.value)} placeholder="Заголовок события" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm" />
-              <textarea value={newEventSummary} onChange={(event) => setNewEventSummary(event.target.value)} rows={2} placeholder="Короткое summary (необязательно)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm" />
-              <EventEditor
-                blocks={newEventBlocks}
-                onChange={setNewEventBlocks}
-                onImageUpload={async (blockId, file) => {
-                  const next = [...newEventBlocks]
-                  const index = next.findIndex((item) => item.id === blockId)
-                  if (index < 0) return
-                  if (!file) {
-                    next[index] = { ...next[index], imageUrl: '' }
-                    setNewEventBlocks(next)
-                    return
-                  }
-                  try {
-                    const imageUrl = (await uploadsRepository.uploadImage(file)).url
-                    next[index] = { ...next[index], imageUrl }
-                    setNewEventBlocks(next)
-                  } catch (error) {
-                    setEventCreateStatus(actionError(error))
-                  }
-                }}
-              />
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={eventCreatePending || !newEventTitle.trim()}
-                  className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50"
-                  onClick={async () => {
-                    setEventCreatePending(true)
-                    setEventCreateStatus('Сохраняем событие...')
-                    try {
-                      const blocks = normalizeEventBlocks(newEventBlocks, { text: '', imageUrl: undefined })
-                      await eventsRepository.createEventForScope?.({
-                        scopeType: 'team',
-                        scopeId: team.id,
-                        title: newEventTitle.trim(),
-                        summary: newEventSummary.trim() || deriveSummaryFromBlocks(blocks),
-                        body: blocksToPlainText(blocks) || newEventSummary.trim(),
-                        imageUrl: blocks.find((item) => item.type === 'image')?.imageUrl,
-                        contentBlocks: blocks,
-                      })
-                      setLocalTeamFeed((prev) => [{
-                        id: `local_${Date.now()}`,
-                        title: newEventTitle.trim(),
-                        summary: newEventSummary.trim() || deriveSummaryFromBlocks(blocks),
-                        text: blocksToPlainText(blocks),
-                        contentBlocks: blocks,
-                        timestamp: new Date().toISOString(),
-                        source: 'team',
-                        authorName: session.user.displayName,
-                        category: 'news' as const,
-                        entityType: 'team' as const,
-                        entityId: team.id,
-                        imageUrl: blocks.find((item) => item.type === 'image')?.imageUrl,
-                        canEdit: true,
-                        canDelete: true,
-                      }, ...prev].slice(0, 8))
-                      setEventCreateStatus('Событие создано')
-                      setEventCreateOpen(false)
-                      setNewEventTitle('')
-                      setNewEventSummary('')
-                      setNewEventBlocks([])
-                    } catch (error) {
-                      setEventCreateStatus(actionError(error))
-                    } finally {
-                      setEventCreatePending(false)
-                    }
-                  }}
-                >
-                  Сохранить
-                </button>
-                <button type="button" disabled={eventCreatePending} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={() => {
-                  setEventCreateOpen(false)
-                  setNewEventTitle('')
-                  setNewEventSummary('')
-                  setNewEventBlocks([])
-                  setEventCreateStatus(null)
-                }}>Отмена</button>
-              </div>
-              {eventCreateStatus && <p className="text-xs text-textMuted">{eventCreateStatus}</p>}
-            </div>
-          )}
-        </section>
-      )}
+      <EventFeedSection title="События команды" events={localTeamFeed} layout="timeline" messageWhenEmpty="События команды пока не добавлены." linkToAll={`/teams/${team.id}/events`} />
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-base font-semibold text-textPrimary"><Users size={16} className="text-accentYellow" /> СОСТАВ</h2>
           <div className="flex items-center gap-2">
-            {canManageCurrentTeam && (
-              <>
-                <button type="button" onClick={() => setRosterSetupMode((prev) => !prev)} className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textSecondary">
-                  {rosterSetupMode ? 'Готово' : 'Настроить'}
-                </button>
-              </>
-            )}
-            <Link to="/players" className="text-xs text-accentYellow hover:underline">ВСЕ</Link>
+            <Link to={`/teams/${team.id}/roster`} className="text-xs text-accentYellow hover:underline">{canManageCurrentTeam ? 'ВСЕ / НАСТРОИТЬ' : 'ВСЕ'}</Link>
           </div>
         </div>
-        {canManageCurrentTeam && (
-          <div className="mb-3 rounded-xl border border-borderSubtle bg-mutedBg p-3">
-            <p className="mb-2 text-xs text-textMuted">Добавить игрока по @username</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <input value={inviteUsername} onChange={(event) => setInviteUsername(event.target.value)} placeholder="@telegram_username" className="min-w-[220px] flex-1 rounded-lg border border-borderSubtle bg-panelBg px-3 py-2 text-sm" />
-              <button type="button" disabled={!inviteUsername.trim().startsWith('@')} className="inline-flex items-center gap-1 rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
-                try {
-                  const found = await usersRepository.findByTelegramUsername?.(inviteUsername)
-                  if (!found) throw new Error('Пользователь не найден')
-                  await teamsRepository.captainInviteByUsername?.(team.id, found.telegramUsername ?? inviteUsername.replace(/^@/, ''))
-                  await playersRepository.createPlayer?.({ userId: found.id, teamId: team.id, fullName: found.displayName, position: 'MF', shirtNumber: 0 })
-                  setRosterStatus('Игрок добавлен в команду и player profile создан')
-                  setInviteUsername('')
-                } catch (error) {
-                  setRosterStatus(actionError(error))
-                }
-              }}>
-                <UserPlus size={12} /> <Plus size={12} /> Добавить
-              </button>
-            </div>
-            {rosterStatus && <p className="mt-2 text-xs text-textMuted">{rosterStatus}</p>}
-          </div>
-        )}
         <div className="space-y-2">
           {players?.length ? players
-            .filter((player) => !kickedPlayerIds.includes(player.id))
-            .filter((player) => canManageCurrentTeam || !(player.isHidden || hiddenPlayerIds.includes(player.id)))
+            .filter((player) => canManageCurrentTeam || !player.isHidden)
+            .slice(0, 8)
             .map((player) => (
             <div key={player.id} className="rounded-xl border border-borderSubtle bg-mutedBg p-2">
               <div className="flex items-center justify-between gap-2">
@@ -554,38 +310,10 @@ export const TeamDetailsPage = () => {
                       <p className="mt-1 px-1 text-[11px] font-semibold text-accentYellow">Капитан команды</p>
                     ) : null}
                   </div>
-                {canManageCurrentTeam && rosterSetupMode && (
-                  <div className="flex items-center gap-1">
-                    <Link to={`/players/${player.id}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-borderSubtle text-textSecondary" aria-label="Редактировать игрока">
-                      <Pencil size={12} />
-                    </Link>
-                    <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-borderSubtle text-textSecondary" aria-label="Скрыть игрока" onClick={async () => {
-                      try {
-                        await teamsRepository.captainSetRosterVisibility?.(team.id, player.id, hiddenPlayerIds.includes(player.id))
-                        setHiddenPlayerIds((prev) => (prev.includes(player.id) ? prev.filter((id) => id !== player.id) : [...prev, player.id]))
-                        setRosterStatus(hiddenPlayerIds.includes(player.id) ? 'Игрок снова отображается в составе' : 'Игрок скрыт из состава')
-                      } catch (error) {
-                        setRosterStatus(actionError(error))
-                      }
-                    }}>
-                      <EyeOff size={12} />
-                    </button>
-                    <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/40 text-red-300" aria-label="Выгнать игрока" onClick={async () => {
-                      if (!window.confirm('Выгнать игрока из команды? Пользователь сохранится, профиль игрока будет деактивирован.')) return
-                      try {
-                        await teamsRepository.captainSetRosterVisibility?.(team.id, player.id, false)
-                        setKickedPlayerIds((prev) => [...prev, player.id])
-                        setRosterStatus('Игрок исключен из команды, user сохранен')
-                      } catch (error) {
-                        setRosterStatus(actionError(error))
-                      }
-                    }}>
-                      <X size={12} />
-                    </button>
-                  </div>
-                )}
+                <Link to={`/players/${player.id}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-borderSubtle text-textSecondary" aria-label="Открыть игрока">
+                  <Pencil size={12} />
+                </Link>
               </div>
-              {hiddenPlayerIds.includes(player.id) && <p className="mt-1 text-xs text-textMuted">Скрыт из состава</p>}
             </div>
           )) : <p className="text-sm text-textMuted">Состав пока не загружен.</p>}
         </div>

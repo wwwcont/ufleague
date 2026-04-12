@@ -14,3 +14,9 @@ func TestActionRouteFallback(t *testing.T) {
 		t.Fatalf("unexpected route: %s", route)
 	}
 }
+
+func TestActionRouteUser(t *testing.T) {
+	if route := actionRoute("user", "42", map[string]any{}); route != "/users/42" {
+		t.Fatalf("unexpected route: %s", route)
+	}
+}

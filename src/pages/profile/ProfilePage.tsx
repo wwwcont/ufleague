@@ -44,7 +44,12 @@ const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
     { title: 'Команды и игроки', description: 'Создание и администрирование сущностей.', route: '/profile/tournament', icon: 'shield' },
   ],
   superadmin: [
-    { title: 'Пользователи', description: 'Полный workflow user/team rights.', route: '/profile/users', icon: 'shield' },
+    { title: 'Матчи', description: 'Управление матчами и турниром.', route: '/profile/tournament', icon: 'shield' },
+    { title: 'Пользователи', description: 'Капитанство, приглашения, admin права.', route: '/profile/users', icon: 'shield' },
+    { title: 'События', description: 'Операции с событиями турнира.', route: '/profile/team-events', icon: 'shield' },
+    { title: 'Комментарии', description: 'Модерация комментариев.', route: '/profile/moderation', icon: 'shield' },
+    { title: 'Блокировки', description: 'Ограничения комментариев.', route: '/profile/comment-blocks', icon: 'shield' },
+    { title: 'Команды и игроки', description: 'Создание и администрирование сущностей.', route: '/profile/tournament', icon: 'shield' },
     { title: 'Роли пользователей', description: 'Назначение ролей и аудит.', route: '/profile/roles', icon: 'shield' },
     { title: 'Permissions', description: 'Тонкая настройка прав.', route: '/profile/rbac', icon: 'shield' },
     { title: 'Restrictions', description: 'Глобальные ограничения.', route: '/profile/restrictions', icon: 'shield' },
@@ -77,7 +82,7 @@ export const ProfilePage = () => {
   const { session, status, logout } = useSession()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const { data: team } = useTeamDetails(session.user.teamId)
-  const { data: teamPlayers } = usePlayers(session.user.teamId)
+  const { data: allPlayers } = usePlayers()
 
   const visibleRoleGroups = useMemo(() => {
     const activeRoles = new Set<UserRole>(session.user.roles?.length ? session.user.roles : [session.user.role])
@@ -88,12 +93,28 @@ export const ProfilePage = () => {
   }, [session.isAuthenticated, session.user.role, session.user.roles])
 
   const playerCard = useMemo(() => {
-    if (!teamPlayers || !session.user.teamId) return null
+    if (!allPlayers) return null
     if (session.user.playerProfileId) {
-      return teamPlayers.find((item) => item.id === session.user.playerProfileId) ?? null
+      return allPlayers.find((item) => item.id === session.user.playerProfileId) ?? null
     }
-    return teamPlayers.find((item) => item.userId === session.user.id) ?? null
-  }, [teamPlayers, session.user.id, session.user.playerProfileId, session.user.teamId])
+    return allPlayers.find((item) => item.userId === session.user.id) ?? null
+  }, [allPlayers, session.user.id, session.user.playerProfileId])
+
+  const effectiveTeamId = team?.id ?? session.user.teamId
+  const resolvedRoleGroups = useMemo(() => visibleRoleGroups.map((group) => ({
+    ...group,
+    entries: group.entries
+      .map((item) => {
+        if (item.route === '/profile/my-player') {
+          return playerCard ? { ...item, route: `/players/${playerCard.id}` } : null
+        }
+        if (item.route === '/profile/my-team') {
+          return effectiveTeamId ? { ...item, route: `/teams/${effectiveTeamId}` } : null
+        }
+        return item
+      })
+      .filter(Boolean) as CabinetEntry[],
+  })).filter((group) => group.entries.length > 0), [effectiveTeamId, playerCard, visibleRoleGroups])
 
   const statusLabel = status === 'loading' ? 'Проверяем вход…' : status === 'authenticated' ? 'Онлайн в текущей сессии' : 'Гостевой режим'
 
@@ -120,23 +141,10 @@ export const ProfilePage = () => {
           </button>
         </div>
 
-        <div className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
-          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3">
-            <p className="text-xs text-textMuted">Моя команда</p>
-            <p className="mt-1 text-textPrimary">{team?.name ?? 'Не привязана'}</p>
-          </div>
-          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3">
-            <p className="text-xs text-textMuted">Профиль игрока</p>
-            <p className="mt-1 text-textPrimary">{playerCard ? `#${playerCard.number} • ${playerCard.position}` : 'Не привязан'}</p>
-          </div>
-          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3">
-            <p className="text-xs text-textMuted">Активные роли</p>
-            <div className="mt-1 flex flex-wrap gap-1">
-              {(session.user.roles?.length ? session.user.roles : [session.user.role]).map((role) => (
-                <span key={role} className={`rounded-full border px-2 py-0.5 text-[10px] uppercase ${badgeTone[role]}`}>{roleLabel[role]}</span>
-              ))}
-            </div>
-          </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="rounded-full border border-borderSubtle bg-mutedBg px-2 py-1 text-textSecondary">Команда: <span className="text-textPrimary">{team?.name ?? '—'}</span></span>
+          <span className="rounded-full border border-borderSubtle bg-mutedBg px-2 py-1 text-textSecondary">Игрок: <span className="text-textPrimary">{playerCard ? `#${playerCard.number} ${playerCard.position}` : '—'}</span></span>
+          <span className="rounded-full border border-borderSubtle bg-mutedBg px-2 py-1 text-textSecondary">Роли: {(session.user.roles?.length ? session.user.roles : [session.user.role]).map((role) => roleLabel[role]).join(', ')}</span>
         </div>
       </section>
 
@@ -166,7 +174,7 @@ export const ProfilePage = () => {
             </div>
           </article>
         )}
-        {visibleRoleGroups.map((group) => (
+        {resolvedRoleGroups.map((group) => (
           <article key={group.role} className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-base font-semibold text-textPrimary">{roleLabel[group.role]} — рабочие секции</h3>

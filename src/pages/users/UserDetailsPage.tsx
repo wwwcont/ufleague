@@ -17,14 +17,17 @@ const roleLabel: Record<string, string> = {
 
 export const UserDetailsPage = () => {
   const { userId } = useParams()
-  const { usersRepository } = useRepositories()
+  const { usersRepository, uploadsRepository } = useRepositories()
   const { session } = useSession()
   const { data: user } = useQueryState(() => (userId ? usersRepository.getUserCard(userId) : Promise.resolve(null)), (value) => !value)
-  const [profile, setProfile] = useState<{ userId: string; username: string; displayName: string; bio: string; avatarUrl: string; socials: Record<string, string> } | null>(null)
+  const [profile, setProfile] = useState<{ userId: string; username: string; telegramId?: string; telegramUsername?: string; displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> } | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [displayName, setDisplayName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [bio, setBio] = useState('')
   const [avatarUrl, setAvatarUrl] = useState('')
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [status, setStatus] = useState<string | null>(null)
 
   const canEditUser = useMemo(() => {
@@ -38,6 +41,8 @@ export const UserDetailsPage = () => {
       setProfile(item)
       if (!item) return
       setDisplayName(item.displayName)
+      setFirstName(item.firstName)
+      setLastName(item.lastName)
       setBio(item.bio)
       setAvatarUrl(item.avatarUrl)
     }).catch(() => setProfile(null))
@@ -49,8 +54,11 @@ export const UserDetailsPage = () => {
     setStatus(null)
     setProfile(null)
     setDisplayName('')
+    setFirstName('')
+    setLastName('')
     setBio('')
     setAvatarUrl('')
+    setAvatarFile(null)
   }, [canEditUser])
 
   if (!user) {
@@ -77,13 +85,37 @@ export const UserDetailsPage = () => {
         </div>
 
         <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 sm:col-span-2">
+            <p className="text-xs text-textMuted">Фотография</p>
+            {profile?.avatarUrl ? (
+              <img src={profile.avatarUrl} alt={profile.displayName} className="mt-2 h-28 w-28 rounded-xl object-cover" />
+            ) : (
+              <p className="mt-1 text-textPrimary">Фото не загружено</p>
+            )}
+          </div>
+          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3">
+            <p className="text-xs text-textMuted">Имя</p>
+            <p className="mt-1 text-textPrimary">{profile?.firstName || 'Не указано'}</p>
+          </div>
+          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3">
+            <p className="text-xs text-textMuted">Фамилия</p>
+            <p className="mt-1 text-textPrimary">{profile?.lastName || 'Не указано'}</p>
+          </div>
+          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 sm:col-span-2">
+            <p className="text-xs text-textMuted">Отображаемое имя</p>
+            <p className="mt-1 text-textPrimary">{profile?.displayName ?? user.displayName}</p>
+          </div>
+          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 sm:col-span-2">
+            <p className="text-xs text-textMuted">Био</p>
+            <p className="mt-1 text-textPrimary">{profile?.bio || 'Пока пусто'}</p>
+          </div>
           <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3">
             <p className="text-xs text-textMuted">Статус</p>
             <p className="mt-1 text-textPrimary">{user.statuses.map((status) => roleLabel[status] ?? status).join(', ') || 'Пользователь'}</p>
           </div>
           <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3">
-            <p className="text-xs text-textMuted">Телеграм</p>
-            <p className="mt-1 text-textPrimary">{user.telegramUsername ? `@${user.telegramUsername}` : 'Не указан'}</p>
+            <p className="text-xs text-textMuted">Логин Telegram</p>
+            <p className="mt-1 text-textPrimary">{profile?.telegramUsername ? `@${profile.telegramUsername}` : (user.telegramUsername ? `@${user.telegramUsername}` : 'Не указан')}</p>
           </div>
           <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 sm:col-span-2">
             <p className="text-xs text-textMuted">Присутствие</p>
@@ -94,13 +126,19 @@ export const UserDetailsPage = () => {
         {canEditUser && isEditing && (
           <div className="mt-3 space-y-2 rounded-xl border border-borderSubtle bg-mutedBg p-3">
             <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Display name" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
-            <input value={avatarUrl} onChange={(event) => setAvatarUrl(event.target.value)} placeholder="Avatar URL" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
+            <div className="grid gap-2 sm:grid-cols-2">
+              <input value={firstName} onChange={(event) => setFirstName(event.target.value)} maxLength={30} placeholder="Имя (до 30 символов)" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
+              <input value={lastName} onChange={(event) => setLastName(event.target.value)} maxLength={30} placeholder="Фамилия (до 30 символов)" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
+            </div>
+            <input type="file" accept="image/*" onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)} className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1 text-xs" />
+            <input value={avatarUrl} onChange={(event) => setAvatarUrl(event.target.value)} placeholder="Avatar URL (или загрузите файл выше)" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
             <textarea value={bio} onChange={(event) => setBio(event.target.value)} rows={3} placeholder="Bio" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
             <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
               if (!usersRepository.updateUserProfile || !userId) return
               try {
-                await usersRepository.updateUserProfile(userId, { displayName, bio, avatarUrl, socials: profile?.socials ?? {} })
-                setProfile((prev) => prev ? { ...prev, displayName, bio, avatarUrl } : prev)
+                const uploadedAvatarUrl = avatarFile ? (await uploadsRepository.uploadImage(avatarFile)).url : avatarUrl
+                await usersRepository.updateUserProfile(userId, { displayName, firstName: firstName.trim(), lastName: lastName.trim(), bio, avatarUrl: uploadedAvatarUrl, socials: profile?.socials ?? {} })
+                setProfile((prev) => prev ? { ...prev, displayName, firstName: firstName.trim(), lastName: lastName.trim(), bio, avatarUrl: uploadedAvatarUrl } : prev)
                 setStatus('Профиль сохранён')
                 setIsEditing(false)
               } catch (error) {

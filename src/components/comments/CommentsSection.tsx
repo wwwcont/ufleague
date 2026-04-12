@@ -75,10 +75,10 @@ export const CommentsSection = ({ entityType, entityId, title = 'Коммент�
           showThread={!collapsed}
         />
       )}
-      {collapsed && comments.length > 3 && (
+      {collapsed && comments.length > 0 && (
         <div className="mt-3 text-right">
           <Link to={`/comments/${entityType}/${entityId}`} className="text-sm text-accentYellow hover:underline">
-            Развернуть все комментарии ({comments.length})
+            Открыть страницу комментариев ({comments.length})
           </Link>
         </div>
       )}

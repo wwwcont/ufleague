@@ -12,6 +12,7 @@ import type {
   UsersRepository,
   UploadsRepository,
 } from '../../domain/repositories/contracts'
+import type { FormResult, PublicUserCard, UserRole } from '../../domain/entities/types'
 import { bracketGroups, bracketSettings, bracketStages } from '../data/bracket'
 import { comments, currentCommentAuthor } from '../data/comments'
 import { events } from '../data/events'
@@ -21,27 +22,143 @@ import { defaultSession, makeSessionByRole } from '../data/session'
 import { standings } from '../data/standings'
 import { teams } from '../data/teams'
 
+let inMemoryTeams = teams.map((team) => ({ ...team, socials: { ...(team.socials ?? {}), custom: [...(team.socials?.custom ?? [])] } }))
+let inMemoryPlayers = players.map((player) => ({ ...player, socials: { ...(player.socials ?? {}) }, stats: { ...player.stats } }))
+
+let inMemorySession = defaultSession
+
+const userDirectory = new Map<string, { id: string; displayName: string; telegramUsername: string }>()
+const bootstrapUsers = () => {
+  for (const player of inMemoryPlayers) {
+    const telegramUsername = player.userId.replace(/^u_/, '')
+    userDirectory.set(player.userId, { id: player.userId, displayName: player.displayName, telegramUsername })
+  }
+  const knownRoles: UserRole[] = ['player', 'captain', 'admin', 'superadmin']
+  for (const role of knownRoles) {
+    const session = makeSessionByRole(role)
+    userDirectory.set(session.user.id, {
+      id: session.user.id,
+      displayName: session.user.displayName,
+      telegramUsername: (session.user.telegramHandle ?? '').replace(/^@/, '') || session.user.id,
+    })
+  }
+}
+bootstrapUsers()
+
+const ensurePlayerForUser = (userId: string, teamId: string, fallbackName: string) => {
+  const existing = inMemoryPlayers.find((item) => item.userId === userId)
+  if (existing) {
+    existing.teamId = teamId
+    return existing
+  }
+  const next = {
+    id: `p_mock_${inMemoryPlayers.length + 1}`,
+    userId,
+    teamId,
+    displayName: fallbackName,
+    number: 99,
+    position: 'MF' as const,
+    age: 24,
+    avatar: null,
+    bio: 'Создано через mock flow',
+    socials: {},
+    stats: { goals: 0, assists: 0, appearances: 0 },
+  }
+  inMemoryPlayers = [next, ...inMemoryPlayers]
+  return next
+}
+
+const syncSessionLinks = () => {
+  if (!inMemorySession.isAuthenticated) return
+  const player = inMemoryPlayers.find((item) => item.userId === inMemorySession.user.id)
+  if (!player) return
+  inMemorySession = {
+    ...inMemorySession,
+    user: {
+      ...inMemorySession.user,
+      playerProfileId: player.id,
+      teamId: player.teamId,
+    },
+  }
+}
+
 export const teamsRepository: TeamsRepository = {
   async getTeams() {
-    return teams
+    return inMemoryTeams
   },
   async getTeamById(teamId) {
-    return teams.find((t) => t.id === teamId) ?? null
+    return inMemoryTeams.find((t) => t.id === teamId) ?? null
   },
-  async createTeam() {
-    return { id: `team_mock_${Date.now()}` }
+  async createTeam(input) {
+    const nextId = `team_mock_${Date.now()}`
+    const created = {
+      id: nextId,
+      name: input.name,
+      shortName: (input.shortName ?? input.name.slice(0, 3)).toUpperCase().slice(0, 3),
+      logoUrl: input.logoUrl ?? null,
+      captainUserId: inMemorySession.isAuthenticated ? inMemorySession.user.id : null,
+      city: 'Новый город',
+      slogan: '',
+      description: input.description,
+      socials: { custom: [] },
+      coach: 'TBD',
+      group: 'A',
+      form: ['D', 'D', 'D', 'D', 'D'] as FormResult[],
+      statsSummary: { played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, goalDiff: 0, points: 0 },
+    }
+    inMemoryTeams = [created, ...inMemoryTeams]
+
+    if (inMemorySession.isAuthenticated) {
+      const player = ensurePlayerForUser(inMemorySession.user.id, created.id, inMemorySession.user.displayName)
+      inMemorySession = {
+        ...inMemorySession,
+        user: {
+          ...inMemorySession.user,
+          teamId: created.id,
+          playerProfileId: player.id,
+        },
+      }
+    }
+
+    return { id: nextId }
+  },
+  async updateTeam(teamId, patch) {
+    inMemoryTeams = inMemoryTeams.map((team) => {
+      if (team.id !== teamId) return team
+      return {
+        ...team,
+        name: patch.name ?? team.name,
+        shortName: patch.shortName ?? team.shortName,
+        logoUrl: patch.logoUrl ?? team.logoUrl,
+        description: patch.description ?? team.description,
+        slogan: patch.slogan ?? team.slogan,
+        socials: {
+          ...team.socials,
+          ...(patch.socials ?? {}),
+          custom: patch.socials?.custom ?? team.socials?.custom,
+        },
+      }
+    })
+  },
+  async captainInviteByUsername(teamId, username) {
+    const normalized = username.trim().replace(/^@/, '')
+    const target = [...userDirectory.values()].find((item) => item.telegramUsername === normalized)
+    if (!target) return
+    ensurePlayerForUser(target.id, teamId, target.displayName)
+    syncSessionLinks()
   },
 }
 
 export const playersRepository: PlayersRepository = {
   async getPlayers(teamId) {
-    return teamId ? players.filter((p) => p.teamId === teamId) : players
+    return teamId ? inMemoryPlayers.filter((p) => p.teamId === teamId) : inMemoryPlayers
   },
   async getPlayerById(playerId) {
-    return players.find((p) => p.id === playerId) ?? null
+    return inMemoryPlayers.find((p) => p.id === playerId) ?? null
   },
-  async createPlayer() {
-    return
+  async createPlayer(input) {
+    ensurePlayerForUser(input.userId, input.teamId, input.fullName)
+    syncSessionLinks()
   },
 }
 
@@ -68,10 +185,6 @@ export const bracketRepository: BracketRepository = {
     return { stages: bracketStages, groups: bracketGroups, settings: bracketSettings }
   },
 }
-
-
-
-
 
 export const eventsRepository: EventsRepository = {
   async getEvents() {
@@ -120,12 +233,9 @@ export const commentsRepository: CommentsRepository = {
   },
 }
 
-
-
-let inMemorySession = defaultSession
-
 export const sessionRepository: SessionRepository = {
   async getSession() {
+    syncSessionLinks()
     return inMemorySession
   },
   async startTelegramLogin() {
@@ -133,10 +243,12 @@ export const sessionRepository: SessionRepository = {
   },
   async completeTelegramLoginWithCode() {
     inMemorySession = makeSessionByRole('superadmin')
+    syncSessionLinks()
     return inMemorySession
   },
   async loginAsDevRole(role) {
     inMemorySession = makeSessionByRole(role)
+    syncSessionLinks()
     return inMemorySession
   },
   async logout() {
@@ -149,11 +261,11 @@ export const searchRepository: SearchRepository = {
     const q = query.trim().toLowerCase()
     if (!q) return []
 
-    const teamResults = teams
+    const teamResults = inMemoryTeams
       .filter((t) => t.name.toLowerCase().includes(q))
       .map((t) => ({ id: `s_team_${t.id}`, type: 'team' as const, entityId: t.id, title: t.name, subtitle: t.city, route: `/teams/${t.id}` }))
 
-    const playerResults = players
+    const playerResults = inMemoryPlayers
       .filter((p) => p.displayName.toLowerCase().includes(q))
       .map((p) => ({ id: `s_player_${p.id}`, type: 'player' as const, entityId: p.id, title: p.displayName, subtitle: p.position, route: `/players/${p.id}` }))
 
@@ -168,7 +280,11 @@ export const searchRepository: SearchRepository = {
 let mockProfile = {
   userId: '1',
   username: 'mock_user',
+  telegramId: '10001',
+  telegramUsername: 'mock_user',
   displayName: 'Mock User',
+  firstName: 'Mock',
+  lastName: 'User',
   bio: '',
   avatarUrl: '',
   socials: {} as Record<string, string>,
@@ -208,8 +324,8 @@ export const cabinetRepository: CabinetRepository = {
   },
   async getMyActions() {
     return [
-      { id: 'a1', action: 'comment.create', targetType: 'team', targetId: '1', createdAt: new Date().toISOString(), route: '/teams/1' },
-      { id: 'a2', action: 'event.create', targetType: 'event', targetId: '1', createdAt: new Date(Date.now() - 3600_000).toISOString(), route: '/events/1' },
+      { id: 'a1', action: 'comment.create', targetType: 'comment', targetId: '1', createdAt: new Date().toISOString(), route: '/comments/team/1#comment-1', metadata: { entity_type: 'team', entity_id: 1 } },
+      { id: 'a2', action: 'event.create', targetType: 'event', targetId: '1', createdAt: new Date(Date.now() - 3600_000).toISOString(), route: '/events/1', metadata: { title: 'Mock event' } },
     ]
   },
   async getTournamentCycles() {
@@ -235,45 +351,56 @@ export const cabinetRepository: CabinetRepository = {
   },
 }
 
+const buildUserCard = (user: { id: string; displayName: string; telegramUsername: string }): PublicUserCard => {
+  const player = inMemoryPlayers.find((item) => item.userId === user.id)
+  const teamId = player?.teamId
+  const statuses: UserRole[] = []
+  if (player) statuses.push('player')
+  if (inMemoryTeams.some((team) => team.captainUserId === user.id)) statuses.push('captain')
+  if (statuses.length === 0) statuses.push('guest')
+  return {
+    id: user.id,
+    displayName: user.displayName,
+    telegramUsername: user.telegramUsername,
+    statuses,
+    isOnline: false,
+    playerId: player?.id,
+    teamId,
+  }
+}
+
 export const usersRepository: UsersRepository = {
   async getUserCard(userId) {
-    if (userId === '102') {
+    const user = userDirectory.get(userId)
+    if (!user) {
       return {
-        id: '102',
-        displayName: 'М. Картер',
-        telegramUsername: 'mcarter',
-        statuses: ['player'],
-        lastSeenAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-        isOnline: true,
-        playerId: 'p1',
-        teamId: 'team_1',
+        id: userId,
+        displayName: `Пользователь #${userId}`,
+        statuses: ['guest'],
+        isOnline: false,
       }
     }
-    return {
-      id: userId,
-      displayName: `Пользователь #${userId}`,
-      statuses: ['guest'],
-      isOnline: false,
-    }
+    return buildUserCard(user)
   },
   async findByTelegramUsername(username) {
     const normalized = username.trim().replace(/^@/, '')
     if (!normalized) return null
-    return {
-      id: `user_${normalized}`,
-      displayName: `@${normalized}`,
-      telegramUsername: normalized,
-      statuses: ['player'],
-      isOnline: false,
-    }
+    const user = [...userDirectory.values()].find((item) => item.telegramUsername === normalized)
+    return user ? buildUserCard(user) : null
   },
   async getUserProfile(userId) {
+    const user = userDirectory.get(userId)
+    const player = inMemoryPlayers.find((item) => item.userId === userId)
     return {
       userId,
-      username: `user_${userId}`,
-      displayName: `Пользователь #${userId}`,
-      bio: '',
-      avatarUrl: '',
+      username: userId,
+      telegramId: userId,
+      telegramUsername: user?.telegramUsername ?? userId,
+      displayName: user?.displayName ?? `Пользователь #${userId}`,
+      firstName: (user?.displayName ?? '').split(' ')[0] ?? '',
+      lastName: (user?.displayName ?? '').split(' ').slice(1).join(' '),
+      bio: player?.bio ?? '',
+      avatarUrl: player?.avatar ?? '',
       socials: {},
     }
   },

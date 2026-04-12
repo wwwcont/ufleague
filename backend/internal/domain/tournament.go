@@ -5,6 +5,7 @@ import "time"
 type Team struct {
 	ID            int64             `json:"id"`
 	Name          string            `json:"name"`
+	ShortName     string            `json:"short_name"`
 	Slug          string            `json:"slug"`
 	Description   string            `json:"description,omitempty"`
 	LogoURL       string            `json:"logo_url,omitempty"`
@@ -63,6 +64,7 @@ type TournamentRoundNode struct {
 
 type CreateTeamRequest struct {
 	Name        string            `json:"name"`
+	ShortName   string            `json:"short_name"`
 	Slug        string            `json:"slug"`
 	Description string            `json:"description"`
 	LogoURL     string            `json:"logo_url"`
