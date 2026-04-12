@@ -16,6 +16,8 @@ import { CabinetSectionPage } from '../../pages/profile/CabinetSectionPage'
 import { SearchPage } from '../../pages/search/SearchPage'
 import { TablePage } from '../../pages/table/TablePage'
 import { TeamDetailsPage } from '../../pages/teams/TeamDetailsPage'
+import { TeamEventsPage } from '../../pages/teams/TeamEventsPage'
+import { TeamRosterPage } from '../../pages/teams/TeamRosterPage'
 import { TeamsPage } from '../../pages/teams/TeamsPage'
 import { UserDetailsPage } from '../../pages/users/UserDetailsPage'
 import { AppRouteError } from './AppRouteError'
@@ -32,6 +34,8 @@ export const router = createBrowserRouter([
       { path: 'matches/:matchId/events', element: <MatchEventsPage /> },
       { path: 'teams', element: <TeamsPage /> },
       { path: 'teams/:teamId', element: <TeamDetailsPage /> },
+      { path: 'teams/:teamId/roster', element: <TeamRosterPage /> },
+      { path: 'teams/:teamId/events', element: <TeamEventsPage /> },
       { path: 'players', element: <PlayersPage /> },
       { path: 'players/:playerId', element: <PlayerDetailsPage /> },
       { path: 'table', element: <TablePage /> },
