@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"time"
 
 	"football_ui/backend/internal/domain"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -72,6 +75,97 @@ func (r *CabinetAdminRepository) SetPlayerVisible(ctx context.Context, playerID 
 func (r *CabinetAdminRepository) TransferCaptain(ctx context.Context, teamID, newCaptain int64) error {
 	_, err := r.pool.Exec(ctx, `UPDATE teams SET captain_user_id=$2, updated_at=NOW() WHERE id=$1`, teamID, newCaptain)
 	return err
+}
+func (r *CabinetAdminRepository) GetPlayerByUserID(ctx context.Context, userID int64) (*domain.Player, error) {
+	row := r.pool.QueryRow(ctx, `
+		SELECT id,user_id,team_id,full_name,COALESCE(nickname,''),COALESCE(avatar_url,''),socials,COALESCE(position,''),shirt_number,created_at,updated_at
+		FROM players
+		WHERE user_id = $1
+		ORDER BY id DESC
+		LIMIT 1
+	`, userID)
+	player, err := scanPlayer(row)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &player, nil
+}
+func (r *CabinetAdminRepository) CreateCaptainPlayerProfile(ctx context.Context, userID, teamID int64, displayName string) error {
+	shirtNumber := 0
+	tr := NewTournamentRepository(r.pool)
+	_, err := tr.CreatePlayer(ctx, domain.Player{
+		UserID:      &userID,
+		TeamID:      &teamID,
+		FullName:    displayName,
+		Position:    "MF",
+		ShirtNumber: &shirtNumber,
+		Socials:     map[string]string{},
+	})
+	return err
+}
+func (r *CabinetAdminRepository) ReassignPlayerTeam(ctx context.Context, playerID, teamID int64) error {
+	_, err := r.pool.Exec(ctx, `UPDATE players SET team_id=$2, updated_at=NOW() WHERE id=$1`, playerID, teamID)
+	return err
+}
+func (r *CabinetAdminRepository) ListAuditActionsByActor(ctx context.Context, userID int64, limit int) ([]domain.UserActionItem, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, action, target_type, target_id, COALESCE(metadata, '{}'::jsonb), created_at
+		FROM audit_logs
+		WHERE actor_user_id = $1
+		ORDER BY created_at DESC
+		LIMIT $2
+	`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.UserActionItem, 0, limit)
+	for rows.Next() {
+		var item domain.UserActionItem
+		var metadataRaw []byte
+		var createdAt time.Time
+		if err = rows.Scan(&item.ID, &item.Action, &item.TargetType, &item.TargetID, &metadataRaw, &createdAt); err != nil {
+			return nil, err
+		}
+		item.CreatedAt = createdAt.Unix()
+		item.Metadata = map[string]any{}
+		_ = json.Unmarshal(metadataRaw, &item.Metadata)
+		item.Route = actionRoute(item.TargetType, item.TargetID, item.Metadata)
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+func actionRoute(targetType, targetID string, metadata map[string]any) string {
+	switch targetType {
+	case "team":
+		return "/teams/" + targetID
+	case "player":
+		return "/players/" + targetID
+	case "event":
+		return "/events/" + targetID
+	case "comment":
+		entityType, _ := metadata["entity_type"].(string)
+		entityID := ""
+		if raw := metadata["entity_id"]; raw != nil {
+			switch typed := raw.(type) {
+			case string:
+				entityID = typed
+			case float64:
+				entityID = strconv.FormatInt(int64(typed), 10)
+			}
+		}
+		if entityType != "" && entityID != "" {
+			return "/comments/" + entityType + "/" + entityID + "#comment-" + targetID
+		}
+		return "/"
+	default:
+		return "/"
+	}
 }
 func (r *CabinetAdminRepository) ModerateDeleteComment(ctx context.Context, commentID int64) error {
 	_, err := r.pool.Exec(ctx, `UPDATE comments SET deleted_at=NOW(), updated_at=NOW() WHERE id=$1 AND deleted_at IS NULL`, commentID)

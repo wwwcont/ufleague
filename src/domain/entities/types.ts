@@ -127,6 +127,7 @@ export interface Player {
     vk?: string
     instagram?: string
   }
+  isHidden?: boolean
   stats: {
     goals: number
     assists: number

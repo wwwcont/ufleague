@@ -15,22 +15,25 @@ interface CabinetEntry {
   icon: 'user' | 'shield'
 }
 
+const userCabinetEntries: CabinetEntry[] = [
+  { title: 'Профиль пользователя', description: 'Открыть свою карточку пользователя для редактирования.', route: '/profile/my-user', icon: 'user' },
+  { title: 'Мои действия', description: 'Лента личных действий по дате.', route: '/profile/my-actions', icon: 'shield' },
+  { title: 'Настройки', description: 'Персональные настройки (пока заглушка).', route: '/profile/user-settings', icon: 'shield' },
+]
+
 const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
   guest: [
     { title: 'Мой профиль', description: 'Основные данные аккаунта и контакты.', route: '/profile/profile-settings', icon: 'user' },
     { title: 'Моя активность', description: 'Комментарии, ответы и реакции.', route: '/profile/activity', icon: 'user' },
   ],
   player: [
-    { title: 'Мой профиль', description: 'Данные user-профиля: имя, био, возраст, фото.', route: '/profile/profile-settings', icon: 'user' },
-    { title: 'Профиль игрока', description: 'Игровой профиль и статистика.', route: '/profile/player-profile', icon: 'user' },
-    { title: 'Моя команда', description: 'Переход на страницу моей команды.', route: '/profile/team', icon: 'shield' },
-    { title: 'Мои события', description: 'События из профиля игрока.', route: '/profile/player-events', icon: 'shield' },
+    { title: 'Профиль игрока', description: 'Сразу открыть профиль игрока.', route: '/profile/my-player', icon: 'user' },
+    { title: 'Моя команда', description: 'Переход на страницу моей команды.', route: '/profile/my-team', icon: 'shield' },
   ],
   captain: [
-    { title: 'Управление командой', description: 'Создать команду или открыть три раздела управления.', route: '/profile/team', icon: 'shield' },
-    { title: 'Профиль игрока', description: 'Игровой профиль капитана (если вы также игрок).', route: '/profile/player-profile', icon: 'user' },
-    { title: 'Моя команда', description: 'Открыть публичную страницу своей команды.', route: '/profile/roster', icon: 'shield' },
-    { title: 'События команды', description: 'Лента событий команды с правами капитана.', route: '/profile/team-events', icon: 'shield' },
+    { title: 'Моя команда', description: 'Сразу открыть страницу команды.', route: '/profile/my-team', icon: 'shield' },
+    { title: 'Профиль игрока', description: 'Сразу открыть профиль игрока.', route: '/profile/my-player', icon: 'user' },
+    { title: 'Управление командой', description: 'Создать команду или перейти к разделам капитана.', route: '/profile/team', icon: 'shield' },
   ],
   admin: [
     { title: 'Матчи', description: 'Управление матчами и турниром.', route: '/profile/tournament', icon: 'shield' },
@@ -77,11 +80,12 @@ export const ProfilePage = () => {
   const { data: teamPlayers } = usePlayers(session.user.teamId)
 
   const visibleRoleGroups = useMemo(() => {
-    const activeRoles = new Set<UserRole>(['guest', ...(session.user.roles?.length ? session.user.roles : [session.user.role])])
+    const activeRoles = new Set<UserRole>(session.user.roles?.length ? session.user.roles : [session.user.role])
+    if (!session.isAuthenticated) activeRoles.add('guest')
     return (Object.keys(cabinetByRole) as UserRole[])
       .filter((role) => activeRoles.has(role))
       .map((role) => ({ role, entries: cabinetByRole[role] }))
-  }, [session.user.role, session.user.roles])
+  }, [session.isAuthenticated, session.user.role, session.user.roles])
 
   const playerCard = useMemo(() => {
     if (!teamPlayers || !session.user.teamId) return null
@@ -144,6 +148,24 @@ export const ProfilePage = () => {
       )}
 
       <section className="space-y-3">
+        {session.isAuthenticated && (
+          <article className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-textPrimary">Пользовательский блок</h3>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {userCabinetEntries.map((item) => (
+                <Link key={`user:${item.route}`} to={item.route} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3 transition hover:border-borderStrong">
+                  <div className="flex items-center gap-2 text-textPrimary">
+                    {iconFor(item.icon)}
+                    <p className="text-sm font-semibold">{item.title}</p>
+                  </div>
+                  <p className="mt-1 text-xs text-textMuted">{item.description}</p>
+                </Link>
+              ))}
+            </div>
+          </article>
+        )}
         {visibleRoleGroups.map((group) => (
           <article key={group.role} className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
             <div className="mb-3 flex items-center justify-between">

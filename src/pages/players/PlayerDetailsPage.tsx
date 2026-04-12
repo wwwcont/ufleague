@@ -155,7 +155,6 @@ export const PlayerDetailsPage = () => {
               <p className="text-xs text-textMuted">{player.age ? `${player.age} лет` : 'Возраст не указан'}</p>
               <p className="text-xs text-textMuted">Голы: {goalsFromMatches} • Ассисты: {assistsFromMatches}</p>
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                <Link to="/profile/profile-settings" className="rounded-lg border border-borderSubtle px-2 py-1">Профиль юзера</Link>
                 {player.userId && <Link to={`/users/${player.userId}`} className="rounded-lg border border-borderSubtle px-2 py-1">Страница юзера</Link>}
               </div>
             </div>

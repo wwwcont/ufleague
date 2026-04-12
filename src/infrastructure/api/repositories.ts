@@ -86,6 +86,7 @@ const mapPlayer = (p: any): Player | null => {
       vk: p.socials?.vk,
       instagram: p.socials?.instagram,
     },
+    isHidden: p.is_visible === false || p.visible === false || p.hidden === true || p.position === 'hidden',
     stats: { goals: 0, assists: 0, appearances: Number(p.appearances ?? 0) },
   }
 }
@@ -770,6 +771,17 @@ export const cabinetRepository: CabinetRepository = {
   async superadminSetGlobalSetting(input) {
     await api(`/api/superadmin/settings/${encodeURIComponent(input.key)}`, { method: 'PUT', body: JSON.stringify({ value: input.value }) })
   },
+  async getMyActions() {
+    const rows = await api<any[]>(`/api/me/actions`)
+    return rows.map((item) => ({
+      id: String(item.id),
+      action: String(item.action ?? ''),
+      targetType: String(item.target_type ?? ''),
+      targetId: String(item.target_id ?? ''),
+      createdAt: item.created_at ? new Date(Number(item.created_at) * 1000).toISOString() : new Date().toISOString(),
+      route: String(item.route ?? '/'),
+    }))
+  },
   async getTournamentCycles() {
     try {
       const payload = await api<any[]>('/api/tournament/cycles')
@@ -857,6 +869,46 @@ export const usersRepository: UsersRepository = {
       } catch {
         return null
       }
+    }
+  },
+  async getUserProfile(userId) {
+    try {
+      const item = await api<any>(`/api/admin/users/${userId}/profile`)
+      return {
+        userId: String(item.user_id),
+        username: String(item.username ?? ''),
+        displayName: String(item.display_name ?? ''),
+        bio: String(item.bio ?? ''),
+        avatarUrl: String(item.avatar_url ?? ''),
+        socials: (item.socials ?? {}) as Record<string, string>,
+      }
+    } catch {
+      try {
+        const me = await api<any>(`/api/me/profile`)
+        if (String(me.user_id) !== String(userId)) return null
+        return {
+          userId: String(me.user_id),
+          username: String(me.username ?? ''),
+          displayName: String(me.display_name ?? ''),
+          bio: String(me.bio ?? ''),
+          avatarUrl: String(me.avatar_url ?? ''),
+          socials: (me.socials ?? {}) as Record<string, string>,
+        }
+      } catch {
+        return null
+      }
+    }
+  },
+  async updateUserProfile(userId, input) {
+    try {
+      await api(`/api/admin/users/${userId}/profile`, { method: 'PATCH', body: JSON.stringify({ display_name: input.displayName, bio: input.bio, avatar_url: input.avatarUrl, socials: input.socials }) })
+      return
+    } catch {
+      const me = await api<any>(`/api/auth/me`)
+      if (String(me.user?.id ?? '') !== String(userId)) {
+        throw new ApiError(403, 'forbidden')
+      }
+      await api(`/api/me/profile`, { method: 'PATCH', body: JSON.stringify({ display_name: input.displayName, bio: input.bio, avatar_url: input.avatarUrl, socials: input.socials }) })
     }
   },
 }
