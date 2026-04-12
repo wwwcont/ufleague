@@ -36,7 +36,7 @@ export const TeamDetailsPage = () => {
   const [searchParams] = useSearchParams()
   const { data: team } = useTeamDetails(teamId)
   const { data: players } = usePlayers(teamId)
-  const { data: teamFeed } = useEvents({ entityType: 'team', entityId: teamId })
+  const { data: teamFeed } = useEvents({ entityType: 'team', entityId: teamId, limit: 4 })
   const { data: standings } = useStandings()
   const { data: matches } = useMatches()
   const { data: teams } = useTeams()
@@ -349,7 +349,7 @@ export const TeamDetailsPage = () => {
         </div>
       </section>
 
-      <EventFeedSection title="События команды" events={localTeamFeed} layout="timeline" messageWhenEmpty="События команды пока не добавлены." />
+      <EventFeedSection title="События команды" events={localTeamFeed} layout="timeline" messageWhenEmpty="События команды пока не добавлены." linkToAll={`/teams/${team.id}/events`} />
 
       {canManageCurrentTeam && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
