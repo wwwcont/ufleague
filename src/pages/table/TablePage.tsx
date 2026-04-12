@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { BracketView } from '../../components/data-display/BracketView'
 import { StandingsTable } from '../../components/data-display/StandingsTable'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useBracket } from '../../hooks/data/useBracket'
 import { useStandings } from '../../hooks/data/useStandings'
@@ -44,6 +45,7 @@ export const TablePage = () => {
   const [localTieOverrides, setLocalTieOverrides] = useState<Record<string, { homeTeamId: string; awayTeamId: string }>>({})
   const [selectedPlayoffNumber, setSelectedPlayoffNumber] = useState<string>('')
   const [hiddenTieIds, setHiddenTieIds] = useState<Set<string>>(new Set())
+  const [tiePendingDelete, setTiePendingDelete] = useState<BracketMatchGroup | null>(null)
 
   const getPlayoffNumber = (groupOrSlot: { tieId?: string; stageId: string; slot: number }) => groupOrSlot.tieId ? String(groupOrSlot.tieId).replace(/\D/g, '') || String(groupOrSlot.tieId) : `${groupOrSlot.stageId}-${groupOrSlot.slot}`
 
@@ -241,22 +243,7 @@ export const TablePage = () => {
                     setTieAwayTeamId(group.awayTeamId ?? '')
                     setBracketStatus(null)
                   }}
-                  onDeleteTie={(group) => {
-                    setHiddenTieIds((prev) => new Set(prev).add(group.id))
-                    setLocalTieOverrides((prev) => {
-                      const key = `${group.stageId}:${group.slot}`
-                      if (!prev[key]) return prev
-                      const next = { ...prev }
-                      delete next[key]
-                      return next
-                    })
-                    setBracketStatus('Плей-офф удален из сетки локально (до синхронизации с API).')
-                    if (selectedSlot?.tieId === group.id) {
-                      setSelectedSlot(null)
-                      setTieHomeTeamId('')
-                      setTieAwayTeamId('')
-                    }
-                  }}
+                  onDeleteTie={(group) => { setTiePendingDelete(group) }}
                 />
               )}
             </>
@@ -267,6 +254,32 @@ export const TablePage = () => {
             </PageContainer>
           )}
       </div>
+      <ConfirmDialog
+        open={Boolean(tiePendingDelete)}
+        title="Подтвердить удаление"
+        description={tiePendingDelete ? `Удалить плей-офф #${getPlayoffNumber({ stageId: tiePendingDelete.stageId, slot: tiePendingDelete.slot, tieId: tiePendingDelete.id })} из сетки?` : ''}
+        confirmLabel="Удалить"
+        onCancel={() => setTiePendingDelete(null)}
+        onConfirm={() => {
+          if (!tiePendingDelete) return
+          const currentTie = tiePendingDelete
+          setHiddenTieIds((prev) => new Set(prev).add(currentTie.id))
+          setLocalTieOverrides((prev) => {
+            const key = `${currentTie.stageId}:${currentTie.slot}`
+            if (!prev[key]) return prev
+            const next = { ...prev }
+            delete next[key]
+            return next
+          })
+          setBracketStatus('Плей-офф удален из сетки локально (до синхронизации с API).')
+          if (selectedSlot?.tieId === currentTie.id) {
+            setSelectedSlot(null)
+            setTieHomeTeamId('')
+            setTieAwayTeamId('')
+          }
+          setTiePendingDelete(null)
+        }}
+      />
     </div>
   )
 }
