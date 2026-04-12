@@ -86,6 +86,7 @@ const mapPlayer = (p: any): Player | null => {
       vk: p.socials?.vk,
       instagram: p.socials?.instagram,
     },
+    isHidden: p.is_visible === false || p.visible === false || p.hidden === true,
     stats: { goals: 0, assists: 0, appearances: Number(p.appearances ?? 0) },
   }
 }

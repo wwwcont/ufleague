@@ -27,10 +27,9 @@ const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
     { title: 'Мои события', description: 'События из профиля игрока.', route: '/profile/player-events', icon: 'shield' },
   ],
   captain: [
-    { title: 'Управление командой', description: 'Создать команду или открыть три раздела управления.', route: '/profile/team', icon: 'shield' },
-    { title: 'Профиль игрока', description: 'Игровой профиль капитана (если вы также игрок).', route: '/profile/player-profile', icon: 'user' },
-    { title: 'Моя команда', description: 'Открыть публичную страницу своей команды.', route: '/profile/roster', icon: 'shield' },
-    { title: 'События команды', description: 'Лента событий команды с правами капитана.', route: '/profile/team-events', icon: 'shield' },
+    { title: 'Моя команда', description: 'Сразу открыть страницу команды.', route: '/profile/my-team', icon: 'shield' },
+    { title: 'Профиль игрока', description: 'Сразу открыть профиль игрока.', route: '/profile/my-player', icon: 'user' },
+    { title: 'Управление командой', description: 'Создать команду или перейти к разделам капитана.', route: '/profile/team', icon: 'shield' },
   ],
   admin: [
     { title: 'Матчи', description: 'Управление матчами и турниром.', route: '/profile/tournament', icon: 'shield' },
@@ -77,11 +76,12 @@ export const ProfilePage = () => {
   const { data: teamPlayers } = usePlayers(session.user.teamId)
 
   const visibleRoleGroups = useMemo(() => {
-    const activeRoles = new Set<UserRole>(['guest', ...(session.user.roles?.length ? session.user.roles : [session.user.role])])
+    const activeRoles = new Set<UserRole>(session.user.roles?.length ? session.user.roles : [session.user.role])
+    if (!session.isAuthenticated) activeRoles.add('guest')
     return (Object.keys(cabinetByRole) as UserRole[])
       .filter((role) => activeRoles.has(role))
       .map((role) => ({ role, entries: cabinetByRole[role] }))
-  }, [session.user.role, session.user.roles])
+  }, [session.isAuthenticated, session.user.role, session.user.roles])
 
   const playerCard = useMemo(() => {
     if (!teamPlayers || !session.user.teamId) return null

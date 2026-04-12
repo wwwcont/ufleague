@@ -23,9 +23,11 @@ const sectionRoles: Record<string, UserRole> = {
   activity: 'guest',
   reactions: 'guest',
   'player-profile': 'player',
+  'my-player': 'player',
   'player-events': 'player',
   'player-media': 'player',
-  team: 'player',
+  team: 'captain',
+  'my-team': 'player',
   'team-events': 'captain',
   invites: 'captain',
   users: 'admin',
@@ -46,9 +48,11 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   edit: { title: 'Редактирование профиля', description: 'Рабочая форма профиля пользователя.', tips: ['Используйте загрузку данных перед сохранением.', 'Поля socials поддерживают key=value.'] },
   activity: { title: 'Моя активность', description: 'Работа с комментариями и реакциями.', tips: ['Откройте сущность и оставьте комментарий.', 'Проверьте ограничения доступа в реальном потоке.'] },
   'player-profile': { title: 'Профиль игрока', description: 'Игровой профиль пользователя (отдельно от user-профиля).', tips: ['Переходите в user-профиль для ФИО/био.', 'Проверяйте связь user ↔ player profile.'] },
+  'my-player': { title: 'Профиль игрока', description: 'Мгновенный переход в профиль игрока.', tips: ['Используется playerProfileId из сессии.', 'Если profile не привязан — показывается сообщение.'] },
   'player-events': { title: 'Мои события', description: 'Все события, связанные с профилем игрока.', tips: ['События открываются на странице игрока.', 'Используйте фильтр по игроку в ленте.'] },
   'player-media': { title: 'Player media', description: 'Фото и медиа-поля профиля игрока.', tips: ['Используйте изображения с доступным URL.', 'Сохраняйте медиа отдельно от спортивных данных.'] },
-  team: { title: 'Управление командой', description: 'Создание команды и переход к разделам капитана.', tips: ['Если команда уже есть — откройте один из 3 подразделов.', 'ID команды вводить вручную не требуется.'] },
+  team: { title: 'Управление командой', description: 'Создание команды и переход к разделам капитана.', tips: ['Если команды нет — показать создание.', 'Если есть команда — только Состав и Лента событий.'] },
+  'my-team': { title: 'Моя команда', description: 'Мгновенный переход на страницу команды.', tips: ['Если команда не найдена — открыть список команд.', 'Для капитана учитывается передача капитанства.'] },
   invites: { title: 'Приглашения', description: 'Приглашение игроков в команду.', tips: ['Укажите корректный ID команды.', 'Username вводится без @.'] },
   users: { title: 'Пользователи', description: 'Управление captain/admin правами и team membership.', tips: ['Поиск только по Telegram @username.', 'Destructive actions требуют подтверждения.'] },
   roster: { title: 'Управление составом', description: 'Состав команды с действиями по каждому игроку.', tips: ['Откроется страница команды в режиме состава.', 'Кнопки: глаз, карандаш, крестик.'] },
@@ -70,7 +74,7 @@ const statusTone = (status: string) => status.startsWith('ok:') ? 'text-emerald-
 export const CabinetSectionPage = () => {
   const { section } = useParams()
   const navigate = useNavigate()
-  const { session } = useSession()
+  const { session, refreshSession } = useSession()
   const { cabinetRepository, teamsRepository, playersRepository, matchesRepository, uploadsRepository, usersRepository } = useRepositories()
   const { data: bracket } = useBracket()
   const { data: teams } = useTeams()
@@ -147,6 +151,12 @@ export const CabinetSectionPage = () => {
   const minRole = section ? sectionRoles[section] : null
   const meta = section ? sectionMeta[section] : null
   const allowed = minRole ? currentRoles.some((role) => roleRank[role] >= roleRank[minRole]) : false
+  const managedTeamId = useMemo(() => {
+    if (session.user.teamId) return session.user.teamId
+    const captainTeam = (teams ?? []).find((item) => item.captainUserId === session.user.id)
+    return captainTeam?.id
+  }, [session.user.id, session.user.teamId, teams])
+
   const isAdminScope = currentRoles.some((role) => roleRank[role] >= roleRank.admin)
 
   useEffect(() => {
@@ -216,6 +226,17 @@ export const CabinetSectionPage = () => {
     if (date.getTime() > Date.now()) return 'Дата рождения не может быть в будущем'
     return ''
   }, [birthDate])
+
+
+  useEffect(() => {
+    if (section !== 'my-team') return
+    navigate(managedTeamId ? `/teams/${managedTeamId}` : '/teams', { replace: true })
+  }, [managedTeamId, navigate, section])
+
+  useEffect(() => {
+    if (section !== 'my-player') return
+    navigate(session.user.playerProfileId ? `/players/${session.user.playerProfileId}` : '/profile/player-profile', { replace: true })
+  }, [navigate, section, session.user.playerProfileId])
 
   if (!section || !minRole || !meta) {
     return (
@@ -372,7 +393,7 @@ export const CabinetSectionPage = () => {
             <p className="font-semibold text-textPrimary">Управление командой</p>
             <p className="mt-1">Если команды еще нет — создайте ее. Если команда есть — используйте три раздела: «Состав», «События команды», «Страница команды».</p>
           </div>
-          {!session.user.teamId && currentRoles.some((role) => roleRank[role] >= roleRank.captain) && (
+          {!managedTeamId && currentRoles.some((role) => roleRank[role] >= roleRank.captain) && (
             <div className="space-y-2 rounded-xl border border-borderSubtle bg-mutedBg p-3">
               <p className="text-xs text-textMuted">У вас пока нет команды. Создайте новую и сразу станьте ее капитаном.</p>
               <input value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="Название команды" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
@@ -384,6 +405,7 @@ export const CabinetSectionPage = () => {
                   if (createdTeamId) {
                     await playersRepository.createPlayer?.({ userId: session.user.id, teamId: createdTeamId, fullName: session.user.displayName, position: 'MF', shirtNumber: 0 })
                     setStatus('ok: team created, captain can now manage roster/events')
+                    await refreshSession()
                     navigate(`/teams/${createdTeamId}`)
                     return
                   }
@@ -394,11 +416,10 @@ export const CabinetSectionPage = () => {
               }}>Создать команду</button>
             </div>
           )}
-          {session.user.teamId && (
-            <div className="grid gap-2 text-xs sm:grid-cols-3">
-              <Link to={`/teams/${session.user.teamId}?manage=roster`} className="rounded-lg border border-borderSubtle px-3 py-3 text-center">Состав</Link>
-              <Link to={`/events?teamId=${session.user.teamId}`} className="rounded-lg border border-borderSubtle px-3 py-3 text-center">События команды</Link>
-              <Link to={`/teams/${session.user.teamId}`} className="rounded-lg border border-borderSubtle px-3 py-3 text-center">Страница команды</Link>
+          {managedTeamId && (
+            <div className="grid gap-2 text-xs sm:grid-cols-2">
+              <Link to={`/teams/${managedTeamId}/roster`} className="rounded-lg border border-borderSubtle px-3 py-3 text-center">Состав команды</Link>
+              <Link to={`/teams/${managedTeamId}/events`} className="rounded-lg border border-borderSubtle px-3 py-3 text-center">Лента событий</Link>
             </div>
           )}
         </section>
@@ -626,7 +647,7 @@ export const CabinetSectionPage = () => {
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
           <p className="text-sm text-textSecondary">Управление составом выполняется на странице команды в режиме состава: у каждого игрока доступны кнопки «глаз», «карандаш», «крестик».</p>
           <div className="flex flex-wrap gap-2">
-            <Link to={session.user.teamId ? `/teams/${session.user.teamId}?manage=roster` : '/teams'} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app">Открыть состав команды</Link>
+            <Link to={managedTeamId ? `/teams/${managedTeamId}/roster` : '/teams'} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app">Открыть состав команды</Link>
             <Link to="/players" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary">Все игроки</Link>
           </div>
         </section>
@@ -635,7 +656,7 @@ export const CabinetSectionPage = () => {
       {section === 'team-events' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
           <p className="text-sm text-textSecondary">Откроется лента событий команды. Кнопка «Создать событие» и действия редактирования/удаления видны только капитану этой команды и администраторам.</p>
-          <Link to={session.user.teamId ? `/events?teamId=${session.user.teamId}` : '/events'} className="inline-flex rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app">Открыть события команды</Link>
+          <Link to={managedTeamId ? `/teams/${managedTeamId}/events` : '/events'} className="inline-flex rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app">Открыть события команды</Link>
         </section>
       )}
 
@@ -971,7 +992,7 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {!['profile', 'profile-settings', 'edit', 'activity', 'player-profile', 'player-events', 'team', 'invites', 'users', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
+      {!['profile', 'profile-settings', 'edit', 'activity', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
           Раздел синхронизирован по правам доступа и готов к расширению бизнес-формами.
         </section>
