@@ -43,14 +43,10 @@ export const TeamDetailsPage = () => {
   const { session } = useSession()
   const { teamsRepository, eventsRepository, uploadsRepository, playersRepository, usersRepository } = useRepositories()
   const [heroEditing, setHeroEditing] = useState(false)
-  const [descriptionEditing, setDescriptionEditing] = useState(false)
   const [heroSaving, setHeroSaving] = useState(false)
-  const [descriptionSaving, setDescriptionSaving] = useState(false)
 
   const [heroStatus, setHeroStatus] = useState<string | null>(null)
   const [heroTone, setHeroTone] = useState<'idle' | 'success' | 'error'>('idle')
-  const [descriptionStatus, setDescriptionStatus] = useState<string | null>(null)
-  const [descriptionTone, setDescriptionTone] = useState<'idle' | 'success' | 'error'>('idle')
 
   const [editableName, setEditableName] = useState('')
   const [editableShortName, setEditableShortName] = useState('')
@@ -95,7 +91,6 @@ export const TeamDetailsPage = () => {
     setEditableLogoUrl(team.logoUrl ?? undefined)
     setLogoFile(null)
     setHeroEditing(false)
-    setDescriptionEditing(false)
   }, [team])
 
   useEffect(() => {
@@ -144,10 +139,8 @@ export const TeamDetailsPage = () => {
     setCustomUrl1(team.socials?.custom?.[0]?.url ?? '')
     setCustomLabel2(team.socials?.custom?.[1]?.label ?? '')
     setCustomUrl2(team.socials?.custom?.[1]?.url ?? '')
-    setLogoFile(null)
-  }
-  const syncDescriptionDraft = () => {
     setEditableDescription(team.description ?? '')
+    setLogoFile(null)
   }
   return (
     <PageContainer>
@@ -166,8 +159,8 @@ export const TeamDetailsPage = () => {
 
         <div className="relative z-10">
           <EditableSectionHeader
-            title="Полное название команды"
-            subtitle="Основной блок команды: лого, сокращение, слоган и соцсети"
+            title="Профиль команды"
+            subtitle="Название, слоган, лого, сокращение, описание и соцсети"
             canEdit={canManageCurrentTeam}
             isEditing={heroEditing}
             onStartEdit={() => {
@@ -184,14 +177,48 @@ export const TeamDetailsPage = () => {
             }}
           />
 
-          <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center">
-            <TeamAvatar team={{ ...team, logoUrl: editableLogoUrl ?? team.logoUrl }} size="xl" fallbackLogoUrl={tournament.logoUrl} className="h-28 w-28 border border-borderStrong bg-panelSoft p-2" />
+          <div className="mb-4 space-y-4">
+            <div>
+              <h1 className="text-3xl font-bold text-white">{team.name}</h1>
+              <p className="mt-1 text-sm text-textSecondary">{team.slogan || 'Слоган команды пока не заполнен.'}</p>
+            </div>
+
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <TeamAvatar
+                team={{ ...team, logoUrl: editableLogoUrl ?? team.logoUrl }}
+                size="xl"
+                fallbackLogoUrl={tournament.logoUrl}
+                className="h-28 w-28 overflow-hidden rounded-full border border-borderStrong bg-panelSoft p-0 [&_img]:h-full [&_img]:w-full [&_img]:object-cover"
+              />
+              <p className="text-5xl font-black uppercase tracking-[0.14em] text-white">{team.shortName}</p>
+            </div>
+
+            <div className="rounded-xl border border-borderSubtle bg-black/25 p-3">
+              <p className="text-sm leading-relaxed text-textSecondary">{team.description || 'Описание команды пока не заполнено.'}</p>
+            </div>
+
+            <div>
+              <SocialLinks
+                compact
+                links={{ telegram: team.socials?.telegram, vk: team.socials?.vk, instagram: team.socials?.instagram }}
+                custom={team.socials?.custom}
+              />
+            </div>
+
             <div className="flex-1">
               {heroEditing ? (
                 <div className="space-y-2">
-                  <EditableTextField label="Полное название" value={editableName} onChange={setEditableName} isEditing placeholder="Название команды" />
+                  <EditableTextField label="Полное название" value={editableName} onChange={setEditableName} isEditing placeholder="Например, Urban Foxes" />
                   <EditableTextField label="Сокращение (3 символа)" value={editableShortName} onChange={(value) => setEditableShortName(value.toUpperCase().slice(0, 3))} isEditing placeholder="ABC" />
-                  <EditableTextField label="Слоган" value={editableSlogan} onChange={setEditableSlogan} isEditing placeholder="Слоган (необязательно)" />
+                  <EditableTextField label={`Слоган (${editableSlogan.length}/50)`} value={editableSlogan} onChange={(value) => setEditableSlogan(value.slice(0, 50))} isEditing placeholder="Короткий слоган команды" />
+                  <EditableTextareaField
+                    label={`Описание (${editableDescription.length}/300)`}
+                    value={editableDescription}
+                    onChange={(value) => setEditableDescription(value.slice(0, 300))}
+                    isEditing
+                    placeholder="Краткое описание команды (до 300 символов)"
+                    rows={4}
+                  />
                   <div className="grid gap-2 sm:grid-cols-2">
                     <EditableTextField label="Telegram" value={editableTelegram} onChange={setEditableTelegram} isEditing placeholder="@team_channel" />
                     <EditableTextField label="VK" value={editableVk} onChange={setEditableVk} isEditing placeholder="vk.com/team" />
@@ -202,20 +229,7 @@ export const TeamDetailsPage = () => {
                     <EditableTextField label="Custom link #2 (url)" value={customUrl2} onChange={setCustomUrl2} isEditing placeholder="https://..." />
                   </div>
                 </div>
-              ) : (
-                <>
-                  <h1 className="text-3xl font-bold text-textPrimary">{team.name}</h1>
-                  {team.slogan && <p className="mt-1 text-sm text-textSecondary">{team.slogan}</p>}
-                  <p className="mt-2 text-2xl font-black uppercase tracking-[0.12em] text-accentYellow">{team.shortName}</p>
-                  <div className="mt-2">
-                    <SocialLinks
-                      compact
-                      links={{ telegram: team.socials?.telegram, vk: team.socials?.vk, instagram: team.socials?.instagram }}
-                      custom={team.socials?.custom}
-                    />
-                  </div>
-                </>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -258,6 +272,7 @@ export const TeamDetailsPage = () => {
                   name: editableName,
                   shortName: editableShortName,
                   slogan: editableSlogan,
+                  description: editableDescription,
                   logoUrl,
                   socials: {
                     telegram: editableTelegram,
@@ -281,60 +296,6 @@ export const TeamDetailsPage = () => {
             }}
           />
         </div>
-      </EditableSection>
-
-      <EditableSection isEditing={descriptionEditing}>
-        <EditableSectionHeader
-          title="Описание команды"
-          canEdit={canManageCurrentTeam}
-          isEditing={descriptionEditing}
-          onStartEdit={() => {
-            syncDescriptionDraft()
-            setDescriptionStatus(null)
-            setDescriptionTone('idle')
-            setDescriptionEditing(true)
-          }}
-          onCancelEdit={() => {
-            syncDescriptionDraft()
-            setDescriptionStatus(null)
-            setDescriptionTone('idle')
-            setDescriptionEditing(false)
-          }}
-        />
-        {descriptionEditing ? (
-          <EditableTextareaField label="Описание" value={editableDescription} onChange={setEditableDescription} isEditing placeholder="Описание команды" rows={5} />
-        ) : (
-          <p className="text-sm leading-relaxed text-textSecondary">{team.description || 'Описание команды пока не заполнено.'}</p>
-        )}
-        <SectionActionBar
-          isEditing={descriptionEditing}
-          isPending={descriptionSaving}
-          statusMessage={descriptionStatus}
-          statusTone={descriptionTone}
-          onCancel={() => {
-            syncDescriptionDraft()
-            setDescriptionStatus(null)
-            setDescriptionTone('idle')
-            setDescriptionEditing(false)
-          }}
-          onSave={async () => {
-            if (!teamsRepository.updateTeam) return
-            setDescriptionSaving(true)
-            setDescriptionStatus('Сохраняем описание...')
-            setDescriptionTone('idle')
-            try {
-              await teamsRepository.updateTeam(team.id, { description: editableDescription })
-              setDescriptionStatus('Описание обновлено')
-              setDescriptionTone('success')
-              setDescriptionEditing(false)
-            } catch (error) {
-              setDescriptionStatus(actionError(error))
-              setDescriptionTone('error')
-            } finally {
-              setDescriptionSaving(false)
-            }
-          }}
-        />
       </EditableSection>
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
