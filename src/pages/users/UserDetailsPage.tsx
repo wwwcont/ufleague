@@ -85,13 +85,37 @@ export const UserDetailsPage = () => {
         </div>
 
         <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 sm:col-span-2">
+            <p className="text-xs text-textMuted">Фотография</p>
+            {profile?.avatarUrl ? (
+              <img src={profile.avatarUrl} alt={profile.displayName} className="mt-2 h-28 w-28 rounded-xl object-cover" />
+            ) : (
+              <p className="mt-1 text-textPrimary">Фото не загружено</p>
+            )}
+          </div>
+          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3">
+            <p className="text-xs text-textMuted">Имя</p>
+            <p className="mt-1 text-textPrimary">{profile?.firstName || 'Не указано'}</p>
+          </div>
+          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3">
+            <p className="text-xs text-textMuted">Фамилия</p>
+            <p className="mt-1 text-textPrimary">{profile?.lastName || 'Не указано'}</p>
+          </div>
+          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 sm:col-span-2">
+            <p className="text-xs text-textMuted">Отображаемое имя</p>
+            <p className="mt-1 text-textPrimary">{profile?.displayName ?? user.displayName}</p>
+          </div>
+          <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 sm:col-span-2">
+            <p className="text-xs text-textMuted">Био</p>
+            <p className="mt-1 text-textPrimary">{profile?.bio || 'Пока пусто'}</p>
+          </div>
           <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3">
             <p className="text-xs text-textMuted">Статус</p>
             <p className="mt-1 text-textPrimary">{user.statuses.map((status) => roleLabel[status] ?? status).join(', ') || 'Пользователь'}</p>
           </div>
           <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3">
-            <p className="text-xs text-textMuted">Телеграм</p>
-            <p className="mt-1 text-textPrimary">{user.telegramUsername ? `@${user.telegramUsername}` : 'Не указан'}</p>
+            <p className="text-xs text-textMuted">Логин Telegram</p>
+            <p className="mt-1 text-textPrimary">{profile?.telegramUsername ? `@${profile.telegramUsername}` : (user.telegramUsername ? `@${user.telegramUsername}` : 'Не указан')}</p>
           </div>
           <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 sm:col-span-2">
             <p className="text-xs text-textMuted">Присутствие</p>

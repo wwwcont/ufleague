@@ -77,6 +77,44 @@ const parseCSV = (raw: string) => raw.split(',').map((item) => item.trim()).filt
 
 const statusTone = (status: string) => status.startsWith('ok:') ? 'text-emerald-300' : 'text-rose-300'
 
+const formatActionTitle = (action: string, metadata?: Record<string, unknown>) => {
+  if (action === 'auth.register') return 'Регистрация в системе'
+  if (action === 'comment.create') return 'Опубликован комментарий'
+  if (action === 'comment.reply') return 'Опубликован ответ в комментариях'
+  if (action === 'event.create') return 'Опубликовано событие'
+  if (action === 'comment.react') {
+    const reaction = String(metadata?.reaction_type ?? '')
+    if (reaction === 'like') return 'Поставлен лайк'
+    if (reaction === 'dislike') return 'Поставлен дизлайк'
+    return 'Реакция на комментарий'
+  }
+  if (action === 'user.profile_update') return 'Обновление профиля'
+  return action
+}
+
+const formatActionDetails = (action: string, metadata?: Record<string, unknown>) => {
+  if (!metadata) return null
+  if (action === 'comment.create' || action === 'comment.reply') {
+    const body = String(metadata.body ?? '').trim()
+    return body ? `Текст: ${body}` : 'Комментарий добавлен'
+  }
+  if (action === 'comment.react') {
+    const reaction = String(metadata.reaction_type ?? '')
+    return reaction === 'like' ? 'Вы отметили комментарий как полезный' : reaction === 'dislike' ? 'Вы поставили отрицательную реакцию' : 'Реакция обновлена'
+  }
+  if (action === 'event.create') {
+    const title = String(metadata.title ?? '').trim()
+    return title ? `Событие: ${title}` : 'Создано новое событие'
+  }
+  if (action.includes('profile_update')) {
+    const firstName = metadata.first_name as { from?: string; to?: string } | undefined
+    const lastName = metadata.last_name as { from?: string; to?: string } | undefined
+    const displayName = metadata.display_name as { from?: string; to?: string } | undefined
+    return `Имя: ${firstName?.from ?? '—'} → ${firstName?.to ?? '—'} · Фамилия: ${lastName?.from ?? '—'} → ${lastName?.to ?? '—'} · Display: ${displayName?.from ?? '—'} → ${displayName?.to ?? '—'}`
+  }
+  return null
+}
+
 export const CabinetSectionPage = () => {
   const { section } = useParams()
   const navigate = useNavigate()
@@ -480,23 +518,18 @@ export const CabinetSectionPage = () => {
       {section === 'my-actions' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
           {myActions.length ? myActions.map((item) => {
-            const entries = Object.entries(item.metadata ?? {})
+            const title = formatActionTitle(item.action, item.metadata)
+            const details = formatActionDetails(item.action, item.metadata)
+            const reactionType = String(item.metadata?.reaction_type ?? '')
             return (
               <Link key={item.id} to={item.route} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
-                <p className="text-sm font-semibold text-textPrimary">{item.action}</p>
+                <p className="text-sm font-semibold text-textPrimary">{title}</p>
                 <p className="mt-1 text-xs text-textMuted">
                   {new Date(item.createdAt).toLocaleString('ru-RU')} · {item.targetType}:{item.targetId}
                 </p>
-                {entries.length > 0 && (
-                  <div className="mt-2 space-y-1 text-[11px] text-textSecondary">
-                    {entries.slice(0, 4).map(([key, value]) => (
-                      <p key={`${item.id}:${key}`} className="truncate">
-                        <span className="text-textMuted">{key}:</span>{' '}
-                        {typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value)}
-                      </p>
-                    ))}
-                  </div>
-                )}
+                {reactionType === 'like' && <p className="mt-2 text-xs text-emerald-300">👍 Лайк</p>}
+                {reactionType === 'dislike' && <p className="mt-2 text-xs text-rose-300">👎 Дизлайк</p>}
+                {details && <p className="mt-2 text-xs text-textSecondary">{details}</p>}
                 <p className="mt-2 text-xs text-accentYellow">Перейти к месту действия →</p>
               </Link>
             )
