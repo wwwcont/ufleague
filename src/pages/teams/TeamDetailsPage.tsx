@@ -1,6 +1,6 @@
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { CalendarClock, EyeOff, Pencil, Plus, ShieldCheck, Trophy, UserPlus, Users, X } from 'lucide-react'
+import { CalendarClock, Pencil, ShieldCheck, Trophy, Users } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
 import { usePlayers } from '../../hooks/data/usePlayers'
@@ -14,25 +14,22 @@ import { TeamAvatar } from '../../components/ui/TeamAvatar'
 import { SocialLinks } from '../../components/ui/SocialLinks'
 import { tournament } from '../../mocks/data/tournament'
 import { CommentsSection } from '../../components/comments'
-import { EventEditor, EventFeedSection } from '../../components/events'
+import { EventFeedSection } from '../../components/events'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { canManageTeam } from '../../domain/services/accessControl'
 import { ApiError } from '../../infrastructure/api/repositories'
-import type { EventContentBlock } from '../../domain/entities/types'
 import {
   EditableSection,
   EditableTextField,
   EditableTextareaField,
   SectionActionBar,
 } from '../../components/ui/editable'
-import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
 
 const formLabel: Record<string, string> = { W: 'В', D: 'Н', L: 'П' }
 
 export const TeamDetailsPage = () => {
   const { teamId } = useParams()
-  const [searchParams] = useSearchParams()
   const { data: team } = useTeamDetails(teamId)
   const { data: players } = usePlayers(teamId)
   const { data: teamFeed } = useEvents({ entityType: 'team', entityId: teamId, limit: 4 })
@@ -40,7 +37,7 @@ export const TeamDetailsPage = () => {
   const { data: matches } = useMatches()
   const { data: teams } = useTeams()
   const { session } = useSession()
-  const { teamsRepository, eventsRepository, uploadsRepository, playersRepository, usersRepository } = useRepositories()
+  const { teamsRepository, uploadsRepository } = useRepositories()
   const [heroEditing, setHeroEditing] = useState(false)
   const [heroSaving, setHeroSaving] = useState(false)
 
@@ -60,19 +57,7 @@ export const TeamDetailsPage = () => {
   const [customUrl2, setCustomUrl2] = useState('')
   const [editableLogoUrl, setEditableLogoUrl] = useState<string | undefined>(undefined)
   const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [eventCreateOpen, setEventCreateOpen] = useState(false)
-  const [eventCreatePending, setEventCreatePending] = useState(false)
-  const [eventCreateStatus, setEventCreateStatus] = useState<string | null>(null)
-  const [newEventTitle, setNewEventTitle] = useState('')
-  const [newEventSummary, setNewEventSummary] = useState('')
-  const [newEventBlocks, setNewEventBlocks] = useState<EventContentBlock[]>([])
   const [localTeamFeed, setLocalTeamFeed] = useState(teamFeed ?? [])
-  const [rosterSetupMode, setRosterSetupMode] = useState(false)
-  const [inviteUsername, setInviteUsername] = useState('')
-  const [rosterStatus, setRosterStatus] = useState<string | null>(null)
-  const [hiddenPlayerIds, setHiddenPlayerIds] = useState<string[]>([])
-  const [kickedPlayerIds, setKickedPlayerIds] = useState<string[]>([])
-  const manageMode = searchParams.get('manage')
 
   useEffect(() => {
     if (!team) return
@@ -95,12 +80,6 @@ export const TeamDetailsPage = () => {
   useEffect(() => {
     setLocalTeamFeed(teamFeed ?? [])
   }, [teamFeed])
-
-  useEffect(() => {
-    if (manageMode === 'roster') {
-      setRosterSetupMode(true)
-    }
-  }, [manageMode])
 
   if (!team) return <PageContainer><EmptyState title="Команда не найдена" /></PageContainer>
 
@@ -311,140 +290,17 @@ export const TeamDetailsPage = () => {
 
       <EventFeedSection title="События команды" events={localTeamFeed} layout="timeline" messageWhenEmpty="События команды пока не добавлены." linkToAll={`/teams/${team.id}/events`} />
 
-      {canManageCurrentTeam && (
-        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
-          {!eventCreateOpen ? (
-            <button type="button" onClick={() => setEventCreateOpen(true)} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary">Создать событие</button>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm font-semibold text-textPrimary">Новое событие команды</p>
-              <input value={newEventTitle} onChange={(event) => setNewEventTitle(event.target.value)} placeholder="Заголовок события" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm" />
-              <textarea value={newEventSummary} onChange={(event) => setNewEventSummary(event.target.value)} rows={2} placeholder="Короткое summary (необязательно)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm" />
-              <EventEditor
-                blocks={newEventBlocks}
-                onChange={setNewEventBlocks}
-                onImageUpload={async (blockId, file) => {
-                  const next = [...newEventBlocks]
-                  const index = next.findIndex((item) => item.id === blockId)
-                  if (index < 0) return
-                  if (!file) {
-                    next[index] = { ...next[index], imageUrl: '' }
-                    setNewEventBlocks(next)
-                    return
-                  }
-                  try {
-                    const imageUrl = (await uploadsRepository.uploadImage(file)).url
-                    next[index] = { ...next[index], imageUrl }
-                    setNewEventBlocks(next)
-                  } catch (error) {
-                    setEventCreateStatus(actionError(error))
-                  }
-                }}
-              />
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={eventCreatePending || !newEventTitle.trim()}
-                  className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50"
-                  onClick={async () => {
-                    setEventCreatePending(true)
-                    setEventCreateStatus('Сохраняем событие...')
-                    try {
-                      const blocks = normalizeEventBlocks(newEventBlocks, { text: '', imageUrl: undefined })
-                      await eventsRepository.createEventForScope?.({
-                        scopeType: 'team',
-                        scopeId: team.id,
-                        title: newEventTitle.trim(),
-                        summary: newEventSummary.trim() || deriveSummaryFromBlocks(blocks),
-                        body: blocksToPlainText(blocks) || newEventSummary.trim(),
-                        imageUrl: blocks.find((item) => item.type === 'image')?.imageUrl,
-                        contentBlocks: blocks,
-                      })
-                      setLocalTeamFeed((prev) => [{
-                        id: `local_${Date.now()}`,
-                        title: newEventTitle.trim(),
-                        summary: newEventSummary.trim() || deriveSummaryFromBlocks(blocks),
-                        text: blocksToPlainText(blocks),
-                        contentBlocks: blocks,
-                        timestamp: new Date().toISOString(),
-                        source: 'team',
-                        authorName: session.user.displayName,
-                        category: 'news' as const,
-                        entityType: 'team' as const,
-                        entityId: team.id,
-                        imageUrl: blocks.find((item) => item.type === 'image')?.imageUrl,
-                        canEdit: true,
-                        canDelete: true,
-                      }, ...prev].slice(0, 8))
-                      setEventCreateStatus('Событие создано')
-                      setEventCreateOpen(false)
-                      setNewEventTitle('')
-                      setNewEventSummary('')
-                      setNewEventBlocks([])
-                    } catch (error) {
-                      setEventCreateStatus(actionError(error))
-                    } finally {
-                      setEventCreatePending(false)
-                    }
-                  }}
-                >
-                  Сохранить
-                </button>
-                <button type="button" disabled={eventCreatePending} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={() => {
-                  setEventCreateOpen(false)
-                  setNewEventTitle('')
-                  setNewEventSummary('')
-                  setNewEventBlocks([])
-                  setEventCreateStatus(null)
-                }}>Отмена</button>
-              </div>
-              {eventCreateStatus && <p className="text-xs text-textMuted">{eventCreateStatus}</p>}
-            </div>
-          )}
-        </section>
-      )}
-
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-base font-semibold text-textPrimary"><Users size={16} className="text-accentYellow" /> СОСТАВ</h2>
           <div className="flex items-center gap-2">
-            {canManageCurrentTeam && (
-              <>
-                <button type="button" onClick={() => setRosterSetupMode((prev) => !prev)} className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textSecondary">
-                  {rosterSetupMode ? 'Готово' : 'Настроить'}
-                </button>
-              </>
-            )}
-            <Link to="/players" className="text-xs text-accentYellow hover:underline">ВСЕ</Link>
+            <Link to={`/teams/${team.id}/roster`} className="text-xs text-accentYellow hover:underline">{canManageCurrentTeam ? 'ВСЕ / НАСТРОИТЬ' : 'ВСЕ'}</Link>
           </div>
         </div>
-        {canManageCurrentTeam && (
-          <div className="mb-3 rounded-xl border border-borderSubtle bg-mutedBg p-3">
-            <p className="mb-2 text-xs text-textMuted">Добавить игрока по @username</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <input value={inviteUsername} onChange={(event) => setInviteUsername(event.target.value)} placeholder="@telegram_username" className="min-w-[220px] flex-1 rounded-lg border border-borderSubtle bg-panelBg px-3 py-2 text-sm" />
-              <button type="button" disabled={!inviteUsername.trim().startsWith('@')} className="inline-flex items-center gap-1 rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
-                try {
-                  const found = await usersRepository.findByTelegramUsername?.(inviteUsername)
-                  if (!found) throw new Error('Пользователь не найден')
-                  await teamsRepository.captainInviteByUsername?.(team.id, found.telegramUsername ?? inviteUsername.replace(/^@/, ''))
-                  await playersRepository.createPlayer?.({ userId: found.id, teamId: team.id, fullName: found.displayName, position: 'MF', shirtNumber: 0 })
-                  setRosterStatus('Игрок добавлен в команду и player profile создан')
-                  setInviteUsername('')
-                } catch (error) {
-                  setRosterStatus(actionError(error))
-                }
-              }}>
-                <UserPlus size={12} /> <Plus size={12} /> Добавить
-              </button>
-            </div>
-            {rosterStatus && <p className="mt-2 text-xs text-textMuted">{rosterStatus}</p>}
-          </div>
-        )}
         <div className="space-y-2">
           {players?.length ? players
-            .filter((player) => !kickedPlayerIds.includes(player.id))
-            .filter((player) => canManageCurrentTeam || !(player.isHidden || hiddenPlayerIds.includes(player.id)))
+            .filter((player) => canManageCurrentTeam || !player.isHidden)
+            .slice(0, 8)
             .map((player) => (
             <div key={player.id} className="rounded-xl border border-borderSubtle bg-mutedBg p-2">
               <div className="flex items-center justify-between gap-2">
@@ -454,38 +310,10 @@ export const TeamDetailsPage = () => {
                       <p className="mt-1 px-1 text-[11px] font-semibold text-accentYellow">Капитан команды</p>
                     ) : null}
                   </div>
-                {canManageCurrentTeam && rosterSetupMode && (
-                  <div className="flex items-center gap-1">
-                    <Link to={`/players/${player.id}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-borderSubtle text-textSecondary" aria-label="Редактировать игрока">
-                      <Pencil size={12} />
-                    </Link>
-                    <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-borderSubtle text-textSecondary" aria-label="Скрыть игрока" onClick={async () => {
-                      try {
-                        await teamsRepository.captainSetRosterVisibility?.(team.id, player.id, hiddenPlayerIds.includes(player.id))
-                        setHiddenPlayerIds((prev) => (prev.includes(player.id) ? prev.filter((id) => id !== player.id) : [...prev, player.id]))
-                        setRosterStatus(hiddenPlayerIds.includes(player.id) ? 'Игрок снова отображается в составе' : 'Игрок скрыт из состава')
-                      } catch (error) {
-                        setRosterStatus(actionError(error))
-                      }
-                    }}>
-                      <EyeOff size={12} />
-                    </button>
-                    <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/40 text-red-300" aria-label="Выгнать игрока" onClick={async () => {
-                      if (!window.confirm('Выгнать игрока из команды? Пользователь сохранится, профиль игрока будет деактивирован.')) return
-                      try {
-                        await teamsRepository.captainSetRosterVisibility?.(team.id, player.id, false)
-                        setKickedPlayerIds((prev) => [...prev, player.id])
-                        setRosterStatus('Игрок исключен из команды, user сохранен')
-                      } catch (error) {
-                        setRosterStatus(actionError(error))
-                      }
-                    }}>
-                      <X size={12} />
-                    </button>
-                  </div>
-                )}
+                <Link to={`/players/${player.id}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-borderSubtle text-textSecondary" aria-label="Открыть игрока">
+                  <Pencil size={12} />
+                </Link>
               </div>
-              {hiddenPlayerIds.includes(player.id) && <p className="mt-1 text-xs text-textMuted">Скрыт из состава</p>}
             </div>
           )) : <p className="text-sm text-textMuted">Состав пока не загружен.</p>}
         </div>
