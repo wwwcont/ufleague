@@ -32,7 +32,7 @@ export const CommentItem = ({ comment, onReply, onEdit, onDelete, onReact, isThr
   }, [comment.text, expandedText, isLong, isEditing])
 
   return (
-    <li className="rounded-xl border border-borderSubtle bg-mutedBg px-3 py-3">
+    <li id={`comment-${comment.id}`} className="rounded-xl border border-borderSubtle bg-mutedBg px-3 py-3">
       <div className="mb-1 flex items-center justify-between gap-2 text-xs">
         <div className="flex items-center gap-2">
           {comment.authorUserId ? (

@@ -44,10 +44,24 @@ func (s Service) GetMyProfile(ctx context.Context, user domain.User) (domain.Use
 	return s.repo.GetProfile(ctx, user.ID)
 }
 func (s Service) UpdateMyProfile(ctx context.Context, user domain.User, req domain.UpdateProfileRequest) (domain.UserProfile, error) {
-	if len(req.DisplayName) > 80 || len(req.Bio) > 1000 {
+	if len(req.DisplayName) > 80 || len(req.Bio) > 1000 || len(req.FirstName) > 30 || len(req.LastName) > 30 {
 		return domain.UserProfile{}, fmt.Errorf("validation failed")
 	}
-	return s.repo.UpdateProfile(ctx, user.ID, req)
+	before, err := s.repo.GetProfile(ctx, user.ID)
+	if err != nil {
+		return domain.UserProfile{}, err
+	}
+	updated, err := s.repo.UpdateProfile(ctx, user.ID, req)
+	if err != nil {
+		return domain.UserProfile{}, err
+	}
+	_ = s.repo.AddAuditLog(ctx, user.ID, "user.profile_update", "user", strconv.FormatInt(user.ID, 10), map[string]any{
+		"display_name": map[string]string{"from": before.DisplayName, "to": updated.DisplayName},
+		"first_name":   map[string]string{"from": before.FirstName, "to": updated.FirstName},
+		"last_name":    map[string]string{"from": before.LastName, "to": updated.LastName},
+		"avatar_url":   map[string]string{"from": before.AvatarURL, "to": updated.AvatarURL},
+	})
+	return updated, nil
 }
 func (s Service) AdminGetUserProfile(ctx context.Context, actor domain.User, userID int64) (domain.UserProfile, error) {
 	if !s.policy.CanAdminModerate(actor) {
@@ -59,15 +73,22 @@ func (s Service) AdminUpdateUserProfile(ctx context.Context, actor domain.User, 
 	if !s.policy.CanAdminModerate(actor) {
 		return domain.UserProfile{}, fmt.Errorf("forbidden")
 	}
-	if len(req.DisplayName) > 80 || len(req.Bio) > 1000 {
+	if len(req.DisplayName) > 80 || len(req.Bio) > 1000 || len(req.FirstName) > 30 || len(req.LastName) > 30 {
 		return domain.UserProfile{}, fmt.Errorf("validation failed")
+	}
+	before, err := s.repo.GetProfile(ctx, userID)
+	if err != nil {
+		return domain.UserProfile{}, err
 	}
 	updated, err := s.repo.UpdateProfile(ctx, userID, req)
 	if err != nil {
 		return domain.UserProfile{}, err
 	}
 	if err = s.repo.AddAuditLog(ctx, actor.ID, "admin.user_profile_update", "user", strconv.FormatInt(userID, 10), map[string]any{
-		"display_name_changed": req.DisplayName != "",
+		"display_name": map[string]string{"from": before.DisplayName, "to": updated.DisplayName},
+		"first_name":   map[string]string{"from": before.FirstName, "to": updated.FirstName},
+		"last_name":    map[string]string{"from": before.LastName, "to": updated.LastName},
+		"avatar_url":   map[string]string{"from": before.AvatarURL, "to": updated.AvatarURL},
 	}); err != nil {
 		return domain.UserProfile{}, err
 	}

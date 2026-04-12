@@ -86,7 +86,7 @@ export const CabinetSectionPage = () => {
   const { data: teams } = useTeams()
 
   const [status, setStatus] = useState('')
-  const [myActions, setMyActions] = useState<Array<{ id: string; action: string; targetType: string; targetId: string; route: string; createdAt: string }>>([])
+  const [myActions, setMyActions] = useState<Array<{ id: string; action: string; targetType: string; targetId: string; route: string; createdAt: string; metadata?: Record<string, unknown> }>>([])
 
   const [displayName, setDisplayName] = useState('')
   const [firstName, setFirstName] = useState('')
@@ -139,7 +139,7 @@ export const CabinetSectionPage = () => {
   const [matchStage, setMatchStage] = useState('')
   const [attachToTieIfExists, setAttachToTieIfExists] = useState(true)
   const [profileLoading, setProfileLoading] = useState(false)
-  const [profileLoaded, setProfileLoaded] = useState<null | { displayName: string; bio: string; avatarUrl: string; socials: Record<string, string> }>(null)
+  const [profileLoaded, setProfileLoaded] = useState<null | { displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> }>(null)
   const [tournamentCycles, setTournamentCycles] = useState<Array<{ id: string; name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive: boolean }>>([])
   const [selectedCycleId, setSelectedCycleId] = useState('')
   const [newCycleName, setNewCycleName] = useState('')
@@ -187,10 +187,10 @@ export const CabinetSectionPage = () => {
       setProfileLoading(true)
       try {
         const profile = await cabinetRepository.getMyProfile()
-        setProfileLoaded({ displayName: profile.displayName, bio: profile.bio, avatarUrl: profile.avatarUrl, socials: profile.socials })
+        setProfileLoaded({ displayName: profile.displayName, firstName: profile.firstName, lastName: profile.lastName, bio: profile.bio, avatarUrl: profile.avatarUrl, socials: profile.socials })
         setDisplayName(profile.displayName)
-        setFirstName(profile.socials.first_name ?? '')
-        setLastName(profile.socials.last_name ?? '')
+        setFirstName(profile.firstName ?? '')
+        setLastName(profile.lastName ?? '')
         setMiddleName(profile.socials.middle_name ?? '')
         setBirthDate(profile.socials.birth_date ?? '')
         setBio(profile.bio)
@@ -233,6 +233,11 @@ export const CabinetSectionPage = () => {
     if (date.getTime() > Date.now()) return 'Дата рождения не может быть в будущем'
     return ''
   }, [birthDate])
+  const nameError = useMemo(() => {
+    if (firstName.trim().length > 30) return 'Имя — максимум 30 символов'
+    if (lastName.trim().length > 30) return 'Фамилия — максимум 30 символов'
+    return ''
+  }, [firstName, lastName])
 
 
   useEffect(() => {
@@ -270,6 +275,7 @@ export const CabinetSectionPage = () => {
         targetId: item.targetId,
         createdAt: item.createdAt,
         route: item.route || '/',
+        metadata: item.metadata,
       })))
     }).catch(() => setMyActions([]))
   }, [cabinetRepository, navigate, section, session.isAuthenticated])
@@ -367,36 +373,36 @@ export const CabinetSectionPage = () => {
           </div>
           <input value={middleName} onChange={(e) => setMiddleName(e.target.value)} placeholder="Отчество (если есть)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <input value={birthDate} onChange={(e) => setBirthDate(e.target.value)} placeholder="Дата рождения (ДД.ММ.ГГГГ)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          {birthDateError && <p className="text-xs text-rose-300">{birthDateError}</p>}
+          {(birthDateError || nameError) && <p className="text-xs text-rose-300">{nameError || birthDateError}</p>}
           <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Отображаемое имя" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <input value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="Ссылка на фото профиля" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Коротко о себе" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <textarea value={socialsRaw} onChange={(e) => setSocialsRaw(e.target.value)} placeholder="telegram=https://... , instagram=https://..." className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <button type="button" disabled={Boolean(birthDateError)} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
+          <button type="button" disabled={Boolean(birthDateError || nameError)} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
             try {
               const base = profileLoaded ?? { displayName: '', bio: '', avatarUrl: '', socials: {} }
               await cabinetRepository.updateMyProfile({
                 displayName: displayName || base.displayName,
+                firstName: firstName.trim(),
+                lastName: lastName.trim(),
                 bio: bio || base.bio,
                 avatarUrl: avatarUrl || base.avatarUrl,
                 socials: {
                   ...base.socials,
                   ...socials,
-                  first_name: firstName,
-                  last_name: lastName,
                   middle_name: middleName,
                   birth_date: birthDate,
                 },
               })
               setProfileLoaded({
                 displayName: displayName || base.displayName,
+                firstName: firstName.trim(),
+                lastName: lastName.trim(),
                 bio: bio || base.bio,
                 avatarUrl: avatarUrl || base.avatarUrl,
                 socials: {
                   ...base.socials,
                   ...socials,
-                  first_name: firstName,
-                  last_name: lastName,
                   middle_name: middleName,
                   birth_date: birthDate,
                 },
@@ -411,12 +417,12 @@ export const CabinetSectionPage = () => {
             setDisplayName(profileLoaded.displayName)
             setBio(profileLoaded.bio)
             setAvatarUrl(profileLoaded.avatarUrl)
-            setFirstName(profileLoaded.socials.first_name ?? '')
-            setLastName(profileLoaded.socials.last_name ?? '')
+            setFirstName(profileLoaded.firstName ?? '')
+            setLastName(profileLoaded.lastName ?? '')
             setMiddleName(profileLoaded.socials.middle_name ?? '')
             setBirthDate(profileLoaded.socials.birth_date ?? '')
             setSocialsRaw(Object.entries(profileLoaded.socials)
-              .filter(([k]) => !['first_name', 'last_name', 'middle_name', 'birth_date'].includes(k))
+              .filter(([k]) => !['middle_name', 'birth_date'].includes(k))
               .map(([k, v]) => `${k}=${v}`).join(', '))
             setStatus('ok: profile changes canceled')
           }}>Отмена изменений</button>
@@ -473,12 +479,28 @@ export const CabinetSectionPage = () => {
 
       {section === 'my-actions' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
-          {myActions.length ? myActions.map((item) => (
-            <Link key={item.id} to={item.route} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
-              <p className="text-sm text-textPrimary">{item.action}</p>
-              <p className="mt-1 text-xs text-textMuted">{new Date(item.createdAt).toLocaleString('ru-RU')}</p>
-            </Link>
-          )) : <p className="text-xs text-textMuted">Пока нет действий.</p>}
+          {myActions.length ? myActions.map((item) => {
+            const entries = Object.entries(item.metadata ?? {})
+            return (
+              <Link key={item.id} to={item.route} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
+                <p className="text-sm font-semibold text-textPrimary">{item.action}</p>
+                <p className="mt-1 text-xs text-textMuted">
+                  {new Date(item.createdAt).toLocaleString('ru-RU')} · {item.targetType}:{item.targetId}
+                </p>
+                {entries.length > 0 && (
+                  <div className="mt-2 space-y-1 text-[11px] text-textSecondary">
+                    {entries.slice(0, 4).map(([key, value]) => (
+                      <p key={`${item.id}:${key}`} className="truncate">
+                        <span className="text-textMuted">{key}:</span>{' '}
+                        {typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value)}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-2 text-xs text-accentYellow">Перейти к месту действия →</p>
+              </Link>
+            )
+          }) : <p className="text-xs text-textMuted">Пока нет действий.</p>}
         </section>
       )}
 
@@ -524,7 +546,7 @@ export const CabinetSectionPage = () => {
           <textarea value={socialsRaw} onChange={(e) => setSocialsRaw(e.target.value)} placeholder="telegram=https://... , instagram=https://..." className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
             try {
-              await cabinetRepository.updateMyProfile({ displayName, bio, avatarUrl, socials })
+              await cabinetRepository.updateMyProfile({ displayName, firstName: firstName.trim(), lastName: lastName.trim(), bio, avatarUrl, socials })
               setStatus('ok: profile updated')
             } catch (error) {
               setStatus(`error: ${(error as Error).message}`)

@@ -3,7 +3,11 @@ package domain
 type UserProfile struct {
 	UserID      int64             `json:"user_id"`
 	Username    string            `json:"username"`
+	TelegramID  int64             `json:"telegram_id"`
+	TelegramTag string            `json:"telegram_username"`
 	DisplayName string            `json:"display_name"`
+	FirstName   string            `json:"first_name"`
+	LastName    string            `json:"last_name"`
 	Bio         string            `json:"bio"`
 	AvatarURL   string            `json:"avatar_url"`
 	Socials     map[string]string `json:"socials"`
@@ -11,6 +15,8 @@ type UserProfile struct {
 
 type UpdateProfileRequest struct {
 	DisplayName string            `json:"display_name"`
+	FirstName   string            `json:"first_name"`
+	LastName    string            `json:"last_name"`
 	Bio         string            `json:"bio"`
 	AvatarURL   string            `json:"avatar_url"`
 	Socials     map[string]string `json:"socials"`

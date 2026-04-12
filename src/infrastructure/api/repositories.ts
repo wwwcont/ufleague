@@ -692,7 +692,11 @@ export const sessionRepository: SessionRepository = {
 const mapProfile = (payload: any) => ({
   userId: String(payload.user_id),
   username: String(payload.username ?? ''),
+  telegramId: payload.telegram_id ? String(payload.telegram_id) : undefined,
+  telegramUsername: payload.telegram_username ? String(payload.telegram_username) : undefined,
   displayName: String(payload.display_name ?? ''),
+  firstName: String(payload.first_name ?? ''),
+  lastName: String(payload.last_name ?? ''),
   bio: String(payload.bio ?? ''),
   avatarUrl: String(payload.avatar_url ?? ''),
   socials: (payload.socials ?? {}) as Record<string, string>,
@@ -726,6 +730,8 @@ export const cabinetRepository: CabinetRepository = {
       method: 'PATCH',
       body: JSON.stringify({
         display_name: input.displayName,
+        first_name: input.firstName,
+        last_name: input.lastName,
         bio: input.bio,
         avatar_url: input.avatarUrl,
         socials: input.socials,
@@ -780,6 +786,7 @@ export const cabinetRepository: CabinetRepository = {
       targetId: String(item.target_id ?? ''),
       createdAt: item.created_at ? new Date(Number(item.created_at) * 1000).toISOString() : new Date().toISOString(),
       route: String(item.route ?? '/'),
+      metadata: (item.metadata ?? {}) as Record<string, unknown>,
     }))
   },
   async getTournamentCycles() {
@@ -874,26 +881,12 @@ export const usersRepository: UsersRepository = {
   async getUserProfile(userId) {
     try {
       const item = await api<any>(`/api/admin/users/${userId}/profile`)
-      return {
-        userId: String(item.user_id),
-        username: String(item.username ?? ''),
-        displayName: String(item.display_name ?? ''),
-        bio: String(item.bio ?? ''),
-        avatarUrl: String(item.avatar_url ?? ''),
-        socials: (item.socials ?? {}) as Record<string, string>,
-      }
+      return mapProfile(item)
     } catch {
       try {
         const me = await api<any>(`/api/me/profile`)
         if (String(me.user_id) !== String(userId)) return null
-        return {
-          userId: String(me.user_id),
-          username: String(me.username ?? ''),
-          displayName: String(me.display_name ?? ''),
-          bio: String(me.bio ?? ''),
-          avatarUrl: String(me.avatar_url ?? ''),
-          socials: (me.socials ?? {}) as Record<string, string>,
-        }
+        return mapProfile(me)
       } catch {
         return null
       }
@@ -901,14 +894,14 @@ export const usersRepository: UsersRepository = {
   },
   async updateUserProfile(userId, input) {
     try {
-      await api(`/api/admin/users/${userId}/profile`, { method: 'PATCH', body: JSON.stringify({ display_name: input.displayName, bio: input.bio, avatar_url: input.avatarUrl, socials: input.socials }) })
+      await api(`/api/admin/users/${userId}/profile`, { method: 'PATCH', body: JSON.stringify({ display_name: input.displayName, first_name: input.firstName, last_name: input.lastName, bio: input.bio, avatar_url: input.avatarUrl, socials: input.socials }) })
       return
     } catch {
       const me = await api<any>(`/api/auth/me`)
       if (String(me.user?.id ?? '') !== String(userId)) {
         throw new ApiError(403, 'forbidden')
       }
-      await api(`/api/me/profile`, { method: 'PATCH', body: JSON.stringify({ display_name: input.displayName, bio: input.bio, avatar_url: input.avatarUrl, socials: input.socials }) })
+      await api(`/api/me/profile`, { method: 'PATCH', body: JSON.stringify({ display_name: input.displayName, first_name: input.firstName, last_name: input.lastName, bio: input.bio, avatar_url: input.avatarUrl, socials: input.socials }) })
     }
   },
 }

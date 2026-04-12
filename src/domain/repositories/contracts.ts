@@ -103,8 +103,8 @@ export interface SessionRepository {
 
 export interface UsersRepository {
   getUserCard(userId: string): Promise<PublicUserCard | null>
-  getUserProfile?(userId: string): Promise<{ userId: string; username: string; displayName: string; bio: string; avatarUrl: string; socials: Record<string, string> } | null>
-  updateUserProfile?(userId: string, input: { displayName: string; bio: string; avatarUrl: string; socials: Record<string, string> }): Promise<void>
+  getUserProfile?(userId: string): Promise<{ userId: string; username: string; telegramId?: string; telegramUsername?: string; displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> } | null>
+  updateUserProfile?(userId: string, input: { displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> }): Promise<void>
   findByTelegramUsername?(username: string): Promise<PublicUserCard | null>
 }
 
@@ -113,8 +113,8 @@ export interface UploadsRepository {
 }
 
 export interface CabinetRepository {
-  getMyProfile(): Promise<{ userId: string; username: string; displayName: string; bio: string; avatarUrl: string; socials: Record<string, string> }>
-  updateMyProfile(input: { displayName: string; bio: string; avatarUrl: string; socials: Record<string, string> }): Promise<void>
+  getMyProfile(): Promise<{ userId: string; username: string; telegramId?: string; telegramUsername?: string; displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> }>
+  updateMyProfile(input: { displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> }): Promise<void>
   createTeamEvent(input: { teamId: string; title: string; body: string }): Promise<void>
   adminModerateComment(commentId: string): Promise<void>
   adminBlockComments(input: { userId: string; permanent: boolean; untilUnix: number; reason: string }): Promise<void>
@@ -122,7 +122,7 @@ export interface CabinetRepository {
   superadminAssignPermissions(input: { userId: string; permissions: string[] }): Promise<void>
   superadminAssignRestrictions(input: { userId: string; restrictions: string[] }): Promise<void>
   superadminSetGlobalSetting(input: { key: string; value: Record<string, unknown> }): Promise<void>
-  getMyActions?(): Promise<Array<{ id: string; action: string; targetType: string; targetId: string; createdAt: string; route: string }>>
+  getMyActions?(): Promise<Array<{ id: string; action: string; targetType: string; targetId: string; createdAt: string; route: string; metadata?: Record<string, unknown> }>>
   getTournamentCycles?(): Promise<Array<{ id: string; name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive: boolean }>>
   createTournamentCycle?(input: { name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive?: boolean }): Promise<void>
   setActiveTournamentCycle?(cycleId: string): Promise<void>

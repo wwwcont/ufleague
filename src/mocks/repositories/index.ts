@@ -168,7 +168,11 @@ export const searchRepository: SearchRepository = {
 let mockProfile = {
   userId: '1',
   username: 'mock_user',
+  telegramId: '10001',
+  telegramUsername: 'mock_user',
   displayName: 'Mock User',
+  firstName: 'Mock',
+  lastName: 'User',
   bio: '',
   avatarUrl: '',
   socials: {} as Record<string, string>,
@@ -208,8 +212,8 @@ export const cabinetRepository: CabinetRepository = {
   },
   async getMyActions() {
     return [
-      { id: 'a1', action: 'comment.create', targetType: 'team', targetId: '1', createdAt: new Date().toISOString(), route: '/teams/1' },
-      { id: 'a2', action: 'event.create', targetType: 'event', targetId: '1', createdAt: new Date(Date.now() - 3600_000).toISOString(), route: '/events/1' },
+      { id: 'a1', action: 'comment.create', targetType: 'comment', targetId: '1', createdAt: new Date().toISOString(), route: '/comments/team/1#comment-1', metadata: { entity_type: 'team', entity_id: 1 } },
+      { id: 'a2', action: 'event.create', targetType: 'event', targetId: '1', createdAt: new Date(Date.now() - 3600_000).toISOString(), route: '/events/1', metadata: { title: 'Mock event' } },
     ]
   },
   async getTournamentCycles() {
@@ -271,7 +275,11 @@ export const usersRepository: UsersRepository = {
     return {
       userId,
       username: `user_${userId}`,
+      telegramId: userId,
+      telegramUsername: `user_${userId}`,
       displayName: `Пользователь #${userId}`,
+      firstName: '',
+      lastName: '',
       bio: '',
       avatarUrl: '',
       socials: {},

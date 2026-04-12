@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -23,8 +24,29 @@ func (r *CabinetAdminRepository) GetProfile(ctx context.Context, userID int64) (
 	var p domain.UserProfile
 	var socials []byte
 	err := r.pool.QueryRow(ctx, `
-	SELECT u.id,u.username,u.display_name,COALESCE(up.bio,''),COALESCE(up.avatar_url,''),COALESCE(up.socials,'{}'::jsonb)
-	FROM users u LEFT JOIN user_profiles up ON up.user_id=u.id WHERE u.id=$1`, userID).Scan(&p.UserID, &p.Username, &p.DisplayName, &p.Bio, &p.AvatarURL, &socials)
+	SELECT
+		u.id,
+		u.username,
+		COALESCE(u.telegram_id, 0),
+		COALESCE(u.telegram_username, ''),
+		u.display_name,
+		COALESCE(up.first_name, ''),
+		COALESCE(up.last_name, ''),
+		COALESCE(up.bio,''),
+		COALESCE(up.avatar_url,''),
+		COALESCE(up.socials,'{}'::jsonb)
+	FROM users u LEFT JOIN user_profiles up ON up.user_id=u.id WHERE u.id=$1`, userID).Scan(
+		&p.UserID,
+		&p.Username,
+		&p.TelegramID,
+		&p.TelegramTag,
+		&p.DisplayName,
+		&p.FirstName,
+		&p.LastName,
+		&p.Bio,
+		&p.AvatarURL,
+		&socials,
+	)
 	if err != nil {
 		return p, err
 	}
@@ -40,10 +62,10 @@ func (r *CabinetAdminRepository) UpdateProfile(ctx context.Context, userID int64
 		return domain.UserProfile{}, err
 	}
 	_, err = r.pool.Exec(ctx, `
-	INSERT INTO user_profiles (user_id,bio,avatar_url,socials,updated_at)
-	VALUES ($1,$2,NULLIF($3,''),$4,NOW())
+	INSERT INTO user_profiles (user_id,first_name,last_name,bio,avatar_url,socials,updated_at)
+	VALUES ($1,$2,$3,$4,NULLIF($5,''),$6,NOW())
 	ON CONFLICT (user_id)
-	DO UPDATE SET bio=EXCLUDED.bio, avatar_url=EXCLUDED.avatar_url, socials=EXCLUDED.socials, updated_at=NOW()`, userID, req.Bio, req.AvatarURL, socials)
+	DO UPDATE SET first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name, bio=EXCLUDED.bio, avatar_url=EXCLUDED.avatar_url, socials=EXCLUDED.socials, updated_at=NOW()`, userID, req.FirstName, req.LastName, req.Bio, req.AvatarURL, socials)
 	if err != nil {
 		return domain.UserProfile{}, err
 	}
@@ -111,7 +133,30 @@ func (r *CabinetAdminRepository) ReassignPlayerTeam(ctx context.Context, playerI
 	return err
 }
 func (r *CabinetAdminRepository) ListAuditActionsByActor(ctx context.Context, userID int64, limit int) ([]domain.UserActionItem, error) {
-	rows, err := r.pool.Query(ctx, `
+	type actionRecord struct {
+		id        int64
+		action    string
+		target    string
+		targetID  string
+		metadata  map[string]any
+		createdAt time.Time
+	}
+
+	records := make([]actionRecord, 0, limit*2)
+
+	var registeredAt time.Time
+	if err := r.pool.QueryRow(ctx, `SELECT created_at FROM users WHERE id=$1`, userID).Scan(&registeredAt); err == nil {
+		records = append(records, actionRecord{
+			id:        0,
+			action:    "auth.register",
+			target:    "user",
+			targetID:  strconv.FormatInt(userID, 10),
+			metadata:  map[string]any{"source": "telegram"},
+			createdAt: registeredAt,
+		})
+	}
+
+	auditRows, err := r.pool.Query(ctx, `
 		SELECT id, action, target_type, target_id, COALESCE(metadata, '{}'::jsonb), created_at
 		FROM audit_logs
 		WHERE actor_user_id = $1
@@ -121,27 +166,164 @@ func (r *CabinetAdminRepository) ListAuditActionsByActor(ctx context.Context, us
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer auditRows.Close()
 
-	out := make([]domain.UserActionItem, 0, limit)
-	for rows.Next() {
-		var item domain.UserActionItem
+	for auditRows.Next() {
 		var metadataRaw []byte
-		var createdAt time.Time
-		if err = rows.Scan(&item.ID, &item.Action, &item.TargetType, &item.TargetID, &metadataRaw, &createdAt); err != nil {
+		item := actionRecord{}
+		if err = auditRows.Scan(&item.id, &item.action, &item.target, &item.targetID, &metadataRaw, &item.createdAt); err != nil {
 			return nil, err
 		}
-		item.CreatedAt = createdAt.Unix()
-		item.Metadata = map[string]any{}
-		_ = json.Unmarshal(metadataRaw, &item.Metadata)
+		item.metadata = map[string]any{}
+		_ = json.Unmarshal(metadataRaw, &item.metadata)
+		records = append(records, item)
+	}
+	if err = auditRows.Err(); err != nil {
+		return nil, err
+	}
+
+	commentRows, err := r.pool.Query(ctx, `
+		SELECT id, entity_type, entity_id, parent_comment_id, body, created_at
+		FROM comments
+		WHERE author_user_id = $1
+		ORDER BY created_at DESC
+		LIMIT $2
+	`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer commentRows.Close()
+	for commentRows.Next() {
+		var id, entityID int64
+		var parentID *int64
+		var entityType, body string
+		var createdAt time.Time
+		if err = commentRows.Scan(&id, &entityType, &entityID, &parentID, &body, &createdAt); err != nil {
+			return nil, err
+		}
+		action := "comment.create"
+		if parentID != nil {
+			action = "comment.reply"
+		}
+		records = append(records, actionRecord{
+			id:       -id,
+			action:   action,
+			target:   "comment",
+			targetID: strconv.FormatInt(id, 10),
+			metadata: map[string]any{
+				"entity_type": entityType,
+				"entity_id":   entityID,
+				"body":        body,
+			},
+			createdAt: createdAt,
+		})
+	}
+	if err = commentRows.Err(); err != nil {
+		return nil, err
+	}
+
+	reactionRows, err := r.pool.Query(ctx, `
+		SELECT cr.comment_id, cr.reaction_type, c.entity_type, c.entity_id, cr.updated_at
+		FROM comment_reactions cr
+		JOIN comments c ON c.id = cr.comment_id
+		WHERE cr.user_id = $1
+		ORDER BY cr.updated_at DESC
+		LIMIT $2
+	`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer reactionRows.Close()
+	for reactionRows.Next() {
+		var commentID, entityID int64
+		var reactionType, entityType string
+		var updatedAt time.Time
+		if err = reactionRows.Scan(&commentID, &reactionType, &entityType, &entityID, &updatedAt); err != nil {
+			return nil, err
+		}
+		records = append(records, actionRecord{
+			id:       -1000000 - commentID,
+			action:   "comment.react",
+			target:   "comment",
+			targetID: strconv.FormatInt(commentID, 10),
+			metadata: map[string]any{
+				"reaction_type": reactionType,
+				"entity_type":   entityType,
+				"entity_id":     entityID,
+			},
+			createdAt: updatedAt,
+		})
+	}
+	if err = reactionRows.Err(); err != nil {
+		return nil, err
+	}
+
+	eventRows, err := r.pool.Query(ctx, `
+		SELECT id, scope_type, scope_id, title, created_at
+		FROM event_feed_items
+		WHERE author_user_id = $1 AND deleted_at IS NULL
+		ORDER BY created_at DESC
+		LIMIT $2
+	`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer eventRows.Close()
+	for eventRows.Next() {
+		var eventID int64
+		var scopeType string
+		var scopeID *int64
+		var title string
+		var createdAt time.Time
+		if err = eventRows.Scan(&eventID, &scopeType, &scopeID, &title, &createdAt); err != nil {
+			return nil, err
+		}
+		meta := map[string]any{"scope_type": scopeType, "title": title}
+		if scopeID != nil {
+			meta["scope_id"] = *scopeID
+		}
+		records = append(records, actionRecord{
+			id:        -2000000 - eventID,
+			action:    "event.create",
+			target:    "event",
+			targetID:  strconv.FormatInt(eventID, 10),
+			metadata:  meta,
+			createdAt: createdAt,
+		})
+	}
+	if err = eventRows.Err(); err != nil {
+		return nil, err
+	}
+
+	sort.Slice(records, func(i, j int) bool { return records[i].createdAt.After(records[j].createdAt) })
+	if len(records) > limit {
+		records = records[:limit]
+	}
+
+	out := make([]domain.UserActionItem, 0, len(records))
+	for idx, record := range records {
+		itemID := record.id
+		if itemID == 0 {
+			itemID = int64(-(idx + 1))
+		}
+		item := domain.UserActionItem{
+			ID:         itemID,
+			Action:     record.action,
+			TargetType: record.target,
+			TargetID:   record.targetID,
+			Metadata:   record.metadata,
+			CreatedAt:  record.createdAt.Unix(),
+		}
 		item.Route = actionRoute(item.TargetType, item.TargetID, item.Metadata)
 		out = append(out, item)
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 func actionRoute(targetType, targetID string, metadata map[string]any) string {
 	switch targetType {
+	case "user":
+		return "/users/" + targetID
 	case "team":
 		return "/teams/" + targetID
 	case "player":
