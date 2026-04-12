@@ -17,7 +17,7 @@ import { ApiError } from '../../infrastructure/api/repositories'
 import { canManageMatch } from '../../domain/services/accessControl'
 import { formatMatchMetaMsk, getTimeToKickoff } from '../../lib/date-time'
 import type { Match } from '../../domain/entities/types'
-import { EditableSectionHeader, EditableTextField, SectionActionBar } from '../../components/ui/editable'
+import { EditableSectionHeader, SectionActionBar } from '../../components/ui/editable'
 
 const statusLabel: Record<string, string> = {
   scheduled: 'По расписанию',
@@ -98,8 +98,6 @@ export const MatchDetailsPage = () => {
   const [editableStage, setEditableStage] = useState(match?.stage ?? '')
   const [editableTour, setEditableTour] = useState(match?.tour ?? match?.round ?? '')
   const [editableReferee, setEditableReferee] = useState(match?.referee ?? '')
-  const [editableBroadcastUrl, setEditableBroadcastUrl] = useState(match?.broadcastUrl ?? '')
-  const [editableDiskUrl, setEditableDiskUrl] = useState(match?.diskUrl ?? '')
   const [metadataStatus, setMetadataStatus] = useState<string | null>(null)
   const [scoreDraft, setScoreDraft] = useState<{ home: number; away: number } | null>(null)
   const [localEvents, setLocalEvents] = useState(match?.events ?? [])
@@ -227,12 +225,12 @@ export const MatchDetailsPage = () => {
         <EntityReactions entityKey={`match:${match.id}`} />
         <div className="flex items-center gap-2">
           {match.diskUrl && (
-            <a href={match.diskUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-accentYellow px-4 py-2 text-xs font-semibold tracking-[0.08em] text-app shadow-soft">
+            <a href={match.diskUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-xl bg-accentYellow px-4 text-xs font-semibold tracking-[0.08em] text-app shadow-soft whitespace-nowrap">
               <Disc3 size={14} /> ДИСК
             </a>
           )}
           {match.broadcastUrl && (
-            <a href={match.broadcastUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-accentYellow px-4 py-2 text-xs font-semibold tracking-[0.08em] text-app shadow-soft">
+            <a href={match.broadcastUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-xl bg-accentYellow px-4 text-xs font-semibold tracking-[0.08em] text-app shadow-soft whitespace-nowrap">
               <Radio size={14} /> СМОТРЕТЬ ТРАНСЛЯЦИЮ
             </a>
           )}
@@ -310,8 +308,6 @@ export const MatchDetailsPage = () => {
             setEditableStage(match.stage ?? '')
             setEditableTour(match.tour ?? match.round ?? '')
             setEditableReferee(match.referee ?? '')
-            setEditableBroadcastUrl(match.broadcastUrl ?? '')
-            setEditableDiskUrl(match.diskUrl ?? '')
             setMetadataStatus(null)
             setIsInfoEditing(true)
           }}
@@ -321,19 +317,36 @@ export const MatchDetailsPage = () => {
           }}
           actions={<Info size={14} className="text-accentYellow" />}
         />
-        <div className="grid gap-2 text-sm text-textSecondary sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Статус:</span> {statusLabel[match.status]}</div>
-          <EditableTextField label="Этап" value={editableStage} onChange={setEditableStage} isEditing={isInfoEditing} placeholder="Например: Полуфинал" />
-          <EditableTextField label="Тур / стадия" value={editableTour} onChange={setEditableTour} isEditing={isInfoEditing} placeholder="Например: 5 тур" />
-          <EditableTextField label="Судья" value={editableReferee} onChange={setEditableReferee} isEditing={isInfoEditing} placeholder="Имя судьи" />
-        </div>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          <EditableTextField label="Диск" value={editableDiskUrl} onChange={setEditableDiskUrl} isEditing={isInfoEditing} placeholder="https://drive.google.com/..." />
-          <EditableTextField label="Трансляция" value={editableBroadcastUrl} onChange={setEditableBroadcastUrl} isEditing={isInfoEditing} placeholder="https://stream.example.com" />
-        </div>
-        <div className="mt-2">
-          <EditableTextField label="Стадион / площадка" value={editableVenue} onChange={setEditableVenue} isEditing={isInfoEditing} placeholder="Название арены" />
-        </div>
+        {!isInfoEditing ? (
+          <div className="grid gap-2 text-sm text-textSecondary sm:grid-cols-2 lg:grid-cols-5">
+            <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Статус:</span> {statusLabel[match.status]}</div>
+            <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Этап:</span> <span className="text-textPrimary">{match.stage || '—'}</span></div>
+            <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Тур:</span> <span className="text-textPrimary">{match.tour || match.round || '—'}</span></div>
+            <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Судья:</span> <span className="text-textPrimary">{match.referee || '—'}</span></div>
+            <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Стадион:</span> <span className="text-textPrimary">{match.venue || '—'}</span></div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <label className="space-y-1 text-xs text-textMuted">
+                Этап
+                <input value={editableStage} onChange={(event) => setEditableStage(event.target.value)} placeholder="Например: Полуфинал" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary" />
+              </label>
+              <label className="space-y-1 text-xs text-textMuted">
+                Тур / стадия
+                <input value={editableTour} onChange={(event) => setEditableTour(event.target.value)} placeholder="Например: 5 тур" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary" />
+              </label>
+              <label className="space-y-1 text-xs text-textMuted">
+                Судья
+                <input value={editableReferee} onChange={(event) => setEditableReferee(event.target.value)} placeholder="Имя судьи" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary" />
+              </label>
+            </div>
+            <label className="space-y-1 text-xs text-textMuted">
+              Стадион / площадка
+              <input value={editableVenue} onChange={(event) => setEditableVenue(event.target.value)} placeholder="Название арены" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary" />
+            </label>
+          </div>
+        )}
         <SectionActionBar
           isEditing={isInfoEditing}
           statusMessage={metadataStatus}
@@ -348,8 +361,6 @@ export const MatchDetailsPage = () => {
                 stage: editableStage.trim(),
                 tour: editableTour.trim(),
                 referee: editableReferee.trim(),
-                diskUrl: editableDiskUrl.trim(),
-                broadcastUrl: editableBroadcastUrl.trim(),
               })
               setMetadataStatus('Информация обновлена')
               setIsInfoEditing(false)

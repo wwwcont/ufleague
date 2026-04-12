@@ -137,7 +137,7 @@ export const TeamDetailsPage = () => {
 
         <div className="relative z-10">
           {canManageCurrentTeam && !heroEditing && (
-            <div className="mb-3 flex justify-end">
+            <div className="absolute right-4 top-4 z-20">
               <button
                 type="button"
                 onClick={() => {
