@@ -29,7 +29,7 @@ export const teamsRepository: TeamsRepository = {
     return teams.find((t) => t.id === teamId) ?? null
   },
   async createTeam() {
-    return
+    return { id: `team_mock_${Date.now()}` }
   },
 }
 

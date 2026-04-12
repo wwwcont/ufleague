@@ -48,11 +48,11 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   'player-profile': { title: 'Профиль игрока', description: 'Игровой профиль пользователя (отдельно от user-профиля).', tips: ['Переходите в user-профиль для ФИО/био.', 'Проверяйте связь user ↔ player profile.'] },
   'player-events': { title: 'Мои события', description: 'Все события, связанные с профилем игрока.', tips: ['События открываются на странице игрока.', 'Используйте фильтр по игроку в ленте.'] },
   'player-media': { title: 'Player media', description: 'Фото и медиа-поля профиля игрока.', tips: ['Используйте изображения с доступным URL.', 'Сохраняйте медиа отдельно от спортивных данных.'] },
-  team: { title: 'Моя команда', description: 'Быстрый вход в team workspace.', tips: ['Откройте карточку команды для inline-редактирования.', 'Используйте team context для событий/состава.'] },
+  team: { title: 'Управление командой', description: 'Создание команды и переход к разделам капитана.', tips: ['Если команда уже есть — откройте один из 3 подразделов.', 'ID команды вводить вручную не требуется.'] },
   invites: { title: 'Приглашения', description: 'Приглашение игроков в команду.', tips: ['Укажите корректный ID команды.', 'Username вводится без @.'] },
   users: { title: 'Пользователи', description: 'Управление captain/admin правами и team membership.', tips: ['Поиск только по Telegram @username.', 'Destructive actions требуют подтверждения.'] },
-  roster: { title: 'Управление составом', description: 'Видимость игроков в ростере.', tips: ['Проверьте ID команды и игрока.', 'Изменение применяется сразу после submit.'] },
-  'team-events': { title: 'События команды', description: 'Создание/обновление/удаление событий.', tips: ['Поддерживается загрузка изображения.', 'Для update/delete укажите event ID.'] },
+  roster: { title: 'Управление составом', description: 'Состав команды с действиями по каждому игроку.', tips: ['Откроется страница команды в режиме состава.', 'Кнопки: глаз, карандаш, крестик.'] },
+  'team-events': { title: 'События команды', description: 'Лента событий вашей команды.', tips: ['Кнопка создания доступна только капитану этой команды.', 'Редактирование/удаление скрыто для остальных.'] },
   'team-socials': { title: 'Соцсети команды', description: 'Обновление публичных ссылок команды.', tips: ['Формат ввода: key=value.', 'Сохраняйте только валидные URL.'] },
   tournament: { title: 'Турнирный workspace', description: 'Создание команд/игроков/матчей.', tips: ['Матчи доступны admin/superadmin.', 'Команды и игроки создаются через API.'] },
   moderation: { title: 'Модерация', description: 'Управление комментариями.', tips: ['Используйте ID комментария.', 'Действие логируется на backend.'] },
@@ -71,7 +71,7 @@ export const CabinetSectionPage = () => {
   const { section } = useParams()
   const navigate = useNavigate()
   const { session } = useSession()
-  const { cabinetRepository, teamsRepository, playersRepository, matchesRepository, eventsRepository, uploadsRepository, usersRepository } = useRepositories()
+  const { cabinetRepository, teamsRepository, playersRepository, matchesRepository, uploadsRepository, usersRepository } = useRepositories()
   const { data: bracket } = useBracket()
   const { data: teams } = useTeams()
 
@@ -87,9 +87,6 @@ export const CabinetSectionPage = () => {
   const [socialsRaw, setSocialsRaw] = useState('')
 
   const [teamId, setTeamId] = useState('')
-  const [title, setTitle] = useState('')
-  const [body, setBody] = useState('')
-  const [eventId, setEventId] = useState('')
   const [username, setUsername] = useState('')
   const [userLookupUsername, setUserLookupUsername] = useState('')
   const [selectedUser, setSelectedUser] = useState<PublicUserCard | null>(null)
@@ -98,8 +95,6 @@ export const CabinetSectionPage = () => {
   const [membershipTeamId, setMembershipTeamId] = useState('')
   const [membershipPlayerId, setMembershipPlayerId] = useState('')
   const [deactivatePlayerOnKick, setDeactivatePlayerOnKick] = useState(true)
-  const [playerId, setPlayerId] = useState('')
-  const [visible, setVisible] = useState(true)
   const [teamSocialsRaw, setTeamSocialsRaw] = useState('telegram=https://t.me/')
 
   const [commentId, setCommentId] = useState('')
@@ -123,7 +118,6 @@ export const CabinetSectionPage = () => {
   const [newPlayerPosition, setNewPlayerPosition] = useState('MF')
   const [newPlayerNumber, setNewPlayerNumber] = useState('10')
   const [newPlayerAvatarFile, setNewPlayerAvatarFile] = useState<File | null>(null)
-  const [newEventImageFile, setNewEventImageFile] = useState<File | null>(null)
   const [matchHomeTeamId, setMatchHomeTeamId] = useState('')
   const [matchAwayTeamId, setMatchAwayTeamId] = useState('')
   const [matchStartAt, setMatchStartAt] = useState('')
@@ -375,8 +369,8 @@ export const CabinetSectionPage = () => {
       {section === 'team' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
           <div className="rounded-xl border border-borderSubtle bg-mutedBg p-3 text-sm text-textSecondary">
-            <p className="font-semibold text-textPrimary">Team workspace</p>
-            <p className="mt-1">Captain/Admin/Superadmin инструменты вынесены прямо в team detail page, здесь — быстрый переход и создание команды для капитана без команды.</p>
+            <p className="font-semibold text-textPrimary">Управление командой</p>
+            <p className="mt-1">Если команды еще нет — создайте ее. Если команда есть — используйте три раздела: «Состав», «События команды», «Страница команды».</p>
           </div>
           {!session.user.teamId && currentRoles.some((role) => roleRank[role] >= roleRank.captain) && (
             <div className="space-y-2 rounded-xl border border-borderSubtle bg-mutedBg p-3">
@@ -385,14 +379,12 @@ export const CabinetSectionPage = () => {
               <input value={newTeamDescription} onChange={(e) => setNewTeamDescription(e.target.value)} placeholder="Описание (опционально)" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
               <button type="button" disabled={!newTeamName.trim()} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
                 try {
-                  const slug = newTeamName.toLowerCase().replace(/[^a-zа-я0-9]+/gi, '-').replace(/^-+|-+$/g, '') || `team-${Date.now()}`
-                  await teamsRepository.createTeam?.({ name: newTeamName.trim(), slug, description: newTeamDescription.trim(), logoUrl: undefined })
-                  const teamList = await teamsRepository.getTeams()
-                  const created = teamList.find((item) => item.name === newTeamName.trim()) ?? teamList[teamList.length - 1]
-                  if (created) {
-                    await playersRepository.createPlayer?.({ userId: session.user.id, teamId: created.id, fullName: session.user.displayName, position: 'MF', shirtNumber: 0 })
-                    setStatus('ok: team created, captain player profile created')
-                    navigate(`/teams/${created.id}`)
+                  const created = await teamsRepository.createTeam?.({ name: newTeamName.trim(), description: newTeamDescription.trim(), logoUrl: undefined })
+                  const createdTeamId = created && 'id' in created ? created.id : null
+                  if (createdTeamId) {
+                    await playersRepository.createPlayer?.({ userId: session.user.id, teamId: createdTeamId, fullName: session.user.displayName, position: 'MF', shirtNumber: 0 })
+                    setStatus('ok: team created, captain can now manage roster/events')
+                    navigate(`/teams/${createdTeamId}`)
                     return
                   }
                   setStatus('ok: team created')
@@ -402,11 +394,13 @@ export const CabinetSectionPage = () => {
               }}>Создать команду</button>
             </div>
           )}
-          <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder={`ID команды (например: ${session.user.teamId ?? '12'})`} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <div className="flex flex-wrap gap-2 text-xs">
-            <Link to={teamId ? `/teams/${teamId}` : session.user.teamId ? `/teams/${session.user.teamId}` : '/teams'} className="rounded-lg border border-borderSubtle px-3 py-2">Открыть team context</Link>
-            <Link to="/teams" className="rounded-lg border border-borderSubtle px-3 py-2">Список команд</Link>
-          </div>
+          {session.user.teamId && (
+            <div className="grid gap-2 text-xs sm:grid-cols-3">
+              <Link to={`/teams/${session.user.teamId}?manage=roster`} className="rounded-lg border border-borderSubtle px-3 py-3 text-center">Состав</Link>
+              <Link to={`/events?teamId=${session.user.teamId}`} className="rounded-lg border border-borderSubtle px-3 py-3 text-center">События команды</Link>
+              <Link to={`/teams/${session.user.teamId}`} className="rounded-lg border border-borderSubtle px-3 py-3 text-center">Страница команды</Link>
+            </div>
+          )}
         </section>
       )}
 
@@ -630,61 +624,18 @@ export const CabinetSectionPage = () => {
 
       {section === 'roster' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
-          <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="ID команды (например: 12)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <input value={playerId} onChange={(e) => setPlayerId(e.target.value)} placeholder="ID игрока (например: 34)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <label className="text-xs text-textSecondary flex items-center gap-2"><input type="checkbox" checked={visible} onChange={(e) => setVisible(e.target.checked)} /> visible in roster</label>
-          <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
-            try {
-              await teamsRepository.captainSetRosterVisibility?.(teamId, playerId, visible)
-              setStatus('ok: roster visibility updated')
-            } catch (error) {
-              setStatus(`error: ${(error as Error).message}`)
-            }
-          }}>Apply roster visibility</button>
+          <p className="text-sm text-textSecondary">Управление составом выполняется на странице команды в режиме состава: у каждого игрока доступны кнопки «глаз», «карандаш», «крестик».</p>
+          <div className="flex flex-wrap gap-2">
+            <Link to={session.user.teamId ? `/teams/${session.user.teamId}?manage=roster` : '/teams'} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app">Открыть состав команды</Link>
+            <Link to="/players" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary">Все игроки</Link>
+          </div>
         </section>
       )}
 
       {section === 'team-events' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
-          <input value={teamId} onChange={(e) => setTeamId(e.target.value)} placeholder="ID команды (например: 12)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <input value={eventId} onChange={(e) => setEventId(e.target.value)} placeholder="ID события для изменения/удаления" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="event title" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="event body" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <input type="file" accept="image/*" onChange={(e) => setNewEventImageFile(e.target.files?.[0] ?? null)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-xs" />
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
-              try {
-                let imageUrl: string | undefined
-                if (newEventImageFile) {
-                  imageUrl = (await uploadsRepository.uploadImage(newEventImageFile)).url
-                }
-                if (imageUrl) {
-                  await eventsRepository.createEventForScope?.({ scopeType: 'team', scopeId: teamId, title, body, imageUrl })
-                } else {
-                  await cabinetRepository.createTeamEvent({ teamId, title, body })
-                }
-                setStatus('ok: team event created')
-              } catch (error) {
-                setStatus(`error: ${(error as Error).message}`)
-              }
-            }}>Create team event</button>
-            <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary" onClick={async () => {
-              try {
-                await eventsRepository.updateEventForScope?.({ eventId, scopeType: 'team', scopeId: teamId, title, body })
-                setStatus('ok: team event updated')
-              } catch (error) {
-                setStatus(`error: ${(error as Error).message}`)
-              }
-            }}>Update event</button>
-            <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary" onClick={async () => {
-              try {
-                await eventsRepository.deleteEvent?.(eventId)
-                setStatus('ok: event deleted')
-              } catch (error) {
-                setStatus(`error: ${(error as Error).message}`)
-              }
-            }}>Delete event</button>
-          </div>
+          <p className="text-sm text-textSecondary">Откроется лента событий команды. Кнопка «Создать событие» и действия редактирования/удаления видны только капитану этой команды и администраторам.</p>
+          <Link to={session.user.teamId ? `/events?teamId=${session.user.teamId}` : '/events'} className="inline-flex rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app">Открыть события команды</Link>
         </section>
       )}
 

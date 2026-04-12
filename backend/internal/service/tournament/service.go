@@ -3,12 +3,16 @@ package tournament
 import (
 	"context"
 	"errors"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"football_ui/backend/internal/domain"
 )
 
 var (
 	ErrForbidden = errors.New("forbidden")
+	slugRegex    = regexp.MustCompile(`[^a-z0-9]+`)
 )
 
 type Repository interface {
@@ -67,11 +71,31 @@ func (s Service) CreateTeam(ctx context.Context, actor domain.User, req domain.C
 		}
 	}
 
-	team := domain.Team{Name: req.Name, Slug: req.Slug, Description: req.Description, LogoURL: req.LogoURL, Socials: req.Socials}
+	team := domain.Team{
+		Name:        strings.TrimSpace(req.Name),
+		Slug:        buildTeamSlug(req.Slug, req.Name, actor.ID),
+		Description: req.Description,
+		LogoURL:     req.LogoURL,
+		Socials:     req.Socials,
+	}
 	if hasRole(actor, domain.RoleCaptain) && !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
 		team.CaptainUserID = &actor.ID
 	}
 	return s.repo.CreateTeam(ctx, team)
+}
+
+func buildTeamSlug(inputSlug string, teamName string, actorID int64) string {
+	base := strings.TrimSpace(inputSlug)
+	if base == "" {
+		base = strings.TrimSpace(teamName)
+	}
+	base = strings.ToLower(base)
+	base = slugRegex.ReplaceAllString(base, "-")
+	base = strings.Trim(base, "-")
+	if base == "" {
+		return "team-" + strconv.FormatInt(actorID, 10)
+	}
+	return base
 }
 
 func (s Service) UpdateTeam(ctx context.Context, actor domain.User, id int64, req domain.UpdateTeamRequest) (domain.Team, error) {

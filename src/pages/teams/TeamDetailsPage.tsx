@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { CalendarClock, EyeOff, Pencil, Plus, ShieldCheck, Trophy, UserPlus, Users, X } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
@@ -34,6 +34,7 @@ const formLabel: Record<string, string> = { W: 'В', D: 'Н', L: 'П' }
 
 export const TeamDetailsPage = () => {
   const { teamId } = useParams()
+  const [searchParams] = useSearchParams()
   const { data: team } = useTeamDetails(teamId)
   const { data: players } = usePlayers(teamId)
   const { data: teamFeed } = useEvents({ entityType: 'team', entityId: teamId, limit: 4 })
@@ -81,6 +82,7 @@ export const TeamDetailsPage = () => {
   const [rosterStatus, setRosterStatus] = useState<string | null>(null)
   const [hiddenPlayerIds, setHiddenPlayerIds] = useState<string[]>([])
   const [kickedPlayerIds, setKickedPlayerIds] = useState<string[]>([])
+  const manageMode = searchParams.get('manage')
 
   useEffect(() => {
     if (!team) return
@@ -104,6 +106,12 @@ export const TeamDetailsPage = () => {
   useEffect(() => {
     setLocalTeamFeed(teamFeed ?? [])
   }, [teamFeed])
+
+  useEffect(() => {
+    if (manageMode === 'roster') {
+      setRosterSetupMode(true)
+    }
+  }, [manageMode])
 
   if (!team) return <PageContainer><EmptyState title="Команда не найдена" /></PageContainer>
 
@@ -537,7 +545,12 @@ export const TeamDetailsPage = () => {
           {players?.length ? players.filter((player) => !kickedPlayerIds.includes(player.id)).map((player) => (
             <div key={player.id} className="rounded-xl border border-borderSubtle bg-mutedBg p-2">
               <div className="flex items-center justify-between gap-2">
-                <PlayerRow player={player} />
+                  <div className="flex-1">
+                    <PlayerRow player={player} />
+                    {player.userId === team.captainUserId ? (
+                      <p className="mt-1 px-1 text-[11px] font-semibold text-accentYellow">Капитан команды</p>
+                    ) : null}
+                  </div>
                 {canManageCurrentTeam && rosterSetupMode && (
                   <div className="flex items-center gap-1">
                     <Link to={`/players/${player.id}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-borderSubtle text-textSecondary" aria-label="Редактировать игрока">
