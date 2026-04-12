@@ -1,0 +1,94 @@
+package cabinetadmin
+
+import (
+	"context"
+	"testing"
+
+	"football_ui/backend/internal/domain"
+)
+
+type fakeRepo struct {
+	player             *domain.Player
+	created            bool
+	reassigned         bool
+	createdUserID      int64
+	createdTeamID      int64
+	reassignedPlayerID int64
+	reassignedTeamID   int64
+}
+
+func (f *fakeRepo) GetProfile(context.Context, int64) (domain.UserProfile, error) {
+	return domain.UserProfile{}, nil
+}
+func (f *fakeRepo) UpdateProfile(context.Context, int64, domain.UpdateProfileRequest) (domain.UserProfile, error) {
+	return domain.UserProfile{}, nil
+}
+func (f *fakeRepo) GetTeamByID(context.Context, int64) (domain.Team, error) {
+	return domain.Team{}, nil
+}
+func (f *fakeRepo) FindUserByUsername(context.Context, string) (int64, error)         { return 0, nil }
+func (f *fakeRepo) CreateTeamInvite(context.Context, int64, int64, int64) error       { return nil }
+func (f *fakeRepo) UpdateTeamSocials(context.Context, int64, map[string]string) error { return nil }
+func (f *fakeRepo) SetPlayerVisible(context.Context, int64, bool) error               { return nil }
+func (f *fakeRepo) TransferCaptain(context.Context, int64, int64) error               { return nil }
+func (f *fakeRepo) ModerateDeleteComment(context.Context, int64) error                { return nil }
+func (f *fakeRepo) ReplaceUserRoles(context.Context, int64, []domain.Role) error      { return nil }
+func (f *fakeRepo) ReplaceUserPermissions(context.Context, int64, []string) error     { return nil }
+func (f *fakeRepo) ReplaceUserRestrictions(context.Context, int64, []string) error    { return nil }
+func (f *fakeRepo) UpsertGlobalSetting(context.Context, string, map[string]any, int64) error {
+	return nil
+}
+func (f *fakeRepo) AddAuditLog(context.Context, int64, string, string, string, map[string]any) error {
+	return nil
+}
+func (f *fakeRepo) GetPlayerByUserID(context.Context, int64) (*domain.Player, error) {
+	return f.player, nil
+}
+func (f *fakeRepo) CreateCaptainPlayerProfile(_ context.Context, userID, teamID int64, _ string) error {
+	f.created = true
+	f.createdUserID = userID
+	f.createdTeamID = teamID
+	return nil
+}
+func (f *fakeRepo) ReassignPlayerTeam(_ context.Context, playerID, teamID int64) error {
+	f.reassigned = true
+	f.reassignedPlayerID = playerID
+	f.reassignedTeamID = teamID
+	return nil
+}
+func (f *fakeRepo) ListAuditActionsByActor(context.Context, int64, int) ([]domain.UserActionItem, error) {
+	return nil, nil
+}
+
+func TestEnsureCaptainPlayerProfileCreatesProfileWhenMissing(t *testing.T) {
+	repo := &fakeRepo{}
+	svc := NewService(repo)
+
+	if err := svc.EnsureCaptainPlayerProfile(context.Background(), 11, 22, "Captain Eleven"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !repo.created {
+		t.Fatalf("expected player profile to be created")
+	}
+	if repo.createdUserID != 11 || repo.createdTeamID != 22 {
+		t.Fatalf("unexpected create payload: user=%d team=%d", repo.createdUserID, repo.createdTeamID)
+	}
+}
+
+func TestEnsureCaptainPlayerProfileReassignsTeamWhenDifferent(t *testing.T) {
+	oldTeam := int64(7)
+	repo := &fakeRepo{player: &domain.Player{ID: 100, UserID: ptr(10), TeamID: &oldTeam}}
+	svc := NewService(repo)
+
+	if err := svc.EnsureCaptainPlayerProfile(context.Background(), 10, 99, ""); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !repo.reassigned {
+		t.Fatalf("expected player team to be reassigned")
+	}
+	if repo.reassignedPlayerID != 100 || repo.reassignedTeamID != 99 {
+		t.Fatalf("unexpected reassign payload: player=%d team=%d", repo.reassignedPlayerID, repo.reassignedTeamID)
+	}
+}
+
+func ptr(v int64) *int64 { return &v }

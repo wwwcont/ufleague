@@ -206,6 +206,12 @@ export const cabinetRepository: CabinetRepository = {
   async superadminSetGlobalSetting() {
     return
   },
+  async getMyActions() {
+    return [
+      { id: 'a1', action: 'comment.create', targetType: 'team', targetId: '1', createdAt: new Date().toISOString(), route: '/teams/1' },
+      { id: 'a2', action: 'event.create', targetType: 'event', targetId: '1', createdAt: new Date(Date.now() - 3600_000).toISOString(), route: '/events/1' },
+    ]
+  },
   async getTournamentCycles() {
     return mockTournamentCycles
   },
@@ -260,6 +266,19 @@ export const usersRepository: UsersRepository = {
       statuses: ['player'],
       isOnline: false,
     }
+  },
+  async getUserProfile(userId) {
+    return {
+      userId,
+      username: `user_${userId}`,
+      displayName: `Пользователь #${userId}`,
+      bio: '',
+      avatarUrl: '',
+      socials: {},
+    }
+  },
+  async updateUserProfile() {
+    return
   },
 }
 
