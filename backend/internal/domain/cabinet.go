@@ -43,3 +43,13 @@ type AssignRestrictionsRequest struct {
 type UpdateGlobalSettingRequest struct {
 	Value map[string]any `json:"value"`
 }
+
+type UserActionItem struct {
+	ID         int64          `json:"id"`
+	Action     string         `json:"action"`
+	TargetType string         `json:"target_type"`
+	TargetID   string         `json:"target_id"`
+	Metadata   map[string]any `json:"metadata"`
+	CreatedAt  int64          `json:"created_at"`
+	Route      string         `json:"route"`
+}

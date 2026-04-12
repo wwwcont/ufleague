@@ -103,6 +103,8 @@ export interface SessionRepository {
 
 export interface UsersRepository {
   getUserCard(userId: string): Promise<PublicUserCard | null>
+  getUserProfile?(userId: string): Promise<{ userId: string; username: string; displayName: string; bio: string; avatarUrl: string; socials: Record<string, string> } | null>
+  updateUserProfile?(userId: string, input: { displayName: string; bio: string; avatarUrl: string; socials: Record<string, string> }): Promise<void>
   findByTelegramUsername?(username: string): Promise<PublicUserCard | null>
 }
 
@@ -120,6 +122,7 @@ export interface CabinetRepository {
   superadminAssignPermissions(input: { userId: string; permissions: string[] }): Promise<void>
   superadminAssignRestrictions(input: { userId: string; restrictions: string[] }): Promise<void>
   superadminSetGlobalSetting(input: { key: string; value: Record<string, unknown> }): Promise<void>
+  getMyActions?(): Promise<Array<{ id: string; action: string; targetType: string; targetId: string; createdAt: string; route: string }>>
   getTournamentCycles?(): Promise<Array<{ id: string; name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive: boolean }>>
   createTournamentCycle?(input: { name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive?: boolean }): Promise<void>
   setActiveTournamentCycle?(cycleId: string): Promise<void>

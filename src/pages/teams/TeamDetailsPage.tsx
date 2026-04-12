@@ -542,7 +542,10 @@ export const TeamDetailsPage = () => {
           </div>
         )}
         <div className="space-y-2">
-          {players?.length ? players.filter((player) => !kickedPlayerIds.includes(player.id)).map((player) => (
+          {players?.length ? players
+            .filter((player) => !kickedPlayerIds.includes(player.id))
+            .filter((player) => canManageCurrentTeam || !(player.isHidden || hiddenPlayerIds.includes(player.id)))
+            .map((player) => (
             <div key={player.id} className="rounded-xl border border-borderSubtle bg-mutedBg p-2">
               <div className="flex items-center justify-between gap-2">
                   <div className="flex-1">
