@@ -42,6 +42,9 @@ export const TablePage = () => {
   const [bracketStatus, setBracketStatus] = useState<string | null>(null)
   const [playoffSize, setPlayoffSize] = useState<4 | 8 | 16>(16)
   const [localTieOverrides, setLocalTieOverrides] = useState<Record<string, { homeTeamId: string; awayTeamId: string }>>({})
+  const [selectedPlayoffNumber, setSelectedPlayoffNumber] = useState<string>('')
+
+  const getPlayoffNumber = (groupOrSlot: { tieId?: string; stageId: string; slot: number }) => groupOrSlot.tieId ? String(groupOrSlot.tieId).replace(/\D/g, '') || String(groupOrSlot.tieId) : `${groupOrSlot.stageId}-${groupOrSlot.slot}`
 
   const changeMode = (nextMode: 'table' | 'bracket') => {
     if (nextMode === mode) return
@@ -130,7 +133,7 @@ export const TablePage = () => {
   }
 
   const applyTieConfig = async () => {
-    if (!selectedSlot || !tieHomeTeamId || !tieAwayTeamId) return
+    if (!selectedSlot || !tieHomeTeamId || !tieAwayTeamId || tieHomeTeamId === tieAwayTeamId) return
     const key = `${selectedSlot.stageId}:${selectedSlot.slot}`
 
     setLocalTieOverrides((prev) => ({ ...prev, [key]: { homeTeamId: tieHomeTeamId, awayTeamId: tieAwayTeamId } }))
@@ -191,7 +194,11 @@ export const TablePage = () => {
 
                   {selectedSlot && (
                     <div className="mt-3 space-y-2 rounded-lg border border-borderSubtle bg-mutedBg p-2">
-                      <p className="text-xs text-textSecondary">Плей-офф блок: <span className="text-textPrimary">{selectedSlot.stageId}</span> • слот <span className="text-textPrimary">#{selectedSlot.slot}</span></p>
+                      <p className="text-xs text-textSecondary">Вершина: <span className="text-textPrimary">{selectedSlot.stageId}</span> • слот <span className="text-textPrimary">#{selectedSlot.slot}</span></p>
+                      <label className="block text-xs text-textMuted">
+                        Номер плей-офф
+                        <input value={selectedPlayoffNumber} readOnly className="mt-1 w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1 text-sm text-textPrimary" />
+                      </label>
                       <select value={tieHomeTeamId} onChange={(event) => setTieHomeTeamId(event.target.value)} className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1 text-sm">
                         <option value="">Команда 1</option>
                         {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
@@ -200,7 +207,7 @@ export const TablePage = () => {
                         <option value="">Команда 2</option>
                         {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
                       </select>
-                      <button type="button" disabled={!tieHomeTeamId || !tieAwayTeamId} className="rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app disabled:opacity-50" onClick={() => { void applyTieConfig() }}>
+                      <button type="button" disabled={!tieHomeTeamId || !tieAwayTeamId || tieHomeTeamId === tieAwayTeamId} className="rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app disabled:opacity-50" onClick={() => { void applyTieConfig() }}>
                         {selectedSlot.tieId ? 'Сохранить настройки' : 'Создать плей-офф'}
                       </button>
                     </div>
@@ -216,13 +223,17 @@ export const TablePage = () => {
                   fullScreen
                   editable={isEditingBracket}
                   onCreateTie={(stageId, slot) => {
-                    setSelectedSlot({ stageId, slot })
+                    const next = { stageId, slot }
+                    setSelectedSlot(next)
+                    setSelectedPlayoffNumber(getPlayoffNumber(next))
                     setTieHomeTeamId('')
                     setTieAwayTeamId('')
                     setBracketStatus(null)
                   }}
                   onEditTie={(group) => {
-                    setSelectedSlot({ stageId: group.stageId, slot: group.slot, tieId: group.id })
+                    const next = { stageId: group.stageId, slot: group.slot, tieId: group.id }
+                    setSelectedSlot(next)
+                    setSelectedPlayoffNumber(getPlayoffNumber(next))
                     setTieHomeTeamId(group.homeTeamId ?? '')
                     setTieAwayTeamId(group.awayTeamId ?? '')
                     setBracketStatus(null)
