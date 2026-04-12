@@ -1,4 +1,5 @@
 import type { Team } from '../../domain/entities/types'
+import transparentLogo from '../../logo/transparent.png'
 
 interface TeamAvatarProps {
   team: Team
@@ -23,5 +24,5 @@ export const TeamAvatar = ({ team, size = 'md', className = '', fit = 'contain' 
     return <img src={team.logoUrl} alt={`Логотип ${team.name}`} className={avatarClass} />
   }
 
-  return <img src="/src/logo/transparent.png" alt={`Логотип ${team.name}`} className={avatarClass} />
+  return <img src={transparentLogo} alt={`Логотип ${team.name}`} className={avatarClass} />
 }
