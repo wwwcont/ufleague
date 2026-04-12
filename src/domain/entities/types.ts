@@ -203,9 +203,10 @@ export interface BracketMatchGroup {
   homeTeamId: ID | null
   awayTeamId: ID | null
   winnerTeamId?: ID | null
-  tieFormat: 1 | 2
+  tieFormat: 1 | 2 | 3
   firstLeg: BracketGameRef
   secondLeg?: BracketGameRef
+  thirdLeg?: BracketGameRef
   adminLockedWinner?: boolean
 }
 

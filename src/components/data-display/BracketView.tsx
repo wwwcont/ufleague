@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CircleHelp, Pencil, Plus, ShieldCheck } from 'lucide-react'
+import { CircleHelp, LocateFixed, Minus, Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react'
 import type { BracketMatchGroup, BracketStage, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
 
@@ -12,6 +12,8 @@ const PADDING_X = 48
 const PADDING_Y = 44
 const CONNECTOR_STUB = 18
 const CONNECTOR_RADIUS = 8
+const MIN_SCALE = 0.24
+const MAX_SCALE = 1.7
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
@@ -28,6 +30,7 @@ export const BracketView = ({
   editable = false,
   onCreateTie,
   onEditTie,
+  onDeleteTie,
 }: {
   stages: BracketStage[]
   groups: BracketMatchGroup[]
@@ -36,10 +39,12 @@ export const BracketView = ({
   editable?: boolean
   onCreateTie?: (stageId: string, slot: number) => void
   onEditTie?: (group: BracketMatchGroup) => void
+  onDeleteTie?: (group: BracketMatchGroup) => void
 }) => {
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const dragRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false })
+  const pinchRef = useRef<{ startDistance: number; startScale: number; worldX: number; worldY: number } | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
 
   const sortedStages = [...stages].sort((a, b) => a.order - b.order)
@@ -145,12 +150,43 @@ export const BracketView = ({
     }
   }
 
+  const fitToViewport = () => {
+    const viewport = viewportRef.current?.getBoundingClientRect()
+    if (!viewport) return
+    const fitScale = clamp(Math.min((viewport.width - 24) / width, (viewport.height - 24) / height), MIN_SCALE, 1)
+    const centeredX = (viewport.width - width * fitScale) / 2
+    const centeredY = (viewport.height - height * fitScale) / 2
+    setScale(fitScale)
+    setOffset(clampOffset(centeredX, centeredY, fitScale))
+  }
+
+  useEffect(() => {
+    fitToViewport()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [width, height, editable])
+
+  useEffect(() => {
+    setOffset((prev) => clampOffset(prev.x, prev.y, scale))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [width, height, scale])
+
   const zoom = (delta: number) => {
     setScale((prev) => {
-      const nextScale = clamp(Number((prev + delta).toFixed(2)), 0.68, 1.7)
+      const nextScale = clamp(Number((prev + delta).toFixed(2)), MIN_SCALE, MAX_SCALE)
       setOffset((prevOffset) => clampOffset(prevOffset.x, prevOffset.y, nextScale))
       return nextScale
     })
+  }
+
+  const getTouchDistance = (touches: React.TouchList) => {
+    if (touches.length < 2) return 0
+    const [first, second] = [touches[0], touches[1]]
+    return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY)
+  }
+
+  const getTouchMidpoint = (touches: React.TouchList) => {
+    const [first, second] = [touches[0], touches[1]]
+    return { x: (first.clientX + second.clientX) / 2, y: (first.clientY + second.clientY) / 2 }
   }
 
   const nodeClass = 'absolute block rounded-xl border border-white/10 bg-panelAlt/85 px-2.5 py-2 shadow-soft backdrop-blur'
@@ -160,9 +196,20 @@ export const BracketView = ({
     <section className={fullScreen ? '' : 'matte-panel p-3'}>
       {!fullScreen && (
         <div className="mb-3 flex items-center justify-between gap-2 text-xs text-textMuted">
-          <p>Тяните сетку • масштаб: колесо</p>
+          <p>Тяните сетку • масштаб: колесо, пинч или кнопки</p>
         </div>
       )}
+      <div className="mb-2 flex justify-end gap-1.5">
+        <button type="button" onClick={fitToViewport} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-borderSubtle bg-panelBg text-textMuted hover:border-accentYellow/70 hover:text-accentYellow" aria-label="Показать всю сетку">
+          <LocateFixed size={14} />
+        </button>
+        <button type="button" onClick={() => zoom(-0.12)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-borderSubtle bg-panelBg text-textMuted hover:border-accentYellow/70 hover:text-accentYellow" aria-label="Уменьшить сетку">
+          <Minus size={14} />
+        </button>
+        <button type="button" onClick={() => zoom(0.12)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-borderSubtle bg-panelBg text-textMuted hover:border-accentYellow/70 hover:text-accentYellow" aria-label="Увеличить сетку">
+          <Plus size={14} />
+        </button>
+      </div>
 
       <div
         ref={viewportRef}
@@ -181,6 +228,37 @@ export const BracketView = ({
         }}
         onPointerUp={() => { dragRef.current.active = false }}
         onPointerLeave={() => { dragRef.current.active = false }}
+        onTouchStart={(event) => {
+          if (event.touches.length < 2) return
+          const distance = getTouchDistance(event.touches)
+          if (!distance) return
+          const midpoint = getTouchMidpoint(event.touches)
+          const viewport = viewportRef.current?.getBoundingClientRect()
+          const localMidX = midpoint.x - (viewport?.left ?? 0)
+          const localMidY = midpoint.y - (viewport?.top ?? 0)
+          pinchRef.current = {
+            startDistance: distance,
+            startScale: scale,
+            worldX: (localMidX - offset.x) / scale,
+            worldY: (localMidY - offset.y) / scale,
+          }
+        }}
+        onTouchMove={(event) => {
+          if (event.touches.length < 2 || !pinchRef.current) return
+          event.preventDefault()
+          const distance = getTouchDistance(event.touches)
+          if (!distance) return
+          const midpoint = getTouchMidpoint(event.touches)
+          const viewport = viewportRef.current?.getBoundingClientRect()
+          const localMidX = midpoint.x - (viewport?.left ?? 0)
+          const localMidY = midpoint.y - (viewport?.top ?? 0)
+          const nextScale = clamp(Number((pinchRef.current.startScale * (distance / pinchRef.current.startDistance)).toFixed(2)), MIN_SCALE, MAX_SCALE)
+          const unclampedX = localMidX - pinchRef.current.worldX * nextScale
+          const unclampedY = localMidY - pinchRef.current.worldY * nextScale
+          setScale(nextScale)
+          setOffset(clampOffset(unclampedX, unclampedY, nextScale))
+        }}
+        onTouchEnd={() => { pinchRef.current = null }}
       >
         <div className="absolute left-0 top-0 origin-top-left" style={{ width, height, transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }}>
           <svg width={width} height={height} className="absolute left-0 top-0">
@@ -227,14 +305,12 @@ export const BracketView = ({
               )
             }
 
+            const legs = [group.firstLeg, group.secondLeg, group.thirdLeg].filter(Boolean)
             const firstLeg = group.firstLeg.score
-            const secondLeg = group.secondLeg?.score
-            const canComputeTotal = group.tieFormat === 2 && firstLeg && secondLeg
-            const totalHome = canComputeTotal ? firstLeg.home + secondLeg.home : null
-            const totalAway = canComputeTotal ? firstLeg.away + secondLeg.away : null
-            const hasAllGamesFinished = group.tieFormat === 1
-              ? isFinished(group.firstLeg.status)
-              : isFinished(group.firstLeg.status) && isFinished(group.secondLeg?.status ?? 'scheduled')
+            const canComputeTotal = legs.length > 1 && legs.every((leg) => leg?.score)
+            const totalHome = canComputeTotal ? legs.reduce((sum, leg) => sum + (leg?.score?.home ?? 0), 0) : null
+            const totalAway = canComputeTotal ? legs.reduce((sum, leg) => sum + (leg?.score?.away ?? 0), 0) : null
+            const hasAllGamesFinished = legs.every((leg) => isFinished(leg?.status ?? 'scheduled'))
 
             const homeWinner = group.winnerTeamId ? group.homeTeamId === group.winnerTeamId : false
             const awayWinner = group.winnerTeamId ? group.awayTeamId === group.winnerTeamId : false
@@ -259,13 +335,15 @@ export const BracketView = ({
                 <div className="leading-4">{teamRow(group.homeTeamId, homeWinner, firstLeg?.home)}</div>
                 <div className="mt-1 leading-4">{teamRow(group.awayTeamId, awayWinner, firstLeg?.away)}</div>
 
-                {group.tieFormat === 2 && (
+                {legs.length > 1 && (
                   <>
-                    <div className="mt-1.5 border-t border-white/10 pt-1.5">
-                      <div className="text-[10px] uppercase tracking-[0.08em] text-textMuted">2-й матч</div>
-                      <div className="mt-1 leading-4">{teamRow(group.homeTeamId, homeWinner, secondLeg?.home)}</div>
-                      <div className="mt-1 leading-4">{teamRow(group.awayTeamId, awayWinner, secondLeg?.away)}</div>
-                    </div>
+                    {legs.slice(1).map((leg, legIndex) => (
+                      <div key={`${group.id}_${legIndex + 2}`} className="mt-1.5 border-t border-white/10 pt-1.5">
+                        <div className="text-[10px] uppercase tracking-[0.08em] text-textMuted">{legIndex + 2}-й матч</div>
+                        <div className="mt-1 leading-4">{teamRow(group.homeTeamId, homeWinner, leg?.score?.home)}</div>
+                        <div className="mt-1 leading-4">{teamRow(group.awayTeamId, awayWinner, leg?.score?.away)}</div>
+                      </div>
+                    ))}
                     <div className="mt-1.5 flex items-center justify-between border-t border-white/10 pt-1 text-[10px] uppercase tracking-[0.08em] text-textMuted">
                       <span>Тотал</span>
                       <span className="font-semibold tabular-nums text-textPrimary">{totalHome === null || totalAway === null ? '- : -' : `${totalHome}:${totalAway}`}</span>
@@ -282,26 +360,40 @@ export const BracketView = ({
             )
 
             const primaryMatch = group.firstLeg.matchId
-            const editButton = editable ? (
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  onEditTie?.(group)
-                }}
-                className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md border border-borderSubtle bg-panelBg/80 text-textMuted hover:border-accentYellow/70 hover:text-accentYellow"
-                aria-label="Редактировать плей-офф"
-              >
-                <Pencil size={12} />
-              </button>
+            const editControls = editable ? (
+              <div className="absolute right-2 top-2 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    onEditTie?.(group)
+                  }}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-borderSubtle bg-panelBg/80 text-textMuted hover:border-accentYellow/70 hover:text-accentYellow"
+                  aria-label="Редактировать плей-офф"
+                >
+                  <Pencil size={12} />
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    onDeleteTie?.(group)
+                  }}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-borderSubtle bg-panelBg/80 text-textMuted hover:border-rose-500/70 hover:text-rose-400"
+                  aria-label="Удалить плей-офф"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
             ) : null
 
             if (primaryMatch && !editable) {
               return <Link key={group.id} to={`/matches/${primaryMatch}`} className={nodeClass} style={{ left: group.x, top: group.y, width: NODE_W, height: NODE_H }}>{content}</Link>
             }
 
-            return <div key={group.id} className={`${nodeClass} relative`} style={{ left: group.x, top: group.y, width: NODE_W, height: NODE_H }}>{editButton}{content}</div>
+            return <div key={group.id} className={`${nodeClass} relative`} style={{ left: group.x, top: group.y, width: NODE_W, height: NODE_H }}>{editControls}{content}</div>
           })}
         </div>
       </div>

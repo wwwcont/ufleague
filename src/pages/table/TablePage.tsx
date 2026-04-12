@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { BracketView } from '../../components/data-display/BracketView'
 import { StandingsTable } from '../../components/data-display/StandingsTable'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useBracket } from '../../hooks/data/useBracket'
 import { useStandings } from '../../hooks/data/useStandings'
@@ -42,6 +43,11 @@ export const TablePage = () => {
   const [bracketStatus, setBracketStatus] = useState<string | null>(null)
   const [playoffSize, setPlayoffSize] = useState<4 | 8 | 16>(16)
   const [localTieOverrides, setLocalTieOverrides] = useState<Record<string, { homeTeamId: string; awayTeamId: string }>>({})
+  const [selectedPlayoffNumber, setSelectedPlayoffNumber] = useState<string>('')
+  const [hiddenTieIds, setHiddenTieIds] = useState<Set<string>>(new Set())
+  const [tiePendingDelete, setTiePendingDelete] = useState<BracketMatchGroup | null>(null)
+
+  const getPlayoffNumber = (groupOrSlot: { tieId?: string; stageId: string; slot: number }) => groupOrSlot.tieId ? String(groupOrSlot.tieId).replace(/\D/g, '') || String(groupOrSlot.tieId) : `${groupOrSlot.stageId}-${groupOrSlot.slot}`
 
   const changeMode = (nextMode: 'table' | 'bracket') => {
     if (nextMode === mode) return
@@ -85,9 +91,10 @@ export const TablePage = () => {
     if (!bracket) return []
     const sorted = [...bracket.stages].sort((a, b) => a.order - b.order)
     const required = Math.max(1, Math.log2(playoffSize))
+    const stageWindow = sorted.length > required ? sorted.slice(-required) : sorted
 
     return Array.from({ length: required }, (_, index) => {
-      const stage = sorted[index]
+      const stage = stageWindow[index]
       const size = Math.max(1, playoffSize / (2 ** (index + 1)))
       return {
         id: stage?.id ?? `virtual_stage_${index + 1}`,
@@ -103,6 +110,7 @@ export const TablePage = () => {
   const playoffGroups = useMemo((): BracketMatchGroup[] => {
     if (!bracket) return []
     return bracket.groups
+      .filter((group) => !hiddenTieIds.has(group.id))
       .filter((group) => visibleStageIds.has(group.stageId))
       .map((group) => {
         const key = `${group.stageId}:${group.slot}`
@@ -114,7 +122,7 @@ export const TablePage = () => {
           awayTeamId: override.awayTeamId,
         }
       })
-  }, [bracket, localTieOverrides, visibleStageIds])
+  }, [bracket, hiddenTieIds, localTieOverrides, visibleStageIds])
 
   const changePlayoffSize = async (nextSize: 4 | 8 | 16) => {
     setPlayoffSize(nextSize)
@@ -130,7 +138,7 @@ export const TablePage = () => {
   }
 
   const applyTieConfig = async () => {
-    if (!selectedSlot || !tieHomeTeamId || !tieAwayTeamId) return
+    if (!selectedSlot || !tieHomeTeamId || !tieAwayTeamId || tieHomeTeamId === tieAwayTeamId) return
     const key = `${selectedSlot.stageId}:${selectedSlot.slot}`
 
     setLocalTieOverrides((prev) => ({ ...prev, [key]: { homeTeamId: tieHomeTeamId, awayTeamId: tieAwayTeamId } }))
@@ -191,7 +199,11 @@ export const TablePage = () => {
 
                   {selectedSlot && (
                     <div className="mt-3 space-y-2 rounded-lg border border-borderSubtle bg-mutedBg p-2">
-                      <p className="text-xs text-textSecondary">Плей-офф блок: <span className="text-textPrimary">{selectedSlot.stageId}</span> • слот <span className="text-textPrimary">#{selectedSlot.slot}</span></p>
+                      <p className="text-xs text-textSecondary">Вершина: <span className="text-textPrimary">{selectedSlot.stageId}</span> • слот <span className="text-textPrimary">#{selectedSlot.slot}</span></p>
+                      <label className="block text-xs text-textMuted">
+                        Номер плей-офф
+                        <input value={selectedPlayoffNumber} readOnly className="mt-1 w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1 text-sm text-textPrimary" />
+                      </label>
                       <select value={tieHomeTeamId} onChange={(event) => setTieHomeTeamId(event.target.value)} className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1 text-sm">
                         <option value="">Команда 1</option>
                         {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
@@ -200,7 +212,7 @@ export const TablePage = () => {
                         <option value="">Команда 2</option>
                         {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
                       </select>
-                      <button type="button" disabled={!tieHomeTeamId || !tieAwayTeamId} className="rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app disabled:opacity-50" onClick={() => { void applyTieConfig() }}>
+                      <button type="button" disabled={!tieHomeTeamId || !tieAwayTeamId || tieHomeTeamId === tieAwayTeamId} className="rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app disabled:opacity-50" onClick={() => { void applyTieConfig() }}>
                         {selectedSlot.tieId ? 'Сохранить настройки' : 'Создать плей-офф'}
                       </button>
                     </div>
@@ -216,17 +228,22 @@ export const TablePage = () => {
                   fullScreen
                   editable={isEditingBracket}
                   onCreateTie={(stageId, slot) => {
-                    setSelectedSlot({ stageId, slot })
+                    const next = { stageId, slot }
+                    setSelectedSlot(next)
+                    setSelectedPlayoffNumber(getPlayoffNumber(next))
                     setTieHomeTeamId('')
                     setTieAwayTeamId('')
                     setBracketStatus(null)
                   }}
                   onEditTie={(group) => {
-                    setSelectedSlot({ stageId: group.stageId, slot: group.slot, tieId: group.id })
+                    const next = { stageId: group.stageId, slot: group.slot, tieId: group.id }
+                    setSelectedSlot(next)
+                    setSelectedPlayoffNumber(getPlayoffNumber(next))
                     setTieHomeTeamId(group.homeTeamId ?? '')
                     setTieAwayTeamId(group.awayTeamId ?? '')
                     setBracketStatus(null)
                   }}
+                  onDeleteTie={(group) => { setTiePendingDelete(group) }}
                 />
               )}
             </>
@@ -237,6 +254,32 @@ export const TablePage = () => {
             </PageContainer>
           )}
       </div>
+      <ConfirmDialog
+        open={Boolean(tiePendingDelete)}
+        title="Подтвердить удаление"
+        description={tiePendingDelete ? `Удалить плей-офф #${getPlayoffNumber({ stageId: tiePendingDelete.stageId, slot: tiePendingDelete.slot, tieId: tiePendingDelete.id })} из сетки?` : ''}
+        confirmLabel="Удалить"
+        onCancel={() => setTiePendingDelete(null)}
+        onConfirm={() => {
+          if (!tiePendingDelete) return
+          const currentTie = tiePendingDelete
+          setHiddenTieIds((prev) => new Set(prev).add(currentTie.id))
+          setLocalTieOverrides((prev) => {
+            const key = `${currentTie.stageId}:${currentTie.slot}`
+            if (!prev[key]) return prev
+            const next = { ...prev }
+            delete next[key]
+            return next
+          })
+          setBracketStatus('Плей-офф удален из сетки локально (до синхронизации с API).')
+          if (selectedSlot?.tieId === currentTie.id) {
+            setSelectedSlot(null)
+            setTieHomeTeamId('')
+            setTieAwayTeamId('')
+          }
+          setTiePendingDelete(null)
+        }}
+      />
     </div>
   )
 }

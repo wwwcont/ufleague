@@ -424,6 +424,11 @@ export const bracketRepository: BracketRepository = {
       const secondLegScore = group.second_leg_home_score !== undefined && group.second_leg_away_score !== undefined
         ? { home: Number(group.second_leg_home_score), away: Number(group.second_leg_away_score) }
         : undefined
+      const thirdLegScore = group.third_leg_home_score !== undefined && group.third_leg_away_score !== undefined
+        ? { home: Number(group.third_leg_home_score), away: Number(group.third_leg_away_score) }
+        : undefined
+      const tieFormatRaw = Number(group.tie_format ?? (thirdLegScore ? 3 : secondLegScore ? 2 : 1))
+      const tieFormat: 1 | 2 | 3 = tieFormatRaw === 3 ? 3 : tieFormatRaw === 2 ? 2 : 1
 
       return {
         id: String(group.id),
@@ -432,16 +437,21 @@ export const bracketRepository: BracketRepository = {
         homeTeamId: group.home_team_id ? String(group.home_team_id) : null,
         awayTeamId: group.away_team_id ? String(group.away_team_id) : null,
         winnerTeamId: group.winner_team_id ? String(group.winner_team_id) : null,
-        tieFormat: Number(group.tie_format ?? (secondLegScore ? 2 : 1)) === 2 ? 2 : 1,
+        tieFormat,
         firstLeg: {
           matchId: group.first_leg_match_id ? String(group.first_leg_match_id) : group.linked_match_id ? String(group.linked_match_id) : null,
           status: (group.first_leg_status ?? group.status ?? 'scheduled') as Match['status'],
           score: firstLegScore,
         },
-        secondLeg: Number(group.tie_format ?? (secondLegScore ? 2 : 1)) === 2 ? {
+        secondLeg: tieFormat >= 2 ? {
           matchId: group.second_leg_match_id ? String(group.second_leg_match_id) : null,
           status: (group.second_leg_status ?? 'scheduled') as Match['status'],
           score: secondLegScore,
+        } : undefined,
+        thirdLeg: tieFormat >= 3 ? {
+          matchId: group.third_leg_match_id ? String(group.third_leg_match_id) : null,
+          status: (group.third_leg_status ?? 'scheduled') as Match['status'],
+          score: thirdLegScore,
         } : undefined,
         adminLockedWinner: Boolean(group.admin_locked_winner),
       }
