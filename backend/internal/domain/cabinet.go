@@ -51,4 +51,5 @@ type UserActionItem struct {
 	TargetID   string         `json:"target_id"`
 	Metadata   map[string]any `json:"metadata"`
 	CreatedAt  int64          `json:"created_at"`
+	Route      string         `json:"route"`
 }

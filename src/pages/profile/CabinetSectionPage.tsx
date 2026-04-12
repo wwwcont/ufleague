@@ -261,7 +261,7 @@ export const CabinetSectionPage = () => {
         targetType: item.targetType,
         targetId: item.targetId,
         createdAt: item.createdAt,
-        route: item.targetType === 'team' ? `/teams/${item.targetId}` : item.targetType === 'player' ? `/players/${item.targetId}` : item.targetType === 'event' ? `/events/${item.targetId}` : item.targetType === 'comment' ? `/comments/team/${item.targetId}` : '/',
+        route: item.route || '/',
       })))
     }).catch(() => setMyActions([]))
   }, [cabinetRepository, section])
@@ -468,7 +468,7 @@ export const CabinetSectionPage = () => {
           {myActions.length ? myActions.map((item) => (
             <Link key={item.id} to={item.route} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
               <p className="text-sm text-textPrimary">{item.action}</p>
-              <p className="mt-1 text-xs text-textMuted">{item.createdAt}</p>
+              <p className="mt-1 text-xs text-textMuted">{new Date(item.createdAt).toLocaleString('ru-RU')}</p>
             </Link>
           )) : <p className="text-xs text-textMuted">Пока нет действий.</p>}
         </section>

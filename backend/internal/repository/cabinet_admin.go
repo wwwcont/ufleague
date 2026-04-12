@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"football_ui/backend/internal/domain"
@@ -129,9 +130,38 @@ func (r *CabinetAdminRepository) ListAuditActionsByActor(ctx context.Context, us
 		item.CreatedAt = createdAt.Unix()
 		item.Metadata = map[string]any{}
 		_ = json.Unmarshal(metadataRaw, &item.Metadata)
+		item.Route = actionRoute(item.TargetType, item.TargetID, item.Metadata)
 		out = append(out, item)
 	}
 	return out, rows.Err()
+}
+
+func actionRoute(targetType, targetID string, metadata map[string]any) string {
+	switch targetType {
+	case "team":
+		return "/teams/" + targetID
+	case "player":
+		return "/players/" + targetID
+	case "event":
+		return "/events/" + targetID
+	case "comment":
+		entityType, _ := metadata["entity_type"].(string)
+		entityID := ""
+		if raw := metadata["entity_id"]; raw != nil {
+			switch typed := raw.(type) {
+			case string:
+				entityID = typed
+			case float64:
+				entityID = strconv.FormatInt(int64(typed), 10)
+			}
+		}
+		if entityType != "" && entityID != "" {
+			return "/comments/" + entityType + "/" + entityID + "#comment-" + targetID
+		}
+		return "/"
+	default:
+		return "/"
+	}
 }
 func (r *CabinetAdminRepository) ModerateDeleteComment(ctx context.Context, commentID int64) error {
 	_, err := r.pool.Exec(ctx, `UPDATE comments SET deleted_at=NOW(), updated_at=NOW() WHERE id=$1 AND deleted_at IS NULL`, commentID)

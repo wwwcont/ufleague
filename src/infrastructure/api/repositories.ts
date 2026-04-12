@@ -779,6 +779,7 @@ export const cabinetRepository: CabinetRepository = {
       targetType: String(item.target_type ?? ''),
       targetId: String(item.target_id ?? ''),
       createdAt: item.created_at ? new Date(Number(item.created_at) * 1000).toISOString() : new Date().toISOString(),
+      route: String(item.route ?? '/'),
     }))
   },
   async getTournamentCycles() {
@@ -903,6 +904,10 @@ export const usersRepository: UsersRepository = {
       await api(`/api/admin/users/${userId}/profile`, { method: 'PATCH', body: JSON.stringify({ display_name: input.displayName, bio: input.bio, avatar_url: input.avatarUrl, socials: input.socials }) })
       return
     } catch {
+      const me = await api<any>(`/api/auth/me`)
+      if (String(me.user?.id ?? '') !== String(userId)) {
+        throw new ApiError(403, 'forbidden')
+      }
       await api(`/api/me/profile`, { method: 'PATCH', body: JSON.stringify({ display_name: input.displayName, bio: input.bio, avatar_url: input.avatarUrl, socials: input.socials }) })
     }
   },

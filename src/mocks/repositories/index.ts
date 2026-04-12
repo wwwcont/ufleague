@@ -208,8 +208,8 @@ export const cabinetRepository: CabinetRepository = {
   },
   async getMyActions() {
     return [
-      { id: 'a1', action: 'comment.create', targetType: 'team', targetId: '1', createdAt: new Date().toISOString() },
-      { id: 'a2', action: 'event.create', targetType: 'event', targetId: '1', createdAt: new Date(Date.now() - 3600_000).toISOString() },
+      { id: 'a1', action: 'comment.create', targetType: 'team', targetId: '1', createdAt: new Date().toISOString(), route: '/teams/1' },
+      { id: 'a2', action: 'event.create', targetType: 'event', targetId: '1', createdAt: new Date(Date.now() - 3600_000).toISOString(), route: '/events/1' },
     ]
   },
   async getTournamentCycles() {
