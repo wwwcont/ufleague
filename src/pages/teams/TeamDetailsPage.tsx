@@ -22,7 +22,6 @@ import { ApiError } from '../../infrastructure/api/repositories'
 import type { EventContentBlock } from '../../domain/entities/types'
 import {
   EditableSection,
-  EditableSectionHeader,
   EditableTextField,
   EditableTextareaField,
   SectionActionBar,
@@ -158,32 +157,32 @@ export const TeamDetailsPage = () => {
         </div>
 
         <div className="relative z-10">
-          <EditableSectionHeader
-            title="Профиль команды"
-            subtitle="Название, слоган, лого, сокращение, описание и соцсети"
-            canEdit={canManageCurrentTeam}
-            isEditing={heroEditing}
-            onStartEdit={() => {
-              syncHeroDraft()
-              setHeroStatus(null)
-              setHeroTone('idle')
-              setHeroEditing(true)
-            }}
-            onCancelEdit={() => {
-              syncHeroDraft()
-              setHeroStatus(null)
-              setHeroTone('idle')
-              setHeroEditing(false)
-            }}
-          />
+          {canManageCurrentTeam && !heroEditing && (
+            <div className="mb-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  syncHeroDraft()
+                  setHeroStatus(null)
+                  setHeroTone('idle')
+                  setHeroEditing(true)
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle bg-black/30 px-2 py-1 text-xs text-textSecondary"
+                aria-label="Редактировать профиль команды"
+              >
+                <Pencil size={14} />
+                Редактировать
+              </button>
+            </div>
+          )}
 
           <div className="mb-4 space-y-4">
             <div>
               <h1 className="text-3xl font-bold text-white">{team.name}</h1>
-              <p className="mt-1 text-sm text-textSecondary">{team.slogan || 'Слоган команды пока не заполнен.'}</p>
+              {team.slogan && <p className="mt-1 text-sm text-textSecondary">{team.slogan}</p>}
             </div>
 
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center justify-between gap-4">
               <TeamAvatar
                 team={{ ...team, logoUrl: editableLogoUrl ?? team.logoUrl }}
                 size="xl"
