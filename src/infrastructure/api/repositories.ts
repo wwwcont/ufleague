@@ -210,16 +210,17 @@ export const teamsRepository: TeamsRepository = {
   async getTeams() { return (await api<any[]>('/api/teams')).map(mapTeam) },
   async getTeamById(teamId) { try { return mapTeam(await api<any>(`/api/teams/${teamId}`)) } catch { return null } },
   async createTeam(input) {
-    await api('/api/teams', {
+    const created = await api<any>('/api/teams', {
       method: 'POST',
       body: JSON.stringify({
         name: input.name,
-        slug: input.slug,
+        slug: input.slug ?? '',
         description: input.description,
         logo_url: input.logoUrl ?? '',
         socials: {},
       }),
     })
+    return created?.id ? { id: String(created.id) } : undefined
   },
   async updateTeam(teamId, patch) {
     const current = await api<any>(`/api/teams/${teamId}`)

@@ -1,20 +1,85 @@
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { useMemo, useState } from 'react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { SectionHeader } from '../../components/ui/SectionHeader'
 import { useEvents } from '../../hooks/data/useEvents'
 import { EventFeedSection } from '../../components/events'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { ErrorState } from '../../components/ui/ErrorState'
+import { useSession } from '../../app/providers/use-session'
+import { useTeamDetails } from '../../hooks/data/useTeamDetails'
+import { canManageTeam } from '../../domain/services/accessControl'
+import { useRepositories } from '../../app/providers/use-repositories'
+import type { PublicEvent } from '../../domain/entities/types'
 
 export const EventsPage = () => {
-  const { data, isLoading, error } = useEvents()
+  const [searchParams] = useSearchParams()
+  const teamId = searchParams.get('teamId') ?? undefined
+  const { data, isLoading, error } = useEvents(teamId ? { entityType: 'team', entityId: teamId } : undefined)
+  const { session } = useSession()
+  const { data: team } = useTeamDetails(teamId)
+  const canManageCurrentTeam = canManageTeam(session, team)
+  const { eventsRepository } = useRepositories()
+  const [title, setTitle] = useState('')
+  const [body, setBody] = useState('')
+  const [pending, setPending] = useState(false)
+  const [status, setStatus] = useState<string | null>(null)
+  const [createdLocal, setCreatedLocal] = useState<PublicEvent[]>([])
+  const events = useMemo(
+    () => [...createdLocal, ...((data ?? []).map((event) => (teamId && canManageCurrentTeam ? { ...event, canEdit: true, canDelete: true } : event)))],
+    [canManageCurrentTeam, createdLocal, data, teamId],
+  )
+  const pageTitle = teamId ? `События команды${team ? `: ${team.name}` : ''}` : 'События турнира'
 
   return (
     <PageContainer>
-      <SectionHeader title="События турнира" action={<Link to="/" className="text-sm text-accentYellow">На главную</Link>} />
+      <SectionHeader title={pageTitle} action={<Link to="/" className="text-sm text-accentYellow">На главную</Link>} />
+      {teamId && canManageCurrentTeam && (
+        <section className="mb-3 rounded-2xl border border-borderSubtle bg-panelBg p-4">
+          <button
+            type="button"
+            disabled={pending || !title.trim() || !body.trim()}
+            onClick={async () => {
+              setPending(true)
+              setStatus('Публикуем событие...')
+              try {
+                await eventsRepository.createEventForScope?.({ scopeType: 'team', scopeId: teamId, title: title.trim(), body: body.trim() })
+                setCreatedLocal((prev) => [{
+                  id: `local_${Date.now()}`,
+                  title: title.trim(),
+                  summary: body.trim().slice(0, 140),
+                  text: body.trim(),
+                  contentBlocks: [],
+                  timestamp: new Date().toISOString(),
+                  source: 'team',
+                  authorName: session.user.displayName,
+                  category: 'news',
+                  entityType: 'team',
+                  entityId: teamId,
+                  canEdit: true,
+                  canDelete: true,
+                }, ...prev])
+                setTitle('')
+                setBody('')
+                setStatus('Событие создано')
+              } catch (createError) {
+                setStatus((createError as Error).message)
+              } finally {
+                setPending(false)
+              }
+            }}
+            className="mb-3 block w-full rounded-lg bg-accentYellow px-3 py-3 text-sm font-semibold text-app disabled:opacity-50"
+          >
+            Создать событие
+          </button>
+          <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Заголовок события" className="mb-2 w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm" />
+          <textarea value={body} onChange={(event) => setBody(event.target.value)} rows={3} placeholder="Текст события" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm" />
+          {status && <p className="mt-2 text-xs text-textMuted">{status}</p>}
+        </section>
+      )}
       {isLoading && <LoadingState title="Загружаем ленту событий" />}
       {error && <ErrorState title="Ошибка ленты" subtitle="Не удалось загрузить события" />}
-      {!isLoading && !error && <EventFeedSection title="Public event timeline" layout="timeline" events={data ?? []} messageWhenEmpty="Событий пока нет." />}
+      {!isLoading && !error && <EventFeedSection title={teamId ? 'Лента событий команды' : 'Public event timeline'} layout="timeline" events={events} messageWhenEmpty="Событий пока нет." />}
     </PageContainer>
   )
 }

@@ -56,9 +56,8 @@ const EventCardInner = ({ event, showRoleActions }: EventCardProps) => {
 
         {showRoleActions && (
           <div className="mt-2 flex items-center gap-2 text-xs text-textMuted">
-            <button type="button" className="rounded-lg border border-dashed border-borderStrong px-2 py-1" disabled>добавить событие</button>
-            <Link to={`/events/${event.id}`} className={`rounded-lg border border-dashed border-borderStrong px-2 py-1 ${!event.canEdit ? 'pointer-events-none opacity-50' : ''}`}>редактировать</Link>
-            <Link to={`/events/${event.id}`} className={`rounded-lg border border-dashed border-borderStrong px-2 py-1 ${!event.canDelete ? 'pointer-events-none opacity-50' : ''}`}>удалить</Link>
+            {event.canEdit && <Link to={`/events/${event.id}`} className="rounded-lg border border-dashed border-borderStrong px-2 py-1">редактировать</Link>}
+            {event.canDelete && <Link to={`/events/${event.id}`} className="rounded-lg border border-dashed border-borderStrong px-2 py-1">удалить</Link>}
           </div>
         )}
       </article>

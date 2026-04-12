@@ -27,10 +27,10 @@ const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
     { title: 'Мои события', description: 'События из профиля игрока.', route: '/profile/player-events', icon: 'shield' },
   ],
   captain: [
-    { title: 'Моя команда', description: 'Открыть team workspace и контекст.', route: '/profile/team', icon: 'shield' },
-    { title: 'Приглашения', description: 'Пригласить игроков в состав.', route: '/profile/invites', icon: 'shield' },
-    { title: 'Управление составом', description: 'Видимость и состав команды.', route: '/profile/roster', icon: 'shield' },
-    { title: 'События команды', description: 'Публикация и редактирование событий.', route: '/profile/team-events', icon: 'shield' },
+    { title: 'Управление командой', description: 'Создать команду или открыть три раздела управления.', route: '/profile/team', icon: 'shield' },
+    { title: 'Профиль игрока', description: 'Игровой профиль капитана (если вы также игрок).', route: '/profile/player-profile', icon: 'user' },
+    { title: 'Моя команда', description: 'Открыть публичную страницу своей команды.', route: '/profile/roster', icon: 'shield' },
+    { title: 'События команды', description: 'Лента событий команды с правами капитана.', route: '/profile/team-events', icon: 'shield' },
   ],
   admin: [
     { title: 'Матчи', description: 'Управление матчами и турниром.', route: '/profile/tournament', icon: 'shield' },
