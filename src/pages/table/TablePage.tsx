@@ -35,7 +35,6 @@ export const TablePage = () => {
   const [activeTournamentId, setActiveTournamentId] = useState('')
   const [bracketStatus, setBracketStatus] = useState<string | null>(null)
 
-  const [deletedTieIds, setDeletedTieIds] = useState<Set<string>>(new Set())
   const [editorNodes, setEditorNodes] = useState<BracketEditorNode[]>([])
   const [editorEdges, setEditorEdges] = useState<BracketEditorEdge[]>([])
 
@@ -73,10 +72,7 @@ export const TablePage = () => {
     })()
   }, [cabinetRepository, canEditBracket])
 
-  const mergedGroups = useMemo(() => {
-    const remote = bracket?.groups ?? []
-    return remote.filter((group) => !deletedTieIds.has(group.id))
-  }, [bracket?.groups, deletedTieIds])
+  const mergedGroups = useMemo(() => bracket?.groups ?? [], [bracket?.groups])
 
   const tieViewModels = useMemo<PlayoffTieViewModel[]>(() => {
     const stageById = Object.fromEntries((bracket?.stages ?? []).map((stage) => [stage.id, stage]))
@@ -116,18 +112,20 @@ export const TablePage = () => {
     setEditorEdges((prev) => prev.filter((edge) => tieIds.has(edge.fromTieId) && tieIds.has(edge.toTieId)))
   }, [tieViewModels])
 
-  useEffect(() => {
+  const loadLayoutFromBackend = async () => {
     if (!activeTournamentId || !cabinetRepository.getBracketEditorLayout) return
-    void (async () => {
-      const layout = await cabinetRepository.getBracketEditorLayout?.(activeTournamentId)
-      if (!layout) {
-        setEditorNodes([])
-        setEditorEdges([])
-        return
-      }
-      setEditorNodes(layout.nodes)
-      setEditorEdges(layout.edges)
-    })()
+    const layout = await cabinetRepository.getBracketEditorLayout(activeTournamentId)
+    if (!layout) {
+      setEditorNodes([])
+      setEditorEdges([])
+      return
+    }
+    setEditorNodes(layout.nodes)
+    setEditorEdges(layout.edges)
+  }
+
+  useEffect(() => {
+    void loadLayoutFromBackend()
   }, [activeTournamentId, cabinetRepository])
 
   const openTieEdit = (tieId: string) => {
@@ -149,7 +147,11 @@ export const TablePage = () => {
       setBracketStatus('Сохранение layout недоступно')
       return
     }
-    void cabinetRepository.saveBracketEditorLayout({ tournamentId: activeTournamentId, nodes: editorNodes, edges: editorEdges })
+    void (async () => {
+      await cabinetRepository.saveBracketEditorLayout?.({ tournamentId: activeTournamentId, nodes: editorNodes, edges: editorEdges })
+      await loadLayoutFromBackend()
+      await refetchBracket()
+    })()
     setBracketStatus('Layout сохранён на сервере')
   }
 
@@ -211,11 +213,8 @@ export const TablePage = () => {
   }
 
   const deleteTie = (tieId: string) => {
-    setDeletedTieIds((prev) => new Set(prev).add(tieId))
-    setEditorNodes((prev) => prev.filter((node) => node.tieId !== tieId))
-    setEditorEdges((prev) => prev.filter((edge) => edge.fromTieId !== tieId && edge.toTieId !== tieId))
     setTiePendingDelete(null)
-    setBracketStatus('Плей-офф удалён вместе со связанными линиями')
+    setBracketStatus(`Удаление tie ${tieId} нужно делать через backend endpoint`)
   }
 
   return (
