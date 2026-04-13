@@ -13,7 +13,10 @@ export const PublicShell = () => {
         <div className="bg-orb bg-orb-c" />
       </div>
       <AppHeader />
-      <main key={location.pathname} className="page-enter">
+      <main
+        key={location.pathname}
+        className="page-enter pt-[calc(56px+env(safe-area-inset-top,0px))] pb-[calc(64px+env(safe-area-inset-bottom,0px)+8px)]"
+      >
         <Outlet />
       </main>
       <BottomNav />

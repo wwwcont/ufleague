@@ -33,6 +33,10 @@ const sectionRoles: Record<string, UserRole> = {
   'team-events': 'captain',
   invites: 'captain',
   users: 'admin',
+  'grant-access': 'admin',
+  'revoke-access': 'admin',
+  'issue-restriction': 'admin',
+  'create-match': 'admin',
   'team-socials': 'captain',
   roster: 'captain',
   moderation: 'admin',
@@ -60,6 +64,10 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   'my-team': { title: 'Моя команда', description: 'Мгновенный переход на страницу команды.', tips: ['Если команда не найдена — открыть список команд.', 'Для капитана учитывается передача капитанства.'] },
   invites: { title: 'Приглашения', description: 'Приглашение игроков в команду.', tips: ['Укажите корректный ID команды.', 'Username вводится без @.'] },
   users: { title: 'Пользователи', description: 'Управление captain/admin правами и team membership.', tips: ['Поиск только по Telegram @username.', 'Destructive actions требуют подтверждения.'] },
+  'grant-access': { title: 'Выдать права', description: 'Выдача ролей по Telegram-логину.', tips: ['Сначала найдите пользователя по @username.', 'Кнопка выдачи admin доступна только superadmin.'] },
+  'revoke-access': { title: 'Забрать права', description: 'Снятие captain/admin прав.', tips: ['Сначала найдите пользователя по @username.', 'Действие требует подтверждения.'] },
+  'issue-restriction': { title: 'Выдать ограничение', description: 'Ограничение комментирования пользователя.', tips: ['Укажите причину ограничения.', 'Можно выдать постоянный или временный блок.'] },
+  'create-match': { title: 'Создать матч', description: 'Быстрое создание матча турнира.', tips: ['Выберите домашнюю и гостевую команды.', 'Проверьте RFC3339 для даты старта.'] },
   roster: { title: 'Управление составом', description: 'Состав команды с действиями по каждому игроку.', tips: ['Откроется страница команды в режиме состава.', 'Кнопки: глаз, карандаш, крестик.'] },
   'team-events': { title: 'События команды', description: 'Лента событий вашей команды.', tips: ['Кнопка создания доступна только капитану этой команды.', 'Редактирование/удаление скрыто для остальных.'] },
   'team-socials': { title: 'Соцсети команды', description: 'Обновление публичных ссылок команды.', tips: ['Формат ввода: key=value.', 'Сохраняйте только валидные URL.'] },
@@ -140,8 +148,6 @@ export const CabinetSectionPage = () => {
   const [selectedUserTeamId, setSelectedUserTeamId] = useState('')
   const [grantTeamCreate, setGrantTeamCreate] = useState(false)
   const [membershipTeamId, setMembershipTeamId] = useState('')
-  const [membershipPlayerId, setMembershipPlayerId] = useState('')
-  const [deactivatePlayerOnKick, setDeactivatePlayerOnKick] = useState(true)
   const [teamSocialsRaw, setTeamSocialsRaw] = useState('telegram=https://t.me/')
 
   const [commentId, setCommentId] = useState('')
@@ -309,6 +315,28 @@ export const CabinetSectionPage = () => {
       })))
     }).catch(() => setMyActions([]))
   }, [cabinetRepository, navigate, section, session.isAuthenticated])
+
+  const lookupUserByTelegram = async () => {
+    const login = userLookupUsername.trim()
+    if (!login.startsWith('@')) {
+      setStatus('error: укажите Telegram логин в формате @username')
+      return null
+    }
+    try {
+      const found = await usersRepository.findByTelegramUsername?.(login)
+      if (!found) {
+        setSelectedUser(null)
+        setStatus('error: пользователь не найден')
+        return null
+      }
+      setSelectedUser(found)
+      setStatus(`ok: выбран пользователь ${found.displayName}`)
+      return found
+    } catch (error) {
+      setStatus(`error: ${(error as Error).message}`)
+      return null
+    }
+  }
 
   if (!section || !minRole || !meta) {
     return (
@@ -595,102 +623,64 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {section === 'users' && (
+      {(section === 'users' || section === 'grant-access' || section === 'revoke-access') && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-3">
           <p className="text-xs text-textMuted">Поиск пользователя (обязателен Telegram @username)</p>
           <input value={userLookupUsername} onChange={(e) => setUserLookupUsername(e.target.value)} placeholder="@telegram_username" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <button type="button" disabled={!userLookupUsername.trim().startsWith('@')} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
-            try {
-              const found = await usersRepository.findByTelegramUsername?.(userLookupUsername)
-              if (!found) {
-                setSelectedUser(null)
-                setStatus('error: user not found by telegram username')
-                return
-              }
-              setSelectedUser(found)
-              setStatus(`ok: user selected (${found.displayName})`)
-            } catch (error) {
-              setStatus(`error: ${(error as Error).message}`)
-            }
-          }}>Найти пользователя</button>
+          <button type="button" disabled={!userLookupUsername.trim().startsWith('@')} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={lookupUserByTelegram}>Найти пользователя</button>
 
           {selectedUser && (
             <div className="space-y-3 rounded-xl border border-borderSubtle bg-mutedBg p-3">
               <p className="text-sm text-textPrimary">Выбран: <span className="font-semibold">{selectedUser.displayName}</span> {selectedUser.telegramUsername ? `(@${selectedUser.telegramUsername})` : ''}</p>
 
-              <div className="space-y-2 rounded-lg border border-borderSubtle bg-panelBg p-3">
-                <p className="text-xs text-textMuted">Капитанство / команда</p>
-                <select value={selectedUserTeamId} onChange={(e) => setSelectedUserTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
-                  <option value="">Выберите команду</option>
-                  {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
-                </select>
-                <label className="flex items-center gap-2 text-xs text-textSecondary">
-                  <input type="checkbox" checked={grantTeamCreate} onChange={(e) => setGrantTeamCreate(e.target.checked)} />
-                  Выдать капитанство с правом создавать команду
-                </label>
-                <div className="flex flex-wrap gap-2">
+              {section !== 'revoke-access' && (
+                <div className="space-y-2 rounded-lg border border-borderSubtle bg-panelBg p-3">
+                  <p className="text-xs text-textMuted">Сделать капитаном (выберите команду)</p>
+                  <select value={selectedUserTeamId} onChange={(e) => setSelectedUserTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+                    <option value="">Выберите команду</option>
+                    {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
+                  </select>
+                  <label className="flex items-center gap-2 text-xs text-textSecondary">
+                    <input type="checkbox" checked={grantTeamCreate} onChange={(e) => setGrantTeamCreate(e.target.checked)} />
+                    Разрешить создание команды
+                  </label>
                   <button type="button" disabled={!selectedUserTeamId} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
                     try {
                       await teamsRepository.adminTransferCaptain?.(selectedUserTeamId, selectedUser.id)
                       if (grantTeamCreate && currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)) {
                         await cabinetRepository.superadminAssignPermissions({ userId: selectedUser.id, permissions: ['tournament.team.create'] })
                       }
-                      setStatus('ok: captain assigned')
+                      setStatus('ok: captain rights granted')
                     } catch (error) {
                       setStatus(`error: ${(error as Error).message}`)
                     }
                   }}>Сделать капитаном</button>
-                  <button type="button" disabled={!selectedUserTeamId} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
-                    if (!window.confirm('Заменить капитана команды? Предыдущий капитан потеряет капитанские права для этой команды.')) return
-                    try {
-                      await teamsRepository.adminTransferCaptain?.(selectedUserTeamId, selectedUser.id)
-                      setStatus('ok: captain replaced')
-                    } catch (error) {
-                      setStatus(`error: ${(error as Error).message}`)
-                    }
-                  }}>Заменить капитана</button>
                 </div>
-              </div>
+              )}
 
-              <div className="space-y-2 rounded-lg border border-borderSubtle bg-panelBg p-3">
-                <p className="text-xs text-textMuted">Team membership / player profile</p>
-                <select value={membershipTeamId} onChange={(e) => setMembershipTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+              {section !== 'revoke-access' && (
+                <div className="space-y-2 rounded-lg border border-borderSubtle bg-panelBg p-3">
+                  <p className="text-xs text-textMuted">Сделать игроком (привязать к команде)</p>
+                  <select value={membershipTeamId} onChange={(e) => setMembershipTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
                   <option value="">Команда для приглашения/добавления</option>
                   {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
-                </select>
-                <input value={membershipPlayerId} onChange={(e) => setMembershipPlayerId(e.target.value)} placeholder="ID player profile для деактивации/исключения" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-                <label className="flex items-center gap-2 text-xs text-textSecondary">
-                  <input type="checkbox" checked={deactivatePlayerOnKick} onChange={(e) => setDeactivatePlayerOnKick(e.target.checked)} />
-                  При исключении деактивировать player profile (рекомендуется)
-                </label>
-                <div className="flex flex-wrap gap-2">
+                  </select>
                   <button type="button" disabled={!membershipTeamId || !selectedUser.telegramUsername} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
                     try {
                       await teamsRepository.captainInviteByUsername?.(membershipTeamId, selectedUser.telegramUsername ?? userLookupUsername.replace(/^@/, ''))
                       await playersRepository.createPlayer?.({ userId: selectedUser.id, teamId: membershipTeamId, fullName: selectedUser.displayName, position: 'MF', shirtNumber: 0 })
-                      setStatus('ok: invite sent + player profile created')
+                      setStatus('ok: player role assigned and linked to team')
                     } catch (error) {
                       setStatus(`error: ${(error as Error).message}`)
                     }
-                  }}>Пригласить в команду</button>
-                  <button type="button" disabled={!membershipTeamId || !membershipPlayerId} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
-                    if (!window.confirm('Исключить пользователя из команды? Аккаунт сохранится.')) return
-                    try {
-                      if (deactivatePlayerOnKick) {
-                        await teamsRepository.captainSetRosterVisibility?.(membershipTeamId, membershipPlayerId, false)
-                      }
-                      setStatus('ok: user removed from team, account preserved')
-                    } catch (error) {
-                      setStatus(`error: ${(error as Error).message}`)
-                    }
-                  }}>Исключить из команды</button>
+                  }}>Сделать игроком</button>
                 </div>
-              </div>
+              )}
 
               <div className="space-y-2 rounded-lg border border-borderSubtle bg-panelBg p-3">
-                <p className="text-xs text-textMuted">Admin / rights management</p>
+                <p className="text-xs text-textMuted">Администратор</p>
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" disabled={!currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
+                  <button type="button" disabled={section === 'revoke-access' || !currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
                     try {
                       await cabinetRepository.superadminAssignRoles({ userId: selectedUser.id, roles: ['admin'] })
                       setStatus('ok: admin rights granted')
@@ -698,7 +688,7 @@ export const CabinetSectionPage = () => {
                       setStatus(`error: ${(error as Error).message}`)
                     }
                   }}>Сделать администратором</button>
-                  <button type="button" disabled={!currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
+                  <button type="button" disabled={section === 'grant-access' || !currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
                     if (!window.confirm('Снять admin права у пользователя?')) return
                     try {
                       await cabinetRepository.superadminAssignRoles({ userId: selectedUser.id, roles: ['player'] })
@@ -707,7 +697,7 @@ export const CabinetSectionPage = () => {
                       setStatus(`error: ${(error as Error).message}`)
                     }
                   }}>Снять admin права</button>
-                  <button type="button" disabled={!currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
+                  <button type="button" disabled={section === 'grant-access' || !currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
                     if (!window.confirm('Снять captain/admin права у пользователя?')) return
                     try {
                       await cabinetRepository.superadminAssignRoles({ userId: selectedUser.id, roles: ['player'] })
@@ -932,6 +922,31 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
+      {section === 'create-match' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          <p className="text-xs text-textMuted">Матчи: admin/superadmin workflow</p>
+          <select value={matchHomeTeamId} onChange={(e) => setMatchHomeTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+            <option value="">Домашняя команда</option>
+            {(teams ?? []).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}
+          </select>
+          <select value={matchAwayTeamId} onChange={(e) => setMatchAwayTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+            <option value="">Гостевая команда</option>
+            {(teams ?? []).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}
+          </select>
+          <input value={matchStartAt} onChange={(e) => setMatchStartAt(e.target.value)} placeholder="Дата и время старта (RFC3339)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input value={matchStatus} onChange={(e) => setMatchStatus(e.target.value as typeof matchStatus)} placeholder="status" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input value={matchStage} onChange={(e) => setMatchStage(e.target.value)} placeholder="Стадия (например: 1/8)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <button type="button" disabled={!isAdminScope} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
+            try {
+              await matchesRepository.createMatch?.({ homeTeamId: matchHomeTeamId, awayTeamId: matchAwayTeamId, startAt: matchStartAt, status: matchStatus, venue: matchVenue, referee: matchReferee, broadcastUrl: matchBroadcastUrl, stage: matchStage, tournamentId: selectedCycleId || undefined })
+              setStatus('ok: match created')
+            } catch (error) {
+              setStatus(`error: ${(error as Error).message}`)
+            }
+          }}>Create match</button>
+        </section>
+      )}
+
       {section === 'moderation' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
           <input value={commentId} onChange={(e) => setCommentId(e.target.value)} placeholder="comment id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
@@ -946,8 +961,17 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {section === 'comment-blocks' && (
+      {(section === 'comment-blocks' || section === 'issue-restriction') && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          {section === 'issue-restriction' && (
+            <>
+              <input value={userLookupUsername} onChange={(e) => setUserLookupUsername(e.target.value)} placeholder="@telegram_username" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+              <button type="button" disabled={!userLookupUsername.trim().startsWith('@')} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
+                const found = await lookupUserByTelegram()
+                if (found) setBlockedUserId(found.id)
+              }}>Найти и подставить user id</button>
+            </>
+          )}
           <input value={blockedUserId} onChange={(e) => setBlockedUserId(e.target.value)} placeholder="user id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <label className="text-xs text-textSecondary flex items-center gap-2"><input type="checkbox" checked={permanent} onChange={(e) => setPermanent(e.target.checked)} /> permanent</label>
           <input value={untilUnix} onChange={(e) => setUntilUnix(e.target.value)} placeholder="until unix" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
@@ -1035,7 +1059,7 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
+      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'create-match', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
           Раздел синхронизирован по правам доступа и готов к расширению бизнес-формами.
         </section>

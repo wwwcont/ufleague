@@ -178,6 +178,7 @@ export const MatchDetailsPage = () => {
   const effectiveScore = scoreDraft ?? match.score
 
   const liveMinute = localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : null
+  const latestEvents = localEvents.slice().sort((a, b) => b.minute - a.minute).slice(0, 3)
   const timingNote = (() => {
     if (match.status === 'live' || match.status === 'half_time') return liveMinute ? `${liveMinute}′ минута` : 'Матч в процессе'
     if (match.status === 'scheduled') return getTimeToKickoff(match.date, match.time) ?? 'Скоро'
@@ -457,16 +458,14 @@ export const MatchDetailsPage = () => {
             )}
           </div>
         </div>
-        {localEvents.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-borderStrong bg-mutedBg px-3 py-4 text-sm text-textMuted">Автособытия (старт, голы, конец, изменение времени, победитель) и admin-события появятся здесь.</p>
+        {latestEvents.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-borderStrong bg-mutedBg px-3 py-4 text-sm text-textMuted">Пока тишина...</p>
         ) : (
           <div className="space-y-2">
-            {localEvents.slice().sort((a, b) => a.minute - b.minute).map((event) => (
-              <div key={event.id} className="rounded-xl border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textSecondary">
-                <span className="mr-2 font-semibold text-textPrimary">{event.minute}′</span>
-                <span className="uppercase tracking-[0.06em] text-accentYellow">{event.type}</span>
-                {event.assistPlayerId && <span className="ml-2 text-textMuted">ассист: {event.assistPlayerId}</span>}
-                {event.note && <span className="ml-2">— {event.note}</span>}
+            {latestEvents.map((event) => (
+              <div key={event.id} className="flex items-center gap-3 rounded-xl border border-borderSubtle bg-mutedBg px-3 py-2 text-sm">
+                <span className="shrink-0 rounded-md border border-borderSubtle bg-panelBg px-2 py-1 text-[11px] tabular-nums text-textMuted">{event.minute}′</span>
+                <span className="truncate text-textPrimary">{event.note?.trim() || event.type}</span>
               </div>
             ))}
           </div>
