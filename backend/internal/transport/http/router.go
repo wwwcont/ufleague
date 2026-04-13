@@ -417,8 +417,8 @@ func (h Handler) TelegramWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 	requestID := strings.TrimPrefix(payload, "login_")
 	if requestID == "" {
-		_ = h.sendTelegramMessage(r.Context(), msg.Chat.ID, "Не удалось распознать login payload. Нажмите «Войти через Telegram» на сайте и попробуйте снова.")
-		writeJSON(w, 200, map[string]string{"status": "bad_payload"})
+		sendErr := h.sendTelegramMessage(r.Context(), msg.Chat.ID, "Не удалось распознать login payload. Нажмите «Войти через Telegram» на сайте и попробуйте снова.")
+		h.writeTelegramWebhookStatus(w, "bad_payload", sendErr)
 		return
 	}
 	resp, err := h.telegramAuth.IssueCode(r.Context(), domain.TelegramIssueCodeRequest{
@@ -430,16 +430,16 @@ func (h Handler) TelegramWebhook(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, telegramauth.ErrSessionExpired) {
-			_ = h.sendTelegramMessage(r.Context(), msg.Chat.ID, "Сессия входа истекла. Вернитесь на сайт и нажмите «Войти через Telegram» заново.")
-			writeJSON(w, 200, map[string]string{"status": "expired"})
+			sendErr := h.sendTelegramMessage(r.Context(), msg.Chat.ID, "Сессия входа истекла. Вернитесь на сайт и нажмите «Войти через Telegram» заново.")
+			h.writeTelegramWebhookStatus(w, "expired", sendErr)
 			return
 		}
-		_ = h.sendTelegramMessage(r.Context(), msg.Chat.ID, "Не удалось выдать код входа. Попробуйте еще раз через сайт.")
-		writeJSON(w, 200, map[string]string{"status": "issue_failed"})
+		sendErr := h.sendTelegramMessage(r.Context(), msg.Chat.ID, "Не удалось выдать код входа. Попробуйте еще раз через сайт.")
+		h.writeTelegramWebhookStatus(w, "issue_failed", sendErr)
 		return
 	}
-	_ = h.sendTelegramMessage(r.Context(), msg.Chat.ID, fmt.Sprintf("Код входа: %s\nДействует до: %s UTC", resp.Code, resp.ExpiresAt.UTC().Format("2006-01-02 15:04")))
-	writeJSON(w, 200, map[string]string{"status": "ok"})
+	sendErr := h.sendTelegramMessage(r.Context(), msg.Chat.ID, fmt.Sprintf("Код входа: %s\nДействует до: %s UTC", resp.Code, resp.ExpiresAt.UTC().Format("2006-01-02 15:04")))
+	h.writeTelegramWebhookStatus(w, "ok", sendErr)
 }
 
 func extractTelegramStartPayload(text string) (string, bool) {
@@ -480,6 +480,19 @@ func (h Handler) sendTelegramMessage(ctx context.Context, chatID int64, text str
 		return fmt.Errorf("telegram sendMessage failed: %s", strings.TrimSpace(string(raw)))
 	}
 	return nil
+}
+
+func (h Handler) writeTelegramWebhookStatus(w http.ResponseWriter, status string, sendErr error) {
+	if sendErr == nil {
+		writeJSON(w, 200, map[string]string{"status": status})
+		return
+	}
+	fmt.Printf("telegram webhook sendMessage failed: status=%s err=%v\n", status, sendErr)
+	writeJSON(w, 200, map[string]string{
+		"status": "telegram_send_failed",
+		"stage":  status,
+		"error":  sendErr.Error(),
+	})
 }
 
 type telegramUpdate struct {
