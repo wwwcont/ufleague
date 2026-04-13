@@ -5,7 +5,6 @@ import type { Match, PublicUserCard, UserRole } from '../../domain/entities/type
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
-import { useBracket } from '../../hooks/data/useBracket'
 import { useTeams } from '../../hooks/data/useTeams'
 
 const roleRank: Record<UserRole, number> = {
@@ -120,7 +119,6 @@ export const CabinetSectionPage = () => {
   const navigate = useNavigate()
   const { session, refreshSession } = useSession()
   const { cabinetRepository, teamsRepository, playersRepository, matchesRepository, uploadsRepository, usersRepository } = useRepositories()
-  const { data: bracket } = useBracket()
   const { data: teams } = useTeams()
 
   const [status, setStatus] = useState('')
@@ -175,7 +173,6 @@ export const CabinetSectionPage = () => {
   const [matchReferee, setMatchReferee] = useState('')
   const [matchBroadcastUrl, setMatchBroadcastUrl] = useState('')
   const [matchStage, setMatchStage] = useState('')
-  const [attachToTieIfExists, setAttachToTieIfExists] = useState(true)
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileLoaded, setProfileLoaded] = useState<null | { displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> }>(null)
   const [tournamentCycles, setTournamentCycles] = useState<Array<{ id: string; name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive: boolean }>>([])
@@ -183,11 +180,6 @@ export const CabinetSectionPage = () => {
   const [newCycleName, setNewCycleName] = useState('')
   const [newCycleCapacity, setNewCycleCapacity] = useState<4 | 8 | 16 | 32>(16)
   const [bracketCapacityDraft, setBracketCapacityDraft] = useState<4 | 8 | 16 | 32>(16)
-  const [tieStageId, setTieStageId] = useState('')
-  const [tieSlot, setTieSlot] = useState('1')
-  const [tieHomeTeamId, setTieHomeTeamId] = useState('')
-  const [tieAwayTeamId, setTieAwayTeamId] = useState('')
-  const [tieLabel, setTieLabel] = useState('')
 
   const currentRoles = useMemo<UserRole[]>(
     () => (session.user.roles?.length ? session.user.roles : [session.user.role]),
@@ -767,7 +759,7 @@ export const CabinetSectionPage = () => {
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-3">
           <div className="rounded-xl border border-accentYellow/30 bg-accentYellow/5 p-3">
             <p className="text-sm font-semibold text-accentYellow">Tournament administration</p>
-            <p className="text-xs text-textMuted mt-1">Отдельные секции: создание турнира, выбор активного, настройки сетки и ручное управление tie/slot.</p>
+            <p className="text-xs text-textMuted mt-1">Отдельные секции: создание турнира, выбор активного и настройки плейофф-сетки.</p>
             {selectedCycleId && <p className="mt-1 text-xs text-textSecondary">Активный контекст: tournament #{selectedCycleId}</p>}
           </div>
 
@@ -860,36 +852,8 @@ export const CabinetSectionPage = () => {
           </div>
 
           <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
-            <p className="text-xs font-semibold text-textPrimary">4) Управление стадиями / tie / slot</p>
-            <select value={tieStageId} onChange={(e) => setTieStageId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
-              <option value="">Выберите стадию</option>
-              {(bracket?.stages ?? []).map((stage) => <option key={stage.id} value={stage.id}>{stage.label}</option>)}
-            </select>
-            <input value={tieSlot} onChange={(e) => setTieSlot(e.target.value)} placeholder="Slot number" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-            <select value={tieHomeTeamId} onChange={(e) => setTieHomeTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
-              <option value="">Домашняя команда</option>
-              {(teams ?? []).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}
-            </select>
-            <select value={tieAwayTeamId} onChange={(e) => setTieAwayTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
-              <option value="">Гостевая команда</option>
-              {(teams ?? []).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}
-            </select>
-            <input value={tieLabel} onChange={(e) => setTieLabel(e.target.value)} placeholder="Название tie (опционально)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-            <button type="button" disabled={!isAdminScope || !selectedCycleId || !tieStageId || !tieHomeTeamId || !tieAwayTeamId} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
-              try {
-                await cabinetRepository.createBracketTie?.({
-                  tournamentId: selectedCycleId,
-                  stageId: tieStageId,
-                  slot: Number(tieSlot) || 1,
-                  homeTeamId: tieHomeTeamId,
-                  awayTeamId: tieAwayTeamId,
-                  label: tieLabel || undefined,
-                })
-                setStatus('ok: tie/slot created')
-              } catch (error) {
-                setStatus(`error: ${(error as Error).message}`)
-              }
-            }}>Создать tie/slot</button>
+            <p className="text-xs font-semibold text-textPrimary">4) Редактор плейофф-сетки</p>
+            <p className="text-xs text-textMuted">Настройка блоков и линий выполняется через новый grid-редактор на странице «Таблица → Сетка».</p>
           </div>
 
           <div className="space-y-2 rounded-lg border border-borderSubtle p-3">
@@ -945,13 +909,9 @@ export const CabinetSectionPage = () => {
             <input value={matchVenue} onChange={(e) => setMatchVenue(e.target.value)} placeholder="venue" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={matchReferee} onChange={(e) => setMatchReferee(e.target.value)} placeholder="Судья" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={matchBroadcastUrl} onChange={(e) => setMatchBroadcastUrl(e.target.value)} placeholder="Ссылка на трансляцию" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-            <label className="flex items-center gap-2 text-xs text-textSecondary">
-              <input type="checkbox" checked={attachToTieIfExists} onChange={(e) => setAttachToTieIfExists(e.target.checked)} />
-              Автоматически привязать к подходящему tie (если есть)
-            </label>
             <button type="button" disabled={!isAdminScope} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
               try {
-                const created = await matchesRepository.createMatch?.({
+                await matchesRepository.createMatch?.({
                   homeTeamId: matchHomeTeamId,
                   awayTeamId: matchAwayTeamId,
                   startAt: matchStartAt,
@@ -962,27 +922,7 @@ export const CabinetSectionPage = () => {
                   stage: matchStage,
                   tournamentId: selectedCycleId || undefined,
                 })
-
-                if (!attachToTieIfExists || !selectedCycleId || !created?.id) {
-                  setStatus('ok: match created')
-                  return
-                }
-
-                const suitableTie = (bracket?.groups ?? []).find((group) => {
-                  const direct = group.homeTeamId === matchHomeTeamId && group.awayTeamId === matchAwayTeamId
-                  const reverse = group.homeTeamId === matchAwayTeamId && group.awayTeamId === matchHomeTeamId
-                  return direct || reverse
-                })
-
-                if (!suitableTie) {
-                  setStatus('ok: match created (без tie)')
-                  return
-                }
-
-                await cabinetRepository.attachMatchToTie?.({ tournamentId: selectedCycleId, tieId: suitableTie.id, matchId: created.id })
-                const tieMatchCount = [suitableTie.firstLeg.matchId, suitableTie.secondLeg?.matchId].filter(Boolean).length
-                const aggregateHint = tieMatchCount >= 1 ? ' — tie переведен в two-leg/aggregate режим' : ''
-                setStatus(`ok: match created + attached to tie${aggregateHint}`)
+                setStatus('ok: match created')
               } catch (error) {
                 setStatus(`error: ${(error as Error).message}`)
               }

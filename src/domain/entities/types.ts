@@ -163,10 +163,7 @@ export interface Match {
   referee?: string
   broadcastUrl?: string
   diskUrl?: string
-  bracketPosition?: {
-    stageSlotColumn: number | null
-    stageSlotRow: number | null
-  }
+  playoffCellId?: ID | null
   tieRelation?: MatchTieRelation | null
 }
 
@@ -183,34 +180,36 @@ export interface StandingRow {
   points: number
 }
 
-export interface BracketStage {
+export interface PlayoffAttachedMatch {
   id: ID
-  label: string
-  order: number
-  size: number
-}
-
-export interface BracketGameRef {
-  matchId: ID | null
-  score?: { home: number; away: number }
   status: MatchStatus
+  homeScore: number
+  awayScore: number
 }
 
-export interface BracketMatchGroup {
+export interface PlayoffCell {
   id: ID
-  stageId: ID
-  slot: number
   homeTeamId: ID | null
   awayTeamId: ID | null
+  col: number
+  row: number
+  attachedMatchIds: ID[]
+  attachedMatches: PlayoffAttachedMatch[]
+  aggregateHomeScore?: number | null
+  aggregateAwayScore?: number | null
   winnerTeamId?: ID | null
-  tieFormat: 1 | 2
-  firstLeg: BracketGameRef
-  secondLeg?: BracketGameRef
-  adminLockedWinner?: boolean
+  allMatchesFinished: boolean
 }
 
-export interface BracketSettings {
-  teamCapacity: BracketSize
+export interface PlayoffLine {
+  id: ID
+  fromPlayoffId: ID
+  toPlayoffId: ID
+}
+
+export interface PlayoffGrid {
+  cells: PlayoffCell[]
+  lines: PlayoffLine[]
 }
 
 export interface SearchResult {

@@ -1,9 +1,9 @@
 import type {
   CabinetRepository,
-  BracketRepository,
   CommentsRepository,
   EventsRepository,
   MatchesRepository,
+  PlayoffGridRepository,
   PlayersRepository,
   SearchRepository,
   SessionRepository,
@@ -12,7 +12,7 @@ import type {
   UsersRepository,
   UploadsRepository,
 } from '../../domain/repositories/contracts'
-import type { AuthSession, BackendMeDTO, BracketMatchGroup, BracketSettings, BracketStage, CommentAuthorState, CommentNode, Match, Player, PublicEvent, PublicUserCard, SearchResult, StandingRow, Team, UserRole } from '../../domain/entities/types'
+import type { AuthSession, BackendMeDTO, CommentAuthorState, CommentNode, Match, Player, PlayoffGrid, PublicEvent, PublicUserCard, SearchResult, StandingRow, Team, UserRole } from '../../domain/entities/types'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
@@ -129,10 +129,7 @@ const mapMatch = (m: any): Match => ({
   referee: m.extra_time?.referee ?? undefined,
   broadcastUrl: m.extra_time?.broadcast_url ?? undefined,
   diskUrl: m.extra_time?.disk_url ?? undefined,
-  bracketPosition: {
-    stageSlotColumn: m.stage_slot_column ?? null,
-    stageSlotRow: m.stage_slot_row ?? null,
-  },
+  playoffCellId: m.playoff_cell_id ? String(m.playoff_cell_id) : null,
 })
 
 const mapEvent = (e: any): PublicEvent => {
@@ -385,69 +382,129 @@ export const standingsRepository: StandingsRepository = {
     }))
   },
 }
-export const bracketRepository: BracketRepository = {
-  async getBracket() {
-    const data = await api<{ settings?: any; stages?: any[]; groups?: any[]; rounds?: any[]; matches?: any[] }>('/api/bracket')
-    const stagesRaw = data.stages ?? data.rounds ?? []
-    const groupsRaw = data.groups ?? data.matches ?? []
-
-    const settings: BracketSettings = {
-      teamCapacity: [4, 8, 16, 32].includes(Number(data.settings?.team_capacity)) ? Number(data.settings?.team_capacity) as BracketSettings['teamCapacity'] : 16,
-    }
-
-    const stagesFromApi: BracketStage[] = stagesRaw.map((stage, index) => ({
-      id: String(stage.id),
-      label: stage.label,
-      order: Number(stage.order ?? index + 1),
-      size: Number(stage.size ?? 1),
+export const playoffGridRepository: PlayoffGridRepository = {
+  async getPlayoffGrid(tournamentId) {
+    const data = await api<any>(`/api/playoff-grid/${tournamentId}`)
+    return {
+      cells: (data.cells ?? []).map((cell: any) => ({
+        id: String(cell.id),
+        homeTeamId: cell.home_team_id ? String(cell.home_team_id) : null,
+        awayTeamId: cell.away_team_id ? String(cell.away_team_id) : null,
+        col: Number(cell.col),
+        row: Number(cell.row),
+        attachedMatchIds: Array.isArray(cell.attached_match_ids) ? cell.attached_match_ids.map((id: number) => String(id)) : [],
+        attachedMatches: Array.isArray(cell.attached_matches) ? cell.attached_matches.map((match: any) => ({
+          id: String(match.id),
+          status: match.status as Match['status'],
+          homeScore: Number(match.home_score ?? 0),
+          awayScore: Number(match.away_score ?? 0),
+        })) : [],
+        aggregateHomeScore: cell.aggregate_home_score ?? null,
+        aggregateAwayScore: cell.aggregate_away_score ?? null,
+        winnerTeamId: cell.winner_team_id ? String(cell.winner_team_id) : null,
+        allMatchesFinished: Boolean(cell.all_matches_finished),
+      })),
+      lines: (data.lines ?? []).map((line: any) => ({
+        id: String(line.id),
+        fromPlayoffId: String(line.from_playoff_id),
+        toPlayoffId: String(line.to_playoff_id),
+      })),
+    } satisfies PlayoffGrid
+  },
+  async getMatchCandidates(tournamentId, matchId) {
+    const data = await api<{ cells?: any[] }>(`/api/admin/playoff-grid/${tournamentId}/match-candidates?matchId=${encodeURIComponent(matchId)}`)
+    return (data.cells ?? []).map((cell) => ({
+      id: String(cell.id),
+      homeTeamId: cell.home_team_id ? String(cell.home_team_id) : null,
+      awayTeamId: cell.away_team_id ? String(cell.away_team_id) : null,
+      col: Number(cell.col),
+      row: Number(cell.row),
+      attachedMatchIds: Array.isArray(cell.attached_match_ids) ? cell.attached_match_ids.map((id: number) => String(id)) : [],
+      attachedMatches: [],
+      aggregateHomeScore: null,
+      aggregateAwayScore: null,
+      winnerTeamId: null,
+      allMatchesFinished: false,
     }))
-    const expectedStageCount = Math.max(1, Math.round(Math.log2(settings.teamCapacity)))
-    const stages: BracketStage[] = Array.from({ length: expectedStageCount }, (_, index) => {
-      const stageOrder = index + 1
-      const mapped = stagesFromApi.find((stage) => stage.order === stageOrder) ?? stagesFromApi[index]
-      const computedSize = Math.max(1, Math.floor(settings.teamCapacity / (2 ** stageOrder)))
-      return {
-        id: mapped?.id ?? `stage_${stageOrder}`,
-        label: mapped?.label ?? (computedSize === 1 ? 'Финал' : `1/${computedSize * 2} финала`),
-        order: stageOrder,
-        size: computedSize,
-      }
+  },
+  async attachMatch(playoffCellId, matchId) {
+    await api('/api/admin/playoff-grid/attach-match', {
+      method: 'POST',
+      body: JSON.stringify({ playoff_cell_id: Number(playoffCellId), match_id: Number(matchId) }),
     })
-
-    const groups: BracketMatchGroup[] = groupsRaw.map((group) => {
-      const firstLegScore = group.first_leg_home_score !== undefined && group.first_leg_away_score !== undefined
-        ? { home: Number(group.first_leg_home_score), away: Number(group.first_leg_away_score) }
-        : group.home_score !== undefined && group.away_score !== undefined
-          ? { home: Number(group.home_score), away: Number(group.away_score) }
-          : undefined
-
-      const secondLegScore = group.second_leg_home_score !== undefined && group.second_leg_away_score !== undefined
-        ? { home: Number(group.second_leg_home_score), away: Number(group.second_leg_away_score) }
-        : undefined
-
-      return {
-        id: String(group.id),
-        stageId: String(group.stage_id ?? group.round_id ?? `stage_${group.stage_slot_column ?? 1}`),
-        slot: Number(group.slot ?? group.stage_slot_row ?? 1),
-        homeTeamId: group.home_team_id ? String(group.home_team_id) : null,
-        awayTeamId: group.away_team_id ? String(group.away_team_id) : null,
-        winnerTeamId: group.winner_team_id ? String(group.winner_team_id) : null,
-        tieFormat: Number(group.tie_format ?? (secondLegScore ? 2 : 1)) === 2 ? 2 : 1,
-        firstLeg: {
-          matchId: group.first_leg_match_id ? String(group.first_leg_match_id) : group.linked_match_id ? String(group.linked_match_id) : null,
-          status: (group.first_leg_status ?? group.status ?? 'scheduled') as Match['status'],
-          score: firstLegScore,
-        },
-        secondLeg: Number(group.tie_format ?? (secondLegScore ? 2 : 1)) === 2 ? {
-          matchId: group.second_leg_match_id ? String(group.second_leg_match_id) : null,
-          status: (group.second_leg_status ?? 'scheduled') as Match['status'],
-          score: secondLegScore,
-        } : undefined,
-        adminLockedWinner: Boolean(group.admin_locked_winner),
-      }
+  },
+  async detachMatch(playoffCellId, matchId) {
+    await api('/api/admin/playoff-grid/detach-match', {
+      method: 'POST',
+      body: JSON.stringify({ playoff_cell_id: Number(playoffCellId), match_id: Number(matchId) }),
     })
-
-    return { settings, stages, groups }
+  },
+  async validateDraft(tournamentId, payload) {
+    await api(`/api/admin/playoff-grid/${tournamentId}/draft-validate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        cells: payload.cells.map((cell) => ({
+          id: cell.id ? Number(cell.id) : undefined,
+          temp_id: cell.tempId,
+          home_team_id: cell.homeTeamId ? Number(cell.homeTeamId) : null,
+          away_team_id: cell.awayTeamId ? Number(cell.awayTeamId) : null,
+          col: cell.col,
+          row: cell.row,
+          attached_match_ids: cell.attachedMatchIds.map((id) => Number(id)),
+        })),
+        lines: payload.lines.map((line) => ({
+          id: line.id ? Number(line.id) : undefined,
+          from_playoff_id: /^\d+$/.test(line.fromRef) ? Number(line.fromRef) : line.fromRef,
+          to_playoff_id: /^\d+$/.test(line.toRef) ? Number(line.toRef) : line.toRef,
+        })),
+      }),
+    })
+  },
+  async savePlayoffGrid(tournamentId, payload) {
+    const data = await api<any>(`/api/admin/playoff-grid/${tournamentId}/save`, {
+      method: 'POST',
+      body: JSON.stringify({
+        cells: payload.cells.map((cell) => ({
+          id: cell.id ? Number(cell.id) : undefined,
+          temp_id: cell.tempId,
+          home_team_id: cell.homeTeamId ? Number(cell.homeTeamId) : null,
+          away_team_id: cell.awayTeamId ? Number(cell.awayTeamId) : null,
+          col: cell.col,
+          row: cell.row,
+          attached_match_ids: cell.attachedMatchIds.map((id) => Number(id)),
+        })),
+        lines: payload.lines.map((line) => ({
+          id: line.id ? Number(line.id) : undefined,
+          from_playoff_id: /^\d+$/.test(line.fromRef) ? Number(line.fromRef) : line.fromRef,
+          to_playoff_id: /^\d+$/.test(line.toRef) ? Number(line.toRef) : line.toRef,
+        })),
+      }),
+    })
+    return {
+      cells: (data.cells ?? []).map((cell: any) => ({
+        id: String(cell.id),
+        homeTeamId: cell.home_team_id ? String(cell.home_team_id) : null,
+        awayTeamId: cell.away_team_id ? String(cell.away_team_id) : null,
+        col: Number(cell.col),
+        row: Number(cell.row),
+        attachedMatchIds: Array.isArray(cell.attached_match_ids) ? cell.attached_match_ids.map((id: number) => String(id)) : [],
+        attachedMatches: Array.isArray(cell.attached_matches) ? cell.attached_matches.map((match: any) => ({
+          id: String(match.id),
+          status: match.status as Match['status'],
+          homeScore: Number(match.home_score ?? 0),
+          awayScore: Number(match.away_score ?? 0),
+        })) : [],
+        aggregateHomeScore: cell.aggregate_home_score ?? null,
+        aggregateAwayScore: cell.aggregate_away_score ?? null,
+        winnerTeamId: cell.winner_team_id ? String(cell.winner_team_id) : null,
+        allMatchesFinished: Boolean(cell.all_matches_finished),
+      })),
+      lines: (data.lines ?? []).map((line: any) => ({
+        id: String(line.id),
+        fromPlayoffId: String(line.from_playoff_id),
+        toPlayoffId: String(line.to_playoff_id),
+      })),
+    }
   },
 }
 export const searchRepository: SearchRepository = {
@@ -833,29 +890,6 @@ export const cabinetRepository: CabinetRepository = {
       saveLocalTournamentCycles(loadLocalTournamentCycles().map((cycle) => (cycle.id === cycleId ? { ...cycle, bracketTeamCapacity: settings.teamCapacity } : cycle)))
     }
   },
-  async createBracketTie(input) {
-    await api('/api/admin/bracket/ties', {
-      method: 'POST',
-      body: JSON.stringify({
-        tournament_id: Number(input.tournamentId),
-        stage_id: input.stageId,
-        slot: input.slot,
-        home_team_id: Number(input.homeTeamId),
-        away_team_id: Number(input.awayTeamId),
-        label: input.label ?? '',
-      }),
-    }).catch(() => undefined)
-  },
-  async attachMatchToTie(input) {
-    await api('/api/admin/bracket/ties/attach-match', {
-      method: 'POST',
-      body: JSON.stringify({
-        tournament_id: Number(input.tournamentId),
-        tie_id: input.tieId,
-        match_id: Number(input.matchId),
-      }),
-    }).catch(() => undefined)
-  },
 }
 
 export const usersRepository: UsersRepository = {
@@ -925,4 +959,4 @@ export const uploadsRepository: UploadsRepository = {
   },
 }
 
-export const repositories = { teamsRepository, playersRepository, matchesRepository, standingsRepository, bracketRepository, searchRepository, commentsRepository, eventsRepository, sessionRepository, cabinetRepository, usersRepository, uploadsRepository }
+export const repositories = { teamsRepository, playersRepository, matchesRepository, standingsRepository, playoffGridRepository, searchRepository, commentsRepository, eventsRepository, sessionRepository, cabinetRepository, usersRepository, uploadsRepository }

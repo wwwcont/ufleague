@@ -3,10 +3,13 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strconv"
 	"strings"
 
 	"football_ui/backend/internal/domain"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -110,7 +113,7 @@ func (r *TournamentRepository) UpdatePlayer(ctx context.Context, id int64, p dom
 }
 
 func (r *TournamentRepository) ListMatches(ctx context.Context) ([]domain.Match, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),stage_slot_column,stage_slot_row,created_at,updated_at FROM matches ORDER BY start_at DESC`)
+	rows, err := r.pool.Query(ctx, `SELECT id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),playoff_cell_id,created_at,updated_at FROM matches ORDER BY start_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -126,26 +129,322 @@ func (r *TournamentRepository) ListMatches(ctx context.Context) ([]domain.Match,
 	return out, rows.Err()
 }
 func (r *TournamentRepository) GetMatch(ctx context.Context, id int64) (domain.Match, error) {
-	row := r.pool.QueryRow(ctx, `SELECT id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),stage_slot_column,stage_slot_row,created_at,updated_at FROM matches WHERE id=$1`, id)
+	row := r.pool.QueryRow(ctx, `SELECT id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),playoff_cell_id,created_at,updated_at FROM matches WHERE id=$1`, id)
 	return scanMatch(row)
 }
 func (r *TournamentRepository) CreateMatch(ctx context.Context, m domain.Match) (domain.Match, error) {
 	extra, _ := json.Marshal(m.ExtraTime)
 	row := r.pool.QueryRow(ctx, `
-	INSERT INTO matches (home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,venue,stage_slot_column,stage_slot_row)
-	VALUES ($1,$2,$3,$4,$5,$6,$7,NULLIF($8,''),$9,$10)
-	RETURNING id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),stage_slot_column,stage_slot_row,created_at,updated_at`,
-		m.HomeTeamID, m.AwayTeamID, m.StartAt, m.Status, m.HomeScore, m.AwayScore, extra, m.Venue, m.StageSlotColumn, m.StageSlotRow)
+	INSERT INTO matches (home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,venue,playoff_cell_id)
+	VALUES ($1,$2,$3,$4,$5,$6,$7,NULLIF($8,''),$9)
+	RETURNING id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),playoff_cell_id,created_at,updated_at`,
+		m.HomeTeamID, m.AwayTeamID, m.StartAt, m.Status, m.HomeScore, m.AwayScore, extra, m.Venue, m.PlayoffCellID)
 	return scanMatch(row)
 }
 func (r *TournamentRepository) UpdateMatch(ctx context.Context, id int64, m domain.Match) (domain.Match, error) {
 	extra, _ := json.Marshal(m.ExtraTime)
 	row := r.pool.QueryRow(ctx, `
-	UPDATE matches SET home_team_id=$2,away_team_id=$3,start_at=$4,status=$5,home_score=$6,away_score=$7,extra_time=$8,venue=NULLIF($9,''),stage_slot_column=$10,stage_slot_row=$11,updated_at=NOW()
+	UPDATE matches SET home_team_id=$2,away_team_id=$3,start_at=$4,status=$5,home_score=$6,away_score=$7,extra_time=$8,venue=NULLIF($9,''),playoff_cell_id=$10,updated_at=NOW()
 	WHERE id=$1
-	RETURNING id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),stage_slot_column,stage_slot_row,created_at,updated_at`,
-		id, m.HomeTeamID, m.AwayTeamID, m.StartAt, m.Status, m.HomeScore, m.AwayScore, extra, m.Venue, m.StageSlotColumn, m.StageSlotRow)
+	RETURNING id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),playoff_cell_id,created_at,updated_at`,
+		id, m.HomeTeamID, m.AwayTeamID, m.StartAt, m.Status, m.HomeScore, m.AwayScore, extra, m.Venue, m.PlayoffCellID)
 	return scanMatch(row)
+}
+
+func (r *TournamentRepository) ListPlayoffGrid(ctx context.Context, tournamentID int64) (domain.PlayoffGridResponse, error) {
+	cells := []domain.PlayoffGridCell{}
+	rows, err := r.pool.Query(ctx, `
+		SELECT id,tournament_cycle_id,home_team_id,away_team_id,col,row,created_at,updated_at
+		FROM playoff_cells
+		WHERE tournament_cycle_id=$1
+		ORDER BY row,col,id`, tournamentID)
+	if err != nil {
+		return domain.PlayoffGridResponse{}, err
+	}
+	for rows.Next() {
+		var item domain.PlayoffGridCell
+		if err = rows.Scan(&item.ID, &item.TournamentCycleID, &item.HomeTeamID, &item.AwayTeamID, &item.Col, &item.Row, &item.CreatedAt, &item.UpdatedAt); err != nil {
+			rows.Close()
+			return domain.PlayoffGridResponse{}, err
+		}
+		cells = append(cells, item)
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		return domain.PlayoffGridResponse{}, err
+	}
+
+	lines := []domain.PlayoffLine{}
+	lineRows, err := r.pool.Query(ctx, `
+		SELECT id,tournament_cycle_id,from_playoff_id,to_playoff_id,created_at
+		FROM playoff_lines WHERE tournament_cycle_id=$1 ORDER BY id`, tournamentID)
+	if err != nil {
+		return domain.PlayoffGridResponse{}, err
+	}
+	for lineRows.Next() {
+		var line domain.PlayoffLine
+		if err = lineRows.Scan(&line.ID, &line.TournamentCycleID, &line.FromPlayoffID, &line.ToPlayoffID, &line.CreatedAt); err != nil {
+			lineRows.Close()
+			return domain.PlayoffGridResponse{}, err
+		}
+		lines = append(lines, line)
+	}
+	lineRows.Close()
+	if err = lineRows.Err(); err != nil {
+		return domain.PlayoffGridResponse{}, err
+	}
+
+	if len(cells) == 0 {
+		return domain.PlayoffGridResponse{Cells: cells, Lines: lines}, nil
+	}
+
+	cellIDs := make([]int64, 0, len(cells))
+	cellByID := map[int64]*domain.PlayoffGridCell{}
+	for i := range cells {
+		cellIDs = append(cellIDs, cells[i].ID)
+		cellByID[cells[i].ID] = &cells[i]
+	}
+
+	matchRows, err := r.pool.Query(ctx, `
+		SELECT pcm.playoff_cell_id,m.id,m.status,m.home_score,m.away_score,pcm.sort_order,m.home_team_id,m.away_team_id
+		FROM playoff_cell_matches pcm
+		JOIN matches m ON m.id=pcm.match_id
+		WHERE pcm.playoff_cell_id = ANY($1)
+		ORDER BY pcm.playoff_cell_id, pcm.sort_order`, cellIDs)
+	if err != nil {
+		return domain.PlayoffGridResponse{}, err
+	}
+	for matchRows.Next() {
+		var cellID int64
+		var attached domain.PlayoffAttachedMatch
+		if err = matchRows.Scan(&cellID, &attached.ID, &attached.Status, &attached.HomeScore, &attached.AwayScore, &attached.SortOrder, &attached.HomeTeamID, &attached.AwayTeamID); err != nil {
+			matchRows.Close()
+			return domain.PlayoffGridResponse{}, err
+		}
+		cell := cellByID[cellID]
+		cell.AttachedMatches = append(cell.AttachedMatches, attached)
+		cell.AttachedMatchIDs = append(cell.AttachedMatchIDs, attached.ID)
+	}
+	matchRows.Close()
+	if err = matchRows.Err(); err != nil {
+		return domain.PlayoffGridResponse{}, err
+	}
+
+	return domain.PlayoffGridResponse{Cells: cells, Lines: lines}, nil
+}
+
+func (r *TournamentRepository) SavePlayoffGrid(ctx context.Context, tournamentID int64, payload domain.SavePlayoffGridRequest) error {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	tempToID := map[string]int64{}
+	keptIDs := make([]int64, 0, len(payload.Cells))
+	cellMatchMap := map[int64][]int64{}
+	for _, cell := range payload.Cells {
+		var cellID int64
+		if cell.ID != nil {
+			if err = tx.QueryRow(ctx, `
+				UPDATE playoff_cells SET home_team_id=$1,away_team_id=$2,col=$3,row=$4,updated_at=NOW()
+				WHERE id=$5 AND tournament_cycle_id=$6
+				RETURNING id`, cell.HomeTeamID, cell.AwayTeamID, cell.Col, cell.Row, *cell.ID, tournamentID).Scan(&cellID); err != nil {
+				return err
+			}
+		} else {
+			if err = tx.QueryRow(ctx, `
+				INSERT INTO playoff_cells (tournament_cycle_id,home_team_id,away_team_id,col,row)
+				VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+				tournamentID, cell.HomeTeamID, cell.AwayTeamID, cell.Col, cell.Row).Scan(&cellID); err != nil {
+				return err
+			}
+		}
+		if cell.TempID != nil && strings.TrimSpace(*cell.TempID) != "" {
+			tempToID[*cell.TempID] = cellID
+		}
+		keptIDs = append(keptIDs, cellID)
+		cellMatchMap[cellID] = append([]int64{}, cell.AttachedMatchIDs...)
+	}
+
+	_, err = tx.Exec(ctx, `UPDATE matches SET playoff_cell_id=NULL WHERE playoff_cell_id IN (SELECT id FROM playoff_cells WHERE tournament_cycle_id=$1)`, tournamentID)
+	if err != nil {
+		return err
+	}
+
+	if len(keptIDs) == 0 {
+		if _, err = tx.Exec(ctx, `DELETE FROM playoff_lines WHERE tournament_cycle_id=$1`, tournamentID); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(ctx, `DELETE FROM playoff_cells WHERE tournament_cycle_id=$1`, tournamentID); err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
+	}
+
+	if _, err = tx.Exec(ctx, `DELETE FROM playoff_cell_matches WHERE playoff_cell_id = ANY($1)`, keptIDs); err != nil {
+		return err
+	}
+	for cellID, matchIDs := range cellMatchMap {
+		for i, matchID := range matchIDs {
+			if _, err = tx.Exec(ctx, `INSERT INTO playoff_cell_matches (playoff_cell_id,match_id,sort_order) VALUES ($1,$2,$3)`, cellID, matchID, i+1); err != nil {
+				return err
+			}
+			if _, err = tx.Exec(ctx, `UPDATE matches SET playoff_cell_id=$1 WHERE id=$2`, cellID, matchID); err != nil {
+				return err
+			}
+		}
+	}
+
+	allowedIDs := map[int64]struct{}{}
+	for _, id := range keptIDs {
+		allowedIDs[id] = struct{}{}
+	}
+	resolveRef := func(ref domain.PlayoffRef) (int64, error) {
+		raw := string(ref)
+		if strings.HasPrefix(raw, "temp:") {
+			value, ok := tempToID[raw]
+			if !ok {
+				return 0, fmt.Errorf("line references unknown temp id: %s", raw)
+			}
+			return value, nil
+		}
+		value, convErr := strconv.ParseInt(raw, 10, 64)
+		if convErr != nil {
+			return 0, fmt.Errorf("invalid playoff id reference: %s", raw)
+		}
+		if _, ok := allowedIDs[value]; !ok {
+			return 0, fmt.Errorf("line references cell outside payload: %d", value)
+		}
+		return value, nil
+	}
+
+	if _, err = tx.Exec(ctx, `DELETE FROM playoff_lines WHERE tournament_cycle_id=$1`, tournamentID); err != nil {
+		return err
+	}
+	for _, line := range payload.Lines {
+		fromID, refErr := resolveRef(line.FromPlayoffID)
+		if refErr != nil {
+			return refErr
+		}
+		toID, refErr := resolveRef(line.ToPlayoffID)
+		if refErr != nil {
+			return refErr
+		}
+		if _, err = tx.Exec(ctx, `INSERT INTO playoff_lines (tournament_cycle_id,from_playoff_id,to_playoff_id) VALUES ($1,$2,$3)`, tournamentID, fromID, toID); err != nil {
+			return err
+		}
+	}
+
+	if _, err = tx.Exec(ctx, `DELETE FROM playoff_cells WHERE tournament_cycle_id=$1 AND id <> ALL($2)`, tournamentID, keptIDs); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (r *TournamentRepository) FindPlayoffMatchCandidates(ctx context.Context, tournamentID, matchID int64) ([]domain.PlayoffGridCell, error) {
+	match, err := r.GetMatch(ctx, matchID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT c.id,c.tournament_cycle_id,c.home_team_id,c.away_team_id,c.col,c.row,c.created_at,c.updated_at
+		FROM playoff_cells c
+		LEFT JOIN playoff_cell_matches pcm ON pcm.playoff_cell_id=c.id
+		WHERE c.tournament_cycle_id=$1
+		AND ((c.home_team_id=$2 AND c.away_team_id=$3) OR (c.home_team_id=$3 AND c.away_team_id=$2))
+		GROUP BY c.id
+		HAVING COUNT(pcm.id) < 3
+		ORDER BY c.row,c.col`, tournamentID, match.HomeTeamID, match.AwayTeamID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []domain.PlayoffGridCell{}
+	for rows.Next() {
+		var cell domain.PlayoffGridCell
+		if err = rows.Scan(&cell.ID, &cell.TournamentCycleID, &cell.HomeTeamID, &cell.AwayTeamID, &cell.Col, &cell.Row, &cell.CreatedAt, &cell.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, cell)
+	}
+	return out, rows.Err()
+}
+
+func (r *TournamentRepository) AttachMatchToPlayoffCell(ctx context.Context, playoffCellID, matchID int64) error {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var count int
+	if err = tx.QueryRow(ctx, `SELECT COUNT(*) FROM playoff_cell_matches WHERE playoff_cell_id=$1`, playoffCellID).Scan(&count); err != nil {
+		return err
+	}
+	if count >= 3 {
+		return fmt.Errorf("playoff cell already has 3 matches")
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM playoff_cell_matches WHERE match_id=$1`, matchID); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE matches SET playoff_cell_id=NULL WHERE id=$1`, matchID); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO playoff_cell_matches (playoff_cell_id,match_id,sort_order) VALUES ($1,$2,$3)`, playoffCellID, matchID, count+1); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE matches SET playoff_cell_id=$1 WHERE id=$2`, playoffCellID, matchID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (r *TournamentRepository) DetachMatchFromPlayoffCell(ctx context.Context, playoffCellID, matchID int64) error {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err = tx.Exec(ctx, `DELETE FROM playoff_cell_matches WHERE playoff_cell_id=$1 AND match_id=$2`, playoffCellID, matchID); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE matches SET playoff_cell_id=NULL WHERE id=$1 AND playoff_cell_id=$2`, matchID, playoffCellID); err != nil {
+		return err
+	}
+	rows, err := tx.Query(ctx, `SELECT id FROM playoff_cell_matches WHERE playoff_cell_id=$1 ORDER BY sort_order,id`, playoffCellID)
+	if err != nil {
+		return err
+	}
+	type matchRef struct {
+		id int64
+	}
+	order := 1
+	for rows.Next() {
+		var item matchRef
+		if err = rows.Scan(&item.id); err != nil {
+			rows.Close()
+			return err
+		}
+		if _, err = tx.Exec(ctx, `UPDATE playoff_cell_matches SET sort_order=$1 WHERE id=$2`, order, item.id); err != nil {
+			rows.Close()
+			return err
+		}
+		order++
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (r *TournamentRepository) GetPlayoffCell(ctx context.Context, playoffCellID int64) (domain.PlayoffGridCell, error) {
+	row := r.pool.QueryRow(ctx, `SELECT id,tournament_cycle_id,home_team_id,away_team_id,col,row,created_at,updated_at FROM playoff_cells WHERE id=$1`, playoffCellID)
+	var cell domain.PlayoffGridCell
+	err := row.Scan(&cell.ID, &cell.TournamentCycleID, &cell.HomeTeamID, &cell.AwayTeamID, &cell.Col, &cell.Row, &cell.CreatedAt, &cell.UpdatedAt)
+	return cell, err
 }
 
 type scanner interface{ Scan(dest ...any) error }
@@ -177,7 +476,7 @@ func scanPlayer(row scanner) (domain.Player, error) {
 func scanMatch(row scanner) (domain.Match, error) {
 	var m domain.Match
 	var extra []byte
-	err := row.Scan(&m.ID, &m.HomeTeamID, &m.AwayTeamID, &m.StartAt, &m.Status, &m.HomeScore, &m.AwayScore, &extra, &m.Venue, &m.StageSlotColumn, &m.StageSlotRow, &m.CreatedAt, &m.UpdatedAt)
+	err := row.Scan(&m.ID, &m.HomeTeamID, &m.AwayTeamID, &m.StartAt, &m.Status, &m.HomeScore, &m.AwayScore, &extra, &m.Venue, &m.PlayoffCellID, &m.CreatedAt, &m.UpdatedAt)
 	if err != nil {
 		return m, err
 	}

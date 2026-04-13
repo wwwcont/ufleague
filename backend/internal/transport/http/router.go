@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"math/rand"
 	"net/http"
 	"os"
@@ -85,7 +84,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.Get("/matches", h.ListMatches)
 		r.Get("/matches/{id}", h.GetMatch)
 		r.Get("/standings", h.GetStandings)
-		r.Get("/bracket", h.GetBracket)
+		r.Get("/playoff-grid/{tournamentId}", h.GetPlayoffGrid)
 		r.Get("/search", h.Search)
 		r.Get("/events", h.ListEvents)
 		r.Get("/events/{id}", h.GetEvent)
@@ -124,6 +123,11 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Post("/superadmin/users/{id}/restrictions", h.SuperadminAssignRestrictions)
 		r.With(sessionMW.RequireSession).Put("/superadmin/settings/{key}", h.SuperadminSetGlobalSetting)
 		r.With(sessionMW.RequireSession).Post("/uploads/image", h.UploadImage)
+		r.With(sessionMW.RequireSession).Post("/admin/playoff-grid/{tournamentId}/draft-validate", h.ValidatePlayoffGridDraft)
+		r.With(sessionMW.RequireSession).Post("/admin/playoff-grid/{tournamentId}/save", h.SavePlayoffGrid)
+		r.With(sessionMW.RequireSession).Get("/admin/playoff-grid/{tournamentId}/match-candidates", h.GetPlayoffMatchCandidates)
+		r.With(sessionMW.RequireSession).Post("/admin/playoff-grid/attach-match", h.AttachPlayoffMatch)
+		r.With(sessionMW.RequireSession).Post("/admin/playoff-grid/detach-match", h.DetachPlayoffMatch)
 	})
 
 	return r
@@ -590,110 +594,130 @@ func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, rows)
 }
 
-func (h Handler) GetBracket(w http.ResponseWriter, r *http.Request) {
-	matches, err := h.tournament.ListMatches(r.Context())
+func (h Handler) GetPlayoffGrid(w http.ResponseWriter, r *http.Request) {
+	tournamentID, err := parseID(chi.URLParam(r, "tournamentId"))
 	if err != nil {
-		http.Error(w, "failed", 500)
+		http.Error(w, "bad tournament id", 400)
 		return
 	}
-	sort.Slice(matches, func(i, j int) bool { return matches[i].ID < matches[j].ID })
-
-	teams, _ := h.tournament.ListTeams(r.Context())
-	capacity := 16
-	if len(teams) > 0 {
-		nextPower := 1
-		for nextPower < len(teams) {
-			nextPower *= 2
-		}
-		switch {
-		case nextPower <= 4:
-			capacity = 4
-		case nextPower <= 8:
-			capacity = 8
-		case nextPower <= 16:
-			capacity = 16
-		default:
-			capacity = 32
-		}
+	grid, err := h.tournament.GetPlayoffGrid(r.Context(), tournamentID)
+	if err != nil {
+		handleDomainErr(w, err)
+		return
 	}
+	writeJSON(w, 200, grid)
+}
 
-	maxStageColumn := 1
-	for _, match := range matches {
-		if match.StageSlotColumn != nil && *match.StageSlotColumn > maxStageColumn {
-			maxStageColumn = *match.StageSlotColumn
-		}
+func (h Handler) ValidatePlayoffGridDraft(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
 	}
-
-	stageCount := int(math.Log2(float64(capacity)))
-	if maxStageColumn > stageCount {
-		stageCount = maxStageColumn
+	tournamentID, err := parseID(chi.URLParam(r, "tournamentId"))
+	if err != nil {
+		http.Error(w, "bad tournament id", 400)
+		return
 	}
-
-	rounds := make([]domain.BracketRound, 0, stageCount)
-	for i := 1; i <= stageCount; i++ {
-		matchesInStage := capacity / (1 << i)
-		label := fmt.Sprintf("Stage %d", i)
-		switch matchesInStage {
-		case 8:
-			label = "1/8 финала"
-		case 4:
-			label = "1/4 финала"
-		case 2:
-			label = "Полуфинал"
-		case 1:
-			label = "Финал"
-		}
-		rounds = append(rounds, domain.BracketRound{ID: fmt.Sprintf("stage_%d", i), Label: label, Order: i})
+	var req domain.SavePlayoffGridRequest
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, "bad request", 400)
+		return
 	}
-
-	stageSlotCounters := map[int]int{}
-	bracketMatches := make([]domain.BracketMatch, 0, len(matches))
-	for _, match := range matches {
-		stageColumn := 1
-		if match.StageSlotColumn != nil && *match.StageSlotColumn > 0 {
-			stageColumn = *match.StageSlotColumn
-		}
-		if stageColumn > stageCount {
-			stageColumn = stageCount
-		}
-
-		slot := 0
-		if match.StageSlotRow != nil && *match.StageSlotRow > 0 {
-			slot = *match.StageSlotRow
-		} else {
-			stageSlotCounters[stageColumn]++
-			slot = stageSlotCounters[stageColumn]
-		}
-
-		homeID, awayID := match.HomeTeamID, match.AwayTeamID
-		out := domain.BracketMatch{
-			ID:          strconv.FormatInt(match.ID, 10),
-			RoundID:     fmt.Sprintf("stage_%d", stageColumn),
-			Slot:        slot,
-			StageColumn: match.StageSlotColumn,
-			StageRow:    match.StageSlotRow,
-			HomeTeamID:  &homeID,
-			AwayTeamID:  &awayID,
-			Status:      match.Status,
-			LinkedMatch: strconv.FormatInt(match.ID, 10),
-			HomeScore:   &match.HomeScore,
-			AwayScore:   &match.AwayScore,
-		}
-		if match.Status == "finished" {
-			if match.HomeScore > match.AwayScore {
-				out.WinnerTeamID = &homeID
-			} else if match.AwayScore > match.HomeScore {
-				out.WinnerTeamID = &awayID
-			}
-		}
-		bracketMatches = append(bracketMatches, out)
+	if err = h.tournament.ValidatePlayoffGridDraft(r.Context(), current.User, tournamentID, req); err != nil {
+		handleDomainErr(w, err)
+		return
 	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
 
-	writeJSON(w, 200, domain.BracketResponse{
-		Settings: map[string]any{"team_capacity": capacity},
-		Rounds:   rounds,
-		Matches:  bracketMatches,
-	})
+func (h Handler) SavePlayoffGrid(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	tournamentID, err := parseID(chi.URLParam(r, "tournamentId"))
+	if err != nil {
+		http.Error(w, "bad tournament id", 400)
+		return
+	}
+	var req domain.SavePlayoffGridRequest
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	grid, err := h.tournament.SavePlayoffGrid(r.Context(), current.User, tournamentID, req)
+	if err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, grid)
+}
+
+func (h Handler) GetPlayoffMatchCandidates(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	tournamentID, err := parseID(chi.URLParam(r, "tournamentId"))
+	if err != nil {
+		http.Error(w, "bad tournament id", 400)
+		return
+	}
+	matchID, err := parseID(r.URL.Query().Get("matchId"))
+	if err != nil {
+		http.Error(w, "bad match id", 400)
+		return
+	}
+	items, err := h.tournament.GetPlayoffMatchCandidates(r.Context(), current.User, tournamentID, matchID)
+	if err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"cells": items})
+}
+
+type attachPlayoffMatchRequest struct {
+	PlayoffCellID int64 `json:"playoff_cell_id"`
+	MatchID       int64 `json:"match_id"`
+}
+
+func (h Handler) AttachPlayoffMatch(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	var req attachPlayoffMatchRequest
+	if json.NewDecoder(r.Body).Decode(&req) != nil || req.PlayoffCellID <= 0 || req.MatchID <= 0 {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	if err := h.tournament.AttachMatchToPlayoffCell(r.Context(), current.User, req.PlayoffCellID, req.MatchID); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+func (h Handler) DetachPlayoffMatch(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	var req attachPlayoffMatchRequest
+	if json.NewDecoder(r.Body).Decode(&req) != nil || req.PlayoffCellID <= 0 || req.MatchID <= 0 {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	if err := h.tournament.DetachMatchFromPlayoffCell(r.Context(), current.User, req.PlayoffCellID, req.MatchID); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
 func (h Handler) Search(w http.ResponseWriter, r *http.Request) {

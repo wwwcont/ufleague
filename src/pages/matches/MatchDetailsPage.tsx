@@ -82,12 +82,12 @@ const getTeamStats = (teamId: string, allMatches: Match[]) => {
 
 export const MatchDetailsPage = () => {
   const { matchId } = useParams()
-  const { data: match } = useMatchDetails(matchId)
+  const { data: match, refetch: refetchMatch } = useMatchDetails(matchId)
   const { data: allMatches } = useMatches()
   const { data: teams } = useTeams()
   const { data: players } = usePlayers()
   const { session } = useSession()
-  const { matchesRepository } = useRepositories()
+  const { matchesRepository, playoffGridRepository, cabinetRepository } = useRepositories()
 
   const teamMap = Object.fromEntries((teams ?? []).map((team) => [team.id, team]))
   const home = match ? teamMap[match.homeTeamId] : null
@@ -106,6 +106,13 @@ export const MatchDetailsPage = () => {
   const [goalScorerId, setGoalScorerId] = useState('')
   const [goalAssistId, setGoalAssistId] = useState('')
   const [goalStatus, setGoalStatus] = useState<string | null>(null)
+  const [activeTournamentId, setActiveTournamentId] = useState('1')
+  const [playoffModalOpen, setPlayoffModalOpen] = useState(false)
+  const [playoffCandidates, setPlayoffCandidates] = useState<Array<{ id: string; col: number; row: number }>>([])
+  const [playoffLoading, setPlayoffLoading] = useState(false)
+  const [playoffStatus, setPlayoffStatus] = useState<string | null>(null)
+  const [selectedPlayoffId, setSelectedPlayoffId] = useState<string | null>(null)
+  const [currentPlayoffCell, setCurrentPlayoffCell] = useState<{ id: string; col: number; row: number } | null>(null)
   const candidatePlayers = useMemo(() => (players ?? []).filter((p) => p.teamId === goalTeamId), [goalTeamId, players])
 
   useEffect(() => {
@@ -113,6 +120,31 @@ export const MatchDetailsPage = () => {
     setScoreDraft(match.score)
     setLocalEvents(match.events)
   }, [match])
+
+  useEffect(() => {
+    if (!canManageMatch(session)) return
+    void (async () => {
+      const cycles = await cabinetRepository.getTournamentCycles?.()
+      const active = cycles?.find((item) => item.isActive)
+      if (active) setActiveTournamentId(active.id)
+    })()
+  }, [cabinetRepository, session])
+
+  useEffect(() => {
+    if (!match?.playoffCellId) {
+      setCurrentPlayoffCell(null)
+      return
+    }
+    void (async () => {
+      try {
+        const grid = await playoffGridRepository.getPlayoffGrid(activeTournamentId)
+        const linked = grid.cells.find((cell) => cell.id === match.playoffCellId)
+        setCurrentPlayoffCell(linked ? { id: linked.id, col: linked.col, row: linked.row } : null)
+      } catch {
+        setCurrentPlayoffCell(null)
+      }
+    })()
+  }, [activeTournamentId, match?.playoffCellId, playoffGridRepository])
 
   if (!match || !teams || !home || !away || !allMatches || !players) {
     return (
@@ -146,6 +178,28 @@ export const MatchDetailsPage = () => {
     if (match.status === 'scheduled') return getTimeToKickoff(match.date, match.time) ?? 'Скоро'
     return ''
   })()
+
+  const refreshAfterPlayoffAction = async () => {
+    await Promise.all([
+      refetchMatch(),
+      playoffGridRepository.getPlayoffGrid(activeTournamentId),
+    ])
+  }
+
+  const openPlayoffModal = async () => {
+    setPlayoffModalOpen(true)
+    setPlayoffLoading(true)
+    setPlayoffStatus(null)
+    setSelectedPlayoffId(null)
+    try {
+      const items = await playoffGridRepository.getMatchCandidates(activeTournamentId, match.id)
+      setPlayoffCandidates(items.map((item) => ({ id: item.id, col: item.col, row: item.row })))
+    } catch (error) {
+      setPlayoffStatus(actionError(error))
+    } finally {
+      setPlayoffLoading(false)
+    }
+  }
 
   return (
     <PageContainer>
@@ -297,6 +351,16 @@ export const MatchDetailsPage = () => {
         </section>
       )}
 
+      {isAdmin && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-3 shadow-soft">
+          <div className="flex items-center justify-end">
+            <button type="button" onClick={() => { void openPlayoffModal() }} className="inline-flex rounded-xl bg-accentYellow px-4 py-2 text-xs font-semibold text-app shadow-soft">
+              Добавить плейофф
+            </button>
+          </div>
+        </section>
+      )}
+
       <section className="rounded-2xl border border-borderSubtle bg-panelBg px-4 py-3 shadow-soft">
         <EditableSectionHeader
           title="Информация"
@@ -417,6 +481,75 @@ export const MatchDetailsPage = () => {
           ))}
         </div>
       </section>
+
+      {playoffModalOpen && (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/65 p-3 sm:items-center">
+          <div className="w-full max-w-md rounded-2xl border border-borderStrong bg-panelBg p-3 shadow-matte">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-textPrimary">Выбор плейофф</h3>
+              <button type="button" onClick={() => setPlayoffModalOpen(false)} className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textSecondary">Закрыть</button>
+            </div>
+            {currentPlayoffCell && (
+              <p className="mt-2 text-xs text-textSecondary">Текущая ячейка: #{currentPlayoffCell.id} ({currentPlayoffCell.col}:{currentPlayoffCell.row})</p>
+            )}
+            {playoffLoading && <p className="mt-2 text-xs text-textMuted">Загрузка...</p>}
+            {!playoffLoading && (
+              <div className="mt-2 max-h-64 space-y-1 overflow-y-auto">
+                {playoffCandidates.map((cell) => (
+                  <button
+                    key={cell.id}
+                    type="button"
+                    onClick={() => setSelectedPlayoffId(cell.id)}
+                    className={`w-full rounded-lg border px-2 py-2 text-left text-xs ${selectedPlayoffId === cell.id ? 'border-accentYellow text-accentYellow' : 'border-borderSubtle text-textSecondary'}`}
+                  >
+                    #{cell.id} • {cell.col}:{cell.row}
+                  </button>
+                ))}
+                {!playoffCandidates.length && <p className="text-xs text-textMuted">Подходящие ячейки не найдены.</p>}
+              </div>
+            )}
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={!selectedPlayoffId}
+                className="rounded-lg bg-accentYellow px-2 py-2 text-xs font-semibold text-app disabled:opacity-50"
+                onClick={async () => {
+                  if (!selectedPlayoffId) return
+                  setPlayoffStatus(null)
+                  try {
+                    await playoffGridRepository.attachMatch(selectedPlayoffId, match.id)
+                    await refreshAfterPlayoffAction()
+                    setPlayoffStatus('Матч прикреплен')
+                  } catch (error) {
+                    setPlayoffStatus(actionError(error))
+                  }
+                }}
+              >
+                Прикрепить
+              </button>
+              <button
+                type="button"
+                disabled={!match.playoffCellId}
+                className="rounded-lg border border-borderSubtle px-2 py-2 text-xs text-textSecondary disabled:opacity-50"
+                onClick={async () => {
+                  if (!match.playoffCellId) return
+                  setPlayoffStatus(null)
+                  try {
+                    await playoffGridRepository.detachMatch(match.playoffCellId, match.id)
+                    await refreshAfterPlayoffAction()
+                    setPlayoffStatus('Связь удалена')
+                  } catch (error) {
+                    setPlayoffStatus(actionError(error))
+                  }
+                }}
+              >
+                Открепить
+              </button>
+            </div>
+            {playoffStatus && <p className="mt-2 text-xs text-textMuted">{playoffStatus}</p>}
+          </div>
+        </div>
+      )}
 
       <CommentsSection entityType="match" entityId={match.id} title="Комментарии" />
 

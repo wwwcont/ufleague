@@ -1,6 +1,5 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { PublicShell } from '../../layouts/public-shell/PublicShell'
-import { BracketPage } from '../../pages/bracket/BracketPage'
 import { EventDetailsPage } from '../../pages/events/EventDetailsPage'
 import { EventsPage } from '../../pages/events/EventsPage'
 import { CommentsPage } from '../../pages/comments/CommentsPage'
@@ -39,7 +38,6 @@ export const router = createBrowserRouter([
       { path: 'players', element: <PlayersPage /> },
       { path: 'players/:playerId', element: <PlayerDetailsPage /> },
       { path: 'table', element: <TablePage /> },
-      { path: 'bracket', element: <BracketPage /> },
       { path: 'search', element: <SearchPage /> },
       { path: 'events', element: <EventsPage /> },
       { path: 'events/:eventId', element: <EventDetailsPage /> },
