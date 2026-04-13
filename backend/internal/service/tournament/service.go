@@ -32,6 +32,14 @@ type Repository interface {
 	GetMatch(ctx context.Context, id int64) (domain.Match, error)
 	CreateMatch(ctx context.Context, match domain.Match) (domain.Match, error)
 	UpdateMatch(ctx context.Context, id int64, match domain.Match) (domain.Match, error)
+
+	CreatePlayoffBracket(ctx context.Context, req domain.CreatePlayoffBracketRequest) (domain.PlayoffBracket, error)
+	GetPlayoffBracketByTournament(ctx context.Context, tournamentID int64) (domain.PlayoffBracket, error)
+	UpdatePlayoffLayout(ctx context.Context, bracketID int64, actorID int64, req domain.UpdatePlayoffLayoutRequest) error
+	CreatePlayoffTie(ctx context.Context, req domain.CreatePlayoffTieRequest) (domain.PlayoffTie, error)
+	AttachMatchToTie(ctx context.Context, req domain.AttachMatchToTieRequest) error
+	DetachMatchFromTie(ctx context.Context, req domain.DetachMatchFromTieRequest) error
+	MovePlayoffTie(ctx context.Context, req domain.MovePlayoffTieRequest) error
 }
 
 type Service struct {
@@ -215,4 +223,105 @@ func (s Service) UpdateMatch(ctx context.Context, actor domain.User, id int64, r
 		HomeScore: req.HomeScore, AwayScore: req.AwayScore, ExtraTime: req.ExtraTime, Venue: req.Venue,
 		StageSlotColumn: req.StageSlotColumn, StageSlotRow: req.StageSlotRow,
 	})
+}
+
+func (s Service) CreatePlayoffBracket(ctx context.Context, actor domain.User, req domain.CreatePlayoffBracketRequest) (domain.PlayoffBracket, error) {
+	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+		return domain.PlayoffBracket{}, ErrForbidden
+	}
+	if req.TeamCapacity != 4 && req.TeamCapacity != 8 && req.TeamCapacity != 16 && req.TeamCapacity != 32 {
+		req.TeamCapacity = 16
+	}
+	if req.TournamentID <= 0 {
+		return domain.PlayoffBracket{}, errors.New("invalid tournament id")
+	}
+	return s.repo.CreatePlayoffBracket(ctx, req)
+}
+
+func (s Service) GetPlayoffBracket(ctx context.Context, tournamentID int64) (domain.PlayoffBracket, error) {
+	if tournamentID <= 0 {
+		tournamentID = 1
+	}
+	bracket, err := s.repo.GetPlayoffBracketByTournament(ctx, tournamentID)
+	if err != nil {
+		return domain.PlayoffBracket{}, err
+	}
+	for index := range bracket.Ties {
+		tie := &bracket.Ties[index]
+		if len(tie.Matches) == 0 {
+			continue
+		}
+		total := domain.PlayoffTieScore{}
+		finishedCount := 0
+		for _, leg := range tie.Matches {
+			total.Home += leg.HomeScore
+			total.Away += leg.AwayScore
+			if leg.Status == "finished" {
+				finishedCount++
+			}
+		}
+		tie.Total = &total
+		if finishedCount == len(tie.Matches) {
+			if total.Home > total.Away && tie.HomeTeamID != nil {
+				tie.ResolvedWinnerID = tie.HomeTeamID
+			}
+			if total.Away > total.Home && tie.AwayTeamID != nil {
+				tie.ResolvedWinnerID = tie.AwayTeamID
+			}
+		}
+	}
+	return bracket, nil
+}
+
+func (s Service) UpdatePlayoffLayout(ctx context.Context, actor domain.User, bracketID int64, req domain.UpdatePlayoffLayoutRequest) error {
+	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+		return ErrForbidden
+	}
+	return s.repo.UpdatePlayoffLayout(ctx, bracketID, actor.ID, req)
+}
+
+func (s Service) CreatePlayoffTie(ctx context.Context, actor domain.User, req domain.CreatePlayoffTieRequest) (domain.PlayoffTie, error) {
+	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+		return domain.PlayoffTie{}, ErrForbidden
+	}
+	if req.Slot <= 0 {
+		req.Slot = 1
+	}
+	if req.LegsPlanned < 1 || req.LegsPlanned > 3 {
+		req.LegsPlanned = 1
+	}
+	return s.repo.CreatePlayoffTie(ctx, req)
+}
+
+func (s Service) AttachMatchToTie(ctx context.Context, actor domain.User, req domain.AttachMatchToTieRequest) error {
+	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+		return ErrForbidden
+	}
+	if req.TieID <= 0 || req.MatchID <= 0 {
+		return errors.New("invalid tie/match id")
+	}
+	if req.LegNumber < 0 || req.LegNumber > 3 {
+		return errors.New("invalid leg number")
+	}
+	return s.repo.AttachMatchToTie(ctx, req)
+}
+
+func (s Service) DetachMatchFromTie(ctx context.Context, actor domain.User, req domain.DetachMatchFromTieRequest) error {
+	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+		return ErrForbidden
+	}
+	return s.repo.DetachMatchFromTie(ctx, req)
+}
+
+func (s Service) MovePlayoffTie(ctx context.Context, actor domain.User, req domain.MovePlayoffTieRequest) error {
+	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+		return ErrForbidden
+	}
+	if req.TieID <= 0 || req.StageID <= 0 || req.Slot <= 0 {
+		return errors.New("invalid move payload")
+	}
+	if req.LegsPlanned == 0 {
+		req.LegsPlanned = 1
+	}
+	return s.repo.MovePlayoffTie(ctx, req)
 }

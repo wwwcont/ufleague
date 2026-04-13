@@ -124,6 +124,13 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Post("/superadmin/users/{id}/restrictions", h.SuperadminAssignRestrictions)
 		r.With(sessionMW.RequireSession).Put("/superadmin/settings/{key}", h.SuperadminSetGlobalSetting)
 		r.With(sessionMW.RequireSession).Post("/uploads/image", h.UploadImage)
+		r.With(sessionMW.RequireSession).Post("/admin/brackets", h.CreatePlayoffBracket)
+		r.With(sessionMW.RequireSession).Get("/admin/brackets/{tournamentId}", h.GetPlayoffBracket)
+		r.With(sessionMW.RequireSession).Post("/admin/brackets/{bracketId}/layout", h.UpdatePlayoffLayout)
+		r.With(sessionMW.RequireSession).Post("/admin/brackets/{bracketId}/ties", h.CreatePlayoffTie)
+		r.With(sessionMW.RequireSession).Post("/admin/brackets/ties/attach-match", h.AttachMatchToTie)
+		r.With(sessionMW.RequireSession).Post("/admin/brackets/ties/detach-match", h.DetachMatchFromTie)
+		r.With(sessionMW.RequireSession).Patch("/admin/brackets/ties/{tieId}", h.MovePlayoffTie)
 	})
 
 	return r
@@ -591,6 +598,17 @@ func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h Handler) GetBracket(w http.ResponseWriter, r *http.Request) {
+	tournamentID := int64(1)
+	if raw := strings.TrimSpace(r.URL.Query().Get("tournamentId")); raw != "" {
+		if parsed, parseErr := parseID(raw); parseErr == nil && parsed > 0 {
+			tournamentID = parsed
+		}
+	}
+	if bracket, err := h.tournament.GetPlayoffBracket(r.Context(), tournamentID); err == nil {
+		writeJSON(w, 200, mapPlayoffBracketToLegacyResponse(bracket))
+		return
+	}
+
 	matches, err := h.tournament.ListMatches(r.Context())
 	if err != nil {
 		http.Error(w, "failed", 500)
@@ -694,6 +712,210 @@ func (h Handler) GetBracket(w http.ResponseWriter, r *http.Request) {
 		Rounds:   rounds,
 		Matches:  bracketMatches,
 	})
+}
+
+func (h Handler) CreatePlayoffBracket(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	var req domain.CreatePlayoffBracketRequest
+	if err := decodeJSONStrict(r, &req); err != nil {
+		http.Error(w, "invalid json body", 400)
+		return
+	}
+	bracket, err := h.tournament.CreatePlayoffBracket(r.Context(), current.User, req)
+	if err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 201, bracket)
+}
+
+func (h Handler) GetPlayoffBracket(w http.ResponseWriter, r *http.Request) {
+	tournamentID, err := parseID(chi.URLParam(r, "tournamentId"))
+	if err != nil {
+		http.Error(w, "bad tournament id", 400)
+		return
+	}
+	bracket, err := h.tournament.GetPlayoffBracket(r.Context(), tournamentID)
+	if err != nil {
+		http.Error(w, "not found", 404)
+		return
+	}
+	writeJSON(w, 200, bracket)
+}
+
+func (h Handler) UpdatePlayoffLayout(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	bracketID, err := parseID(chi.URLParam(r, "bracketId"))
+	if err != nil {
+		http.Error(w, "bad bracket id", 400)
+		return
+	}
+	var req domain.UpdatePlayoffLayoutRequest
+	if err = decodeJSONStrict(r, &req); err != nil {
+		http.Error(w, "invalid json body", 400)
+		return
+	}
+	if err = h.tournament.UpdatePlayoffLayout(r.Context(), current.User, bracketID, req); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+
+func (h Handler) CreatePlayoffTie(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	bracketID, err := parseID(chi.URLParam(r, "bracketId"))
+	if err != nil {
+		http.Error(w, "bad bracket id", 400)
+		return
+	}
+	var req domain.CreatePlayoffTieRequest
+	if err = decodeJSONStrict(r, &req); err != nil {
+		http.Error(w, "invalid json body", 400)
+		return
+	}
+	req.BracketID = bracketID
+	tie, err := h.tournament.CreatePlayoffTie(r.Context(), current.User, req)
+	if err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 201, tie)
+}
+
+func (h Handler) AttachMatchToTie(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	var req domain.AttachMatchToTieRequest
+	if err := decodeJSONStrict(r, &req); err != nil {
+		http.Error(w, "invalid json body", 400)
+		return
+	}
+	if err := h.tournament.AttachMatchToTie(r.Context(), current.User, req); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+
+func (h Handler) DetachMatchFromTie(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	var req domain.DetachMatchFromTieRequest
+	if err := decodeJSONStrict(r, &req); err != nil {
+		http.Error(w, "invalid json body", 400)
+		return
+	}
+	if err := h.tournament.DetachMatchFromTie(r.Context(), current.User, req); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+
+func (h Handler) MovePlayoffTie(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	tieID, err := parseID(chi.URLParam(r, "tieId"))
+	if err != nil {
+		http.Error(w, "bad tie id", 400)
+		return
+	}
+	var req domain.MovePlayoffTieRequest
+	if err = decodeJSONStrict(r, &req); err != nil {
+		http.Error(w, "invalid json body", 400)
+		return
+	}
+	req.TieID = tieID
+	if err = h.tournament.MovePlayoffTie(r.Context(), current.User, req); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+
+func mapPlayoffBracketToLegacyResponse(bracket domain.PlayoffBracket) domain.BracketResponse {
+	rounds := make([]domain.BracketRound, 0, len(bracket.Stages))
+	for _, stage := range bracket.Stages {
+		rounds = append(rounds, domain.BracketRound{
+			ID:    fmt.Sprintf("stage_%d", stage.Order),
+			Label: stage.Label,
+			Order: stage.Order,
+		})
+	}
+
+	matches := make([]domain.BracketMatch, 0, len(bracket.Ties))
+	for _, tie := range bracket.Ties {
+		stageColumn := tie.StageSlotColumn
+		stageRow := tie.StageSlotRow
+		slot := tie.Slot
+		if stageRow != nil && *stageRow > 0 {
+			slot = *stageRow
+		}
+
+		payload := domain.BracketMatch{
+			ID:           fmt.Sprintf("tie_%d", tie.ID),
+			RoundID:      findLegacyRoundID(bracket.Stages, tie.StageID),
+			Slot:         slot,
+			StageColumn:  stageColumn,
+			StageRow:     stageRow,
+			HomeTeamID:   tie.HomeTeamID,
+			AwayTeamID:   tie.AwayTeamID,
+			WinnerTeamID: tie.WinnerTeamID,
+			Status:       "scheduled",
+		}
+		if len(tie.Matches) == 1 {
+			leg := tie.Matches[0]
+			payload.LinkedMatch = strconv.FormatInt(leg.MatchID, 10)
+			payload.Status = leg.Status
+			payload.HomeScore = &leg.HomeScore
+			payload.AwayScore = &leg.AwayScore
+		} else if len(tie.Matches) > 1 && tie.Total != nil {
+			homeScore, awayScore := tie.Total.Home, tie.Total.Away
+			payload.HomeScore = &homeScore
+			payload.AwayScore = &awayScore
+			payload.Status = "finished"
+		}
+		if tie.ResolvedWinnerID != nil {
+			payload.WinnerTeamID = tie.ResolvedWinnerID
+		}
+		matches = append(matches, payload)
+	}
+	return domain.BracketResponse{
+		Settings: map[string]any{"team_capacity": bracket.TeamCapacity},
+		Rounds:   rounds,
+		Matches:  matches,
+	}
+}
+
+func findLegacyRoundID(stages []domain.PlayoffStage, stageID int64) string {
+	for _, stage := range stages {
+		if stage.ID == stageID {
+			return fmt.Sprintf("stage_%d", stage.Order)
+		}
+	}
+	return "stage_1"
 }
 
 func (h Handler) Search(w http.ResponseWriter, r *http.Request) {
