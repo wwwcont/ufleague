@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"football_ui/backend/internal/domain"
@@ -68,6 +69,60 @@ func (r *AuthRepository) GetPublicUserCard(ctx context.Context, userID int64) (d
 	}
 
 	return card, nil
+}
+
+func (r *AuthRepository) GetPublicUserCardByTelegramUsername(ctx context.Context, username string) (domain.PublicUserCard, error) {
+	normalized := normalizeTelegramUsername(username)
+	if normalized == "" {
+		return domain.PublicUserCard{}, pgx.ErrNoRows
+	}
+	var userID int64
+	if err := r.pool.QueryRow(ctx, `SELECT id FROM users WHERE lower(telegram_username) = $1`, normalized).Scan(&userID); err != nil {
+		return domain.PublicUserCard{}, err
+	}
+	return r.GetPublicUserCard(ctx, userID)
+}
+
+func (r *AuthRepository) SearchPublicUserCardsByTelegramUsername(ctx context.Context, username string, limit int) ([]domain.PublicUserCard, error) {
+	normalized := normalizeTelegramUsername(username)
+	if normalized == "" {
+		return []domain.PublicUserCard{}, nil
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT id
+		FROM users
+		WHERE lower(telegram_username) LIKE $1
+		ORDER BY telegram_username ASC, id ASC
+		LIMIT $2
+	`, normalized+"%", limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	cards := make([]domain.PublicUserCard, 0, limit)
+	for rows.Next() {
+		var userID int64
+		if err := rows.Scan(&userID); err != nil {
+			return nil, err
+		}
+		card, err := r.GetPublicUserCard(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		cards = append(cards, card)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return cards, nil
+}
+
+func normalizeTelegramUsername(raw string) string {
+	return strings.TrimPrefix(strings.ToLower(strings.TrimSpace(raw)), "@")
 }
 
 type CreateSessionParams struct {

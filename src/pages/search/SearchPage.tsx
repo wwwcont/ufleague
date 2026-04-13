@@ -245,6 +245,11 @@ export const SearchPage = () => {
 
       {!query.trim() && (
         <div className="space-y-3">
+          {activeType === 'event' && (
+            <Link to="/events?scope=all" className="block rounded-2xl border border-borderSubtle bg-panelBg p-3 text-sm text-accentYellow hover:underline">
+              Открыть общую ленту всех событий
+            </Link>
+          )}
           <div className="rounded-2xl border border-borderSubtle bg-panelBg p-3 text-sm text-textSecondary">
             Введите команду, игрока, матч или событие. Ниже — популярные сущности для быстрого старта.
           </div>

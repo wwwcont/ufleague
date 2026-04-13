@@ -35,7 +35,7 @@ export const TeamEventsPage = () => {
       {canManageCurrentTeam && teamId && (
         <section className="mb-3 rounded-2xl border border-borderSubtle bg-panelBg p-4">
           {!createOpen ? (
-            <button type="button" className="block w-full rounded-lg bg-accentYellow px-3 py-3 text-sm font-semibold text-app" onClick={() => {
+            <button type="button" className="block w-full rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={() => {
               setCreateOpen(true)
               setStatus(null)
             }}>

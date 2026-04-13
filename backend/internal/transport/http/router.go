@@ -95,6 +95,8 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.Get("/events/{id}", h.GetEvent)
 		r.Get("/comments", h.ListComments)
 		r.Get("/comments/author-state", h.GetCommentAuthorState)
+		r.Get("/users/search", h.SearchUsersByTelegramUsername)
+		r.Get("/users/by-telegram/{username}", h.GetUserCardByTelegramUsername)
 		r.Get("/users/{id}", h.GetUserCard)
 
 		r.With(sessionMW.RequireSession).Post("/teams", h.CreateTeam)
@@ -174,6 +176,34 @@ func (h Handler) GetUserCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, item)
+}
+
+func (h Handler) GetUserCardByTelegramUsername(w http.ResponseWriter, r *http.Request) {
+	username := strings.TrimSpace(chi.URLParam(r, "username"))
+	if username == "" {
+		http.Error(w, "bad username", 400)
+		return
+	}
+	item, err := h.authRepo.GetPublicUserCardByTelegramUsername(r.Context(), username)
+	if err != nil {
+		http.Error(w, "not found", 404)
+		return
+	}
+	writeJSON(w, 200, item)
+}
+
+func (h Handler) SearchUsersByTelegramUsername(w http.ResponseWriter, r *http.Request) {
+	username := strings.TrimSpace(r.URL.Query().Get("telegram"))
+	if username == "" {
+		writeJSON(w, 200, []domain.PublicUserCard{})
+		return
+	}
+	items, err := h.authRepo.SearchPublicUserCardsByTelegramUsername(r.Context(), username, 20)
+	if err != nil {
+		http.Error(w, "failed", 500)
+		return
+	}
+	writeJSON(w, 200, items)
 }
 
 func (h Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
