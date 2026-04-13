@@ -890,13 +890,19 @@ export const cabinetRepository: CabinetRepository = {
     }
   },
   async saveBracketEditorLayout(input) {
+    const body = JSON.stringify({
+      nodes: input.nodes.map((node) => ({ tie_id: node.tieId, x: node.x, y: node.y, w: node.w, h: node.h })),
+      edges: input.edges.map((edge) => ({ from_tie_id: edge.fromTieId, to_tie_id: edge.toTieId, from_side: edge.fromSide ?? 'right', to_side: edge.toSide ?? 'left' })),
+    })
     await api(`/api/admin/brackets/${input.tournamentId}/layout`, {
       method: 'POST',
-      body: JSON.stringify({
-        nodes: input.nodes.map((node) => ({ tie_id: node.tieId, x: node.x, y: node.y, w: node.w, h: node.h })),
-        edges: input.edges.map((edge) => ({ from_tie_id: edge.fromTieId, to_tie_id: edge.toTieId, from_side: edge.fromSide ?? 'right', to_side: edge.toSide ?? 'left' })),
-      }),
-    }).catch(() => undefined)
+      body,
+    }).catch(async () => {
+      const bracketPayload = await api<any>(`/api/admin/brackets/${input.tournamentId}`).catch(() => null)
+      const bracketId = bracketPayload?.id ?? bracketPayload?.bracket_id
+      if (!bracketId) return
+      await api(`/api/admin/brackets/${bracketId}/layout`, { method: 'POST', body }).catch(() => undefined)
+    })
   },
   async attachMatchToTie(input) {
     await api('/api/admin/brackets/ties/attach-match', {

@@ -65,10 +65,10 @@ export const BracketEditor = ({
       if (!from || !to) return null
       const fromSide = edge.fromSide ?? 'right'
       const toSide = edge.toSide ?? 'left'
-      const x1 = fromSide === 'right' ? from.x + from.w : from.x
-      const y1 = from.y + from.h / 2
-      const x2 = toSide === 'left' ? to.x : to.x + to.w
-      const y2 = to.y + to.h / 2
+      const x1 = fromSide === 'right' ? from.x + NODE_W : from.x
+      const y1 = from.y + NODE_H / 2
+      const x2 = toSide === 'left' ? to.x : to.x + NODE_W
+      const y2 = to.y + NODE_H / 2
       const midX = (x1 + x2) / 2
       return { id: edge.id, x1, y1, x2, y2, midX, midY: (y1 + y2) / 2 }
     })

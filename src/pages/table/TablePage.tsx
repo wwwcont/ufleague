@@ -121,10 +121,11 @@ export const TablePage = () => {
     setEditorEdges((prev) => prev.filter((edge) => tieIds.has(edge.fromTieId) && tieIds.has(edge.toTieId)))
   }, [baseTieViewModels])
 
-  const loadLayoutFromBackend = async () => {
+  const loadLayoutFromBackend = async (preserveOnEmpty = false) => {
     if (!activeTournamentId || !cabinetRepository.getBracketEditorLayout) return
     const layout = await cabinetRepository.getBracketEditorLayout(activeTournamentId)
     if (!layout) {
+      if (preserveOnEmpty) return
       setEditorNodes([])
       setEditorEdges([])
       return
@@ -146,7 +147,7 @@ export const TablePage = () => {
     setPendingCreateAnchor(null)
   }
 
-  const saveLayout = () => {
+  const saveLayout = async () => {
     if (!activeTournamentId) {
       setBracketStatus('Нет активного турнира')
       return
@@ -158,7 +159,7 @@ export const TablePage = () => {
     const nodesSource = isEditingBracket ? draftNodes : editorNodes
     const edgesSource = isEditingBracket ? draftEdges : editorEdges
 
-    void (async () => {
+    try {
       let tieIdMap = new Map<string, string>()
       for (const tie of draftCreatedTies) {
         const created = await cabinetRepository.createBracketTie?.({
@@ -186,13 +187,15 @@ export const TablePage = () => {
         .filter((edge) => !draftDeletedTieIds.has(edge.fromTieId) && !draftDeletedTieIds.has(edge.toTieId))
 
       await cabinetRepository.saveBracketEditorLayout?.({ tournamentId: activeTournamentId, nodes: nodesPrepared, edges: edgesPrepared })
-      await loadLayoutFromBackend()
+      await loadLayoutFromBackend(true)
       await refetchBracket()
-    })()
-    setIsEditingBracket(false)
-    setDraftCreatedTies([])
-    setDraftDeletedTieIds(new Set())
-    setBracketStatus('Layout сохранён на сервере')
+      setIsEditingBracket(false)
+      setDraftCreatedTies([])
+      setDraftDeletedTieIds(new Set())
+      setBracketStatus('Layout сохранён на сервере')
+    } catch {
+      setBracketStatus('Не удалось сохранить сетку')
+    }
   }
 
   const handleUpsertTie = async () => {
@@ -317,7 +320,7 @@ export const TablePage = () => {
                 onEditTie={openTieEdit}
                 onDeleteTie={(tieId) => setTiePendingDelete(tieId)}
                 onRequestCreateTie={startCreateTie}
-                onSave={saveLayout}
+                onSave={() => { void saveLayout() }}
               />
               {bracketStatus && <p className="mt-2 text-xs text-textMuted">{bracketStatus}</p>}
             </>
