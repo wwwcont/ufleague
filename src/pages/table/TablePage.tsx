@@ -173,8 +173,8 @@ export const TablePage = () => {
           bracketId: activeBracketId,
           stageId: tie.stageId,
           slot: tie.slot,
-          homeTeamId: String(tie.homeTeamId),
-          awayTeamId: String(tie.awayTeamId),
+          homeTeamId: tie.homeTeamId ?? null,
+          awayTeamId: tie.awayTeamId ?? null,
         })
         tieIdMap.set(tie.id, created.id)
       }
@@ -216,7 +216,10 @@ export const TablePage = () => {
 
     if (!pendingCreateAnchor) return
 
-    const stageId = defaultStageId || ''
+    const stageId = defaultStageId
+      || bracket?.stages?.[0]?.id
+      || baseTieViewModels[0]?.stageId
+      || ''
     if (!stageId) {
       setBracketStatus('Не найден stage для создания tie')
       return
