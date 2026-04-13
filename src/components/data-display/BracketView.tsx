@@ -58,14 +58,14 @@ export const BracketView = ({
         .sort((a, b) => a.slot - b.slot)
 
       const occupiedLayoutSlots = new Set<number>()
-      const existingWithLayout: StageNode[] = existing.map((group, index) => {
+      const existingWithLayout: StageNode[] = existing.map((group) => {
         const memoryKey = `${stage.id}:${group.id}`
         const remembered = slotMemoryRef.current.get(memoryKey)
         const slotCandidate = Number.isInteger(group.slot) && group.slot >= 1 && group.slot <= stage.size ? group.slot : null
-        const preferred = (remembered && remembered >= 1 && remembered <= stage.size ? remembered : null) ?? slotCandidate
+        const preferred = slotCandidate ?? (remembered && remembered >= 1 && remembered <= stage.size ? remembered : null)
         let layoutSlot = preferred && !occupiedLayoutSlots.has(preferred) ? preferred : null
         if (!layoutSlot) {
-          layoutSlot = Array.from({ length: stage.size }, (_, offset) => offset + 1).find((slot) => !occupiedLayoutSlots.has(slot)) ?? Math.min(stage.size, index + 1)
+          layoutSlot = Array.from({ length: stage.size }, (_, offset) => offset + 1).find((slot) => !occupiedLayoutSlots.has(slot)) ?? 1
         }
         occupiedLayoutSlots.add(layoutSlot)
         slotMemoryRef.current.set(memoryKey, layoutSlot)
