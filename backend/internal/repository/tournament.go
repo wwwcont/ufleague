@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -10,10 +11,16 @@ import (
 	"football_ui/backend/internal/domain"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type TournamentRepository struct{ pool *pgxpool.Pool }
+
+func isUndefinedTableErr(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "42P01"
+}
 
 func NewTournamentRepository(pool *pgxpool.Pool) *TournamentRepository {
 	return &TournamentRepository{pool: pool}
@@ -159,6 +166,9 @@ func (r *TournamentRepository) ListPlayoffGrid(ctx context.Context, tournamentID
 		WHERE tournament_cycle_id=$1
 		ORDER BY row,col,id`, tournamentID)
 	if err != nil {
+		if isUndefinedTableErr(err) {
+			return domain.PlayoffGridResponse{Cells: []domain.PlayoffGridCell{}, Lines: []domain.PlayoffLine{}}, nil
+		}
 		return domain.PlayoffGridResponse{}, err
 	}
 	for rows.Next() {
@@ -179,6 +189,9 @@ func (r *TournamentRepository) ListPlayoffGrid(ctx context.Context, tournamentID
 		SELECT id,tournament_cycle_id,from_playoff_id,to_playoff_id,created_at
 		FROM playoff_lines WHERE tournament_cycle_id=$1 ORDER BY id`, tournamentID)
 	if err != nil {
+		if isUndefinedTableErr(err) {
+			return domain.PlayoffGridResponse{Cells: []domain.PlayoffGridCell{}, Lines: []domain.PlayoffLine{}}, nil
+		}
 		return domain.PlayoffGridResponse{}, err
 	}
 	for lineRows.Next() {
@@ -212,6 +225,9 @@ func (r *TournamentRepository) ListPlayoffGrid(ctx context.Context, tournamentID
 		WHERE pcm.playoff_cell_id = ANY($1)
 		ORDER BY pcm.playoff_cell_id, pcm.sort_order`, cellIDs)
 	if err != nil {
+		if isUndefinedTableErr(err) {
+			return domain.PlayoffGridResponse{Cells: cells, Lines: lines}, nil
+		}
 		return domain.PlayoffGridResponse{}, err
 	}
 	for matchRows.Next() {
