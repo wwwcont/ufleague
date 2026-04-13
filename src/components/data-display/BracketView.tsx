@@ -4,9 +4,9 @@ import { CircleHelp, LocateFixed, Minus, Pencil, Plus, ShieldCheck, Trash2 } fro
 import type { BracketMatchGroup, BracketStage, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
 
-const NODE_W = 170
-const NODE_H = 116
-const ROUND_GAP = 208
+const NODE_W = 150
+const NODE_H = 78
+const ROUND_GAP = 172
 const FIRST_ROUND_GAP = 8
 const PADDING_X = 24
 const PADDING_Y = 24
@@ -200,7 +200,7 @@ export const BracketView = ({
     return { x: (first.clientX + second.clientX) / 2, y: (first.clientY + second.clientY) / 2 }
   }
 
-  const nodeClass = 'absolute block rounded-xl border border-white/10 bg-panelAlt/85 px-2.5 py-2 shadow-soft backdrop-blur'
+  const nodeClass = 'absolute block rounded-xl border border-white/10 bg-panelAlt/85 px-2 py-1.5 shadow-soft backdrop-blur'
   const viewportClass = fullScreen ? 'relative h-[calc(100vh-11.6rem)] touch-none overflow-hidden' : 'relative h-[68vh] touch-none overflow-hidden rounded-xl'
 
   return (
@@ -322,6 +322,8 @@ export const BracketView = ({
             const totalHome = canComputeTotal ? legs.reduce((sum, leg) => sum + (leg?.score?.home ?? 0), 0) : null
             const totalAway = canComputeTotal ? legs.reduce((sum, leg) => sum + (leg?.score?.away ?? 0), 0) : null
             const hasAllGamesFinished = legs.every((leg) => isFinished(leg?.status ?? 'scheduled'))
+            const homeScore = totalHome ?? firstLeg?.home
+            const awayScore = totalAway ?? firstLeg?.away
 
             const homeWinner = group.winnerTeamId ? group.homeTeamId === group.winnerTeamId : false
             const awayWinner = group.winnerTeamId ? group.awayTeamId === group.winnerTeamId : false
@@ -343,24 +345,9 @@ export const BracketView = ({
 
             const content = (
               <>
-                <div className="leading-4">{teamRow(group.homeTeamId, homeWinner, firstLeg?.home)}</div>
-                <div className="mt-1 leading-4">{teamRow(group.awayTeamId, awayWinner, firstLeg?.away)}</div>
-
-                {legs.length > 1 && (
-                  <>
-                    {legs.slice(1).map((leg, legIndex) => (
-                      <div key={`${group.id}_${legIndex + 2}`} className="mt-1.5 border-t border-white/10 pt-1.5">
-                        <div className="text-[10px] uppercase tracking-[0.08em] text-textMuted">{legIndex + 2}-й матч</div>
-                        <div className="mt-1 leading-4">{teamRow(group.homeTeamId, homeWinner, leg?.score?.home)}</div>
-                        <div className="mt-1 leading-4">{teamRow(group.awayTeamId, awayWinner, leg?.score?.away)}</div>
-                      </div>
-                    ))}
-                    <div className="mt-1.5 flex items-center justify-between border-t border-white/10 pt-1 text-[10px] uppercase tracking-[0.08em] text-textMuted">
-                      <span>Тотал</span>
-                      <span className="font-semibold tabular-nums text-textPrimary">{totalHome === null || totalAway === null ? '- : -' : `${totalHome}:${totalAway}`}</span>
-                    </div>
-                  </>
-                )}
+                <div className="leading-4">{teamRow(group.homeTeamId, homeWinner, homeScore)}</div>
+                <div className="mt-1 leading-4">{teamRow(group.awayTeamId, awayWinner, awayScore)}</div>
+                {legs.length > 1 && <div className="mt-1 text-[9px] uppercase tracking-[0.08em] text-textMuted">матчей: {legs.length}</div>}
 
                 {group.adminLockedWinner && (
                   <div className="mt-1 inline-flex items-center gap-1 rounded-md border border-accentYellow/40 bg-accentYellow/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.08em] text-accentYellow">
