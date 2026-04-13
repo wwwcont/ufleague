@@ -46,6 +46,8 @@ export const TablePage = () => {
   const [selectedPlayoffNumber, setSelectedPlayoffNumber] = useState<string>('')
   const [hiddenTieIds, setHiddenTieIds] = useState<Set<string>>(new Set())
   const [tiePendingDelete, setTiePendingDelete] = useState<BracketMatchGroup | null>(null)
+  const [isSizeModalOpen, setIsSizeModalOpen] = useState(false)
+  const [sizeDraft, setSizeDraft] = useState<4 | 8 | 16>(16)
 
   const getPlayoffNumber = (groupOrSlot: { tieId?: string; stageId: string; slot: number }) => groupOrSlot.tieId ? String(groupOrSlot.tieId).replace(/\D/g, '') || String(groupOrSlot.tieId) : `${groupOrSlot.stageId}-${groupOrSlot.slot}`
 
@@ -169,10 +171,16 @@ export const TablePage = () => {
     <div className="px-4 pb-20 pt-6 md:px-6">
       <ModeSwitch mode={mode} setMode={changeMode} />
       {mode === 'bracket' && canEditBracket && (
-        <div className="mb-3 flex items-center justify-end">
+        <div className="mb-3 flex items-center justify-end gap-2">
+          {isEditingBracket && (
+            <button type="button" className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle px-3 py-1.5 text-xs text-textMuted" onClick={() => { setSizeDraft(playoffSize); setIsSizeModalOpen(true) }}>
+              Размер сетки
+            </button>
+          )}
           <button type="button" className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs ${isEditingBracket ? 'border-accentYellow text-accentYellow' : 'border-borderSubtle text-textMuted'}`} onClick={() => {
             setIsEditingBracket((prev) => !prev)
             setSelectedSlot(null)
+            setIsSizeModalOpen(false)
           }}>
             <Pencil size={12} /> {isEditingBracket ? 'Выйти из edit mode' : 'Редактировать сетку'}
           </button>
@@ -182,44 +190,6 @@ export const TablePage = () => {
         {mode === 'bracket'
           ? (
             <>
-              {isEditingBracket && (
-                <section className="mb-3 rounded-2xl border border-borderSubtle bg-panelBg p-3 shadow-soft">
-                  <p className="text-xs text-textMuted">Настройка плей-офф: размер сетки и пары команд для каждого блока.</p>
-
-                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                    <label className="text-xs text-textMuted sm:col-span-1">
-                      Размер плей-офф
-                      <select value={playoffSize} onChange={(event) => { void changePlayoffSize(Number(event.target.value) as 4 | 8 | 16) }} className="mt-1 w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1.5 text-sm text-textPrimary">
-                        <option value={4}>4 команды</option>
-                        <option value={8}>8 команд</option>
-                        <option value={16}>16 команд</option>
-                      </select>
-                    </label>
-                  </div>
-
-                  {selectedSlot && (
-                    <div className="mt-3 space-y-2 rounded-lg border border-borderSubtle bg-mutedBg p-2">
-                      <p className="text-xs text-textSecondary">Вершина: <span className="text-textPrimary">{selectedSlot.stageId}</span> • слот <span className="text-textPrimary">#{selectedSlot.slot}</span></p>
-                      <label className="block text-xs text-textMuted">
-                        Номер плей-офф
-                        <input value={selectedPlayoffNumber} readOnly className="mt-1 w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1 text-sm text-textPrimary" />
-                      </label>
-                      <select value={tieHomeTeamId} onChange={(event) => setTieHomeTeamId(event.target.value)} className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1 text-sm">
-                        <option value="">Команда 1</option>
-                        {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
-                      </select>
-                      <select value={tieAwayTeamId} onChange={(event) => setTieAwayTeamId(event.target.value)} className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1 text-sm">
-                        <option value="">Команда 2</option>
-                        {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
-                      </select>
-                      <button type="button" disabled={!tieHomeTeamId || !tieAwayTeamId || tieHomeTeamId === tieAwayTeamId} className="rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app disabled:opacity-50" onClick={() => { void applyTieConfig() }}>
-                        {selectedSlot.tieId ? 'Сохранить настройки' : 'Создать плей-офф'}
-                      </button>
-                    </div>
-                  )}
-                  {bracketStatus && <p className="mt-2 text-xs text-textMuted">{bracketStatus}</p>}
-                </section>
-              )}
               {bracket && (
                 <BracketView
                   stages={playoffStages}
@@ -246,6 +216,7 @@ export const TablePage = () => {
                   onDeleteTie={(group) => { setTiePendingDelete(group) }}
                 />
               )}
+              {bracketStatus && <p className="mt-2 text-xs text-textMuted">{bracketStatus}</p>}
             </>
           )
           : rows && (
@@ -280,6 +251,50 @@ export const TablePage = () => {
           setTiePendingDelete(null)
         }}
       />
+      {selectedSlot && (
+        <div className="fixed inset-0 z-[72] flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-sm rounded-2xl border border-borderStrong bg-panelBg p-4 shadow-matte">
+            <p className="text-sm font-semibold text-textPrimary">Редактирование плей-оффа</p>
+            <p className="mt-1 text-xs text-textSecondary">Вершина: {selectedSlot.stageId} • слот #{selectedSlot.slot}</p>
+            <label className="mt-2 block text-xs text-textMuted">
+              Номер плей-офф
+              <input value={selectedPlayoffNumber} readOnly className="mt-1 w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm text-textPrimary" />
+            </label>
+            <select value={tieHomeTeamId} onChange={(event) => setTieHomeTeamId(event.target.value)} className="mt-2 w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm">
+              <option value="">Команда 1</option>
+              {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
+            </select>
+            <select value={tieAwayTeamId} onChange={(event) => setTieAwayTeamId(event.target.value)} className="mt-2 w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm">
+              <option value="">Команда 2</option>
+              {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
+            </select>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setSelectedSlot(null)} className="rounded-lg border border-borderSubtle px-3 py-1.5 text-sm text-textSecondary">Отмена</button>
+              <button type="button" disabled={!tieHomeTeamId || !tieAwayTeamId || tieHomeTeamId === tieAwayTeamId} className="rounded-lg bg-accentYellow px-3 py-1.5 text-sm font-semibold text-app disabled:opacity-50" onClick={() => { void applyTieConfig() }}>
+                {selectedSlot.tieId ? 'Сохранить' : 'Создать'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {isSizeModalOpen && (
+        <div className="fixed inset-0 z-[72] flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-sm rounded-2xl border border-borderStrong bg-panelBg p-4 shadow-matte">
+            <p className="text-sm font-semibold text-textPrimary">Размер сетки</p>
+            <select value={sizeDraft} onChange={(event) => setSizeDraft(Number(event.target.value) as 4 | 8 | 16)} className="mt-3 w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1.5 text-sm text-textPrimary">
+              <option value={4}>4 команды</option>
+              <option value={8}>8 команд</option>
+              <option value={16}>16 команд</option>
+            </select>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setIsSizeModalOpen(false)} className="rounded-lg border border-borderSubtle px-3 py-1.5 text-sm text-textSecondary">Отмена</button>
+              <button type="button" className="rounded-lg bg-accentYellow px-3 py-1.5 text-sm font-semibold text-app" onClick={() => { void changePlayoffSize(sizeDraft); setIsSizeModalOpen(false) }}>
+                Применить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

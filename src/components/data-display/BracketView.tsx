@@ -171,9 +171,9 @@ export const BracketView = ({
     if (!viewport) return
     const fitScale = clamp(Math.min((viewport.width - 24) / width, (viewport.height - 24) / height), MIN_SCALE, 1)
     const centeredX = (viewport.width - width * fitScale) / 2
-    const centeredY = (viewport.height - height * fitScale) / 2
+    const topAlignedY = 8
     setScale(fitScale)
-    setOffset(clampOffset(centeredX, centeredY, fitScale))
+    setOffset(clampOffset(centeredX, topAlignedY, fitScale))
   }
 
   useEffect(() => {
