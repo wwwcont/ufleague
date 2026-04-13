@@ -1,22 +1,24 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CircleHelp, Pencil, Plus, ShieldCheck } from 'lucide-react'
+import { CircleHelp, LocateFixed, Minus, Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react'
 import type { BracketMatchGroup, BracketStage, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
 
-const NODE_W = 238
-const NODE_H = 174
-const ROUND_GAP = 274
-const FIRST_ROUND_GAP = 34
-const PADDING_X = 48
-const PADDING_Y = 44
+const NODE_W = 150
+const NODE_H = 78
+const ROUND_GAP = 172
+const FIRST_ROUND_GAP = 8
+const PADDING_X = 24
+const PADDING_Y = 24
 const CONNECTOR_STUB = 18
 const CONNECTOR_RADIUS = 8
+const MIN_SCALE = 0.24
+const MAX_SCALE = 1.7
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
-type PlaceholderNode = { id: string; stageId: string; slot: number; x: number; y: number; isPlaceholder: true }
-type LayoutNode = (BracketMatchGroup & { x: number; y: number; isPlaceholder?: false }) | PlaceholderNode
+type StageNode = BracketMatchGroup & { layoutSlot: number; isPlaceholder?: boolean }
+type LayoutNode = StageNode & { x: number; y: number }
 
 const isFinished = (status: string) => status === 'finished'
 
@@ -28,6 +30,7 @@ export const BracketView = ({
   editable = false,
   onCreateTie,
   onEditTie,
+  onDeleteTie,
 }: {
   stages: BracketStage[]
   groups: BracketMatchGroup[]
@@ -36,60 +39,48 @@ export const BracketView = ({
   editable?: boolean
   onCreateTie?: (stageId: string, slot: number) => void
   onEditTie?: (group: BracketMatchGroup) => void
+  onDeleteTie?: (group: BracketMatchGroup) => void
 }) => {
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
-  const dragRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false })
   const viewportRef = useRef<HTMLDivElement | null>(null)
+  const dragStateRef = useRef<{ x: number; y: number; startOffsetX: number; startOffsetY: number } | null>(null)
+  const pinchStateRef = useRef<{ distance: number; startScale: number } | null>(null)
 
   const sortedStages = [...stages].sort((a, b) => a.order - b.order)
 
   const { positionedGroups, width, height, stageCenters } = useMemo(() => {
-    const byStage = new Map<string, BracketMatchGroup[]>()
+    const byStage = new Map<string, StageNode[]>()
     sortedStages.forEach((stage) => {
-      const existing = groups.filter((group) => group.stageId === stage.id).sort((a, b) => a.slot - b.slot)
-      if (!editable) {
-        byStage.set(stage.id, existing)
-        return
-      }
+      const existing = groups
+        .filter((group) => group.stageId === stage.id)
+        .sort((a, b) => a.slot - b.slot)
 
-      const existingSlots = new Set(existing.map((group) => group.slot))
-      const placeholders: BracketMatchGroup[] = []
-      for (let slot = 1; slot <= stage.size; slot += 1) {
-        if (existingSlots.has(slot)) continue
-        placeholders.push({
-          id: `placeholder:${stage.id}:${slot}`,
-          stageId: stage.id,
-          slot,
-          homeTeamId: null,
-          awayTeamId: null,
-          tieFormat: 1,
-          firstLeg: { matchId: null, status: 'scheduled' },
-          winnerTeamId: null,
-        })
-      }
-      byStage.set(stage.id, [...existing, ...placeholders].sort((a, b) => a.slot - b.slot))
+      const existingWithLayout: StageNode[] = existing.map((group, index) => {
+        const slotCandidate = Number.isInteger(group.slot) && group.slot >= 1 && group.slot <= stage.size ? group.slot : null
+        const layoutSlot = slotCandidate ?? Math.min(stage.size, index + 1)
+        return { ...group, slot: group.slot, layoutSlot }
+      })
+
+      byStage.set(stage.id, existingWithLayout.sort((a, b) => a.layoutSlot - b.layoutSlot))
     })
 
     const stageLayouts = new Map<string, LayoutNode[]>()
 
+    const verticalStep = NODE_H + FIRST_ROUND_GAP
+    const firstRoundCenterY = PADDING_Y + NODE_H / 2
+
     sortedStages.forEach((stage, stageIndex) => {
       const stageGroups = byStage.get(stage.id) ?? []
       const x = PADDING_X + stageIndex * ROUND_GAP
-
-      if (stageIndex === 0) {
-        stageLayouts.set(stage.id, stageGroups.map((group, index) => ({ ...group, x, y: PADDING_Y + index * (NODE_H + FIRST_ROUND_GAP), ...(group.id.startsWith('placeholder:') ? { isPlaceholder: true as const } : {}) })))
-        return
-      }
-
-      const prevNodes = stageLayouts.get(sortedStages[stageIndex - 1].id) ?? []
-      const groupSize = prevNodes.length && stageGroups.length ? Math.max(1, Math.floor(prevNodes.length / stageGroups.length)) : 1
+      const stageTreeFactor = 2 ** stageIndex
 
       stageLayouts.set(stage.id, stageGroups.map((group, index) => {
-        const start = index * groupSize
-        const end = clamp(start + groupSize - 1, start, prevNodes.length - 1)
-        const centers = prevNodes.slice(start, end + 1).map((node) => node.y + NODE_H / 2)
-        const centerY = centers.length ? centers.reduce((sum, c) => sum + c, 0) / centers.length : PADDING_Y + index * (NODE_H + FIRST_ROUND_GAP)
+        const slotIndex = Math.max(0, group.layoutSlot - 1)
+        const fallbackIndex = Math.max(0, index)
+        const effectiveSlot = Number.isFinite(slotIndex) ? slotIndex : fallbackIndex
+        const centerIndex = stageTreeFactor * (effectiveSlot + 0.5) - 0.5
+        const centerY = firstRoundCenterY + centerIndex * verticalStep
         return { ...group, x, y: centerY - NODE_H / 2, ...(group.id.startsWith('placeholder:') ? { isPlaceholder: true as const } : {}) }
       }))
     })
@@ -102,11 +93,11 @@ export const BracketView = ({
     sortedStages.forEach((stage, index) => centers.set(stage.id, PADDING_X + index * ROUND_GAP + NODE_W / 2))
 
     return { positionedGroups: positioned, width: maxX, height: maxY, stageCenters: centers }
-  }, [editable, groups, sortedStages])
+  }, [groups, sortedStages])
 
   const nodesByStage = useMemo(() => {
     const map = new Map<string, LayoutNode[]>()
-    sortedStages.forEach((stage) => map.set(stage.id, positionedGroups.filter((group) => group.stageId === stage.id).sort((a, b) => a.slot - b.slot)))
+    sortedStages.forEach((stage) => map.set(stage.id, positionedGroups.filter((group) => group.stageId === stage.id).sort((a, b) => a.layoutSlot - b.layoutSlot)))
     return map
   }, [positionedGroups, sortedStages])
 
@@ -117,72 +108,126 @@ export const BracketView = ({
       const nextStage = sortedStages[stageIndex + 1]
       if (!nextStage) return
 
-      const current = nodesByStage.get(stage.id) ?? []
-      const next = nodesByStage.get(nextStage.id) ?? []
+      const current = (nodesByStage.get(stage.id) ?? []).slice().sort((a, b) => a.layoutSlot - b.layoutSlot)
+      const next = (nodesByStage.get(nextStage.id) ?? []).slice().sort((a, b) => a.layoutSlot - b.layoutSlot)
       if (!current.length || !next.length) return
 
-      const groupSize = Math.max(1, Math.floor(current.length / next.length))
-
-      next.forEach((nextNode, nextIndex) => {
-        const start = nextIndex * groupSize
-        const end = clamp(start + groupSize - 1, start, current.length - 1)
-        current.slice(start, end + 1).forEach((fromNode) => lines.push({ fromX: fromNode.x + NODE_W, fromY: fromNode.y + NODE_H / 2, toX: nextNode.x, toY: nextNode.y + NODE_H / 2 }))
+      next.forEach((nextNode) => {
+        const firstSourceSlot = nextNode.layoutSlot * 2 - 1
+        const lastSourceSlot = nextNode.layoutSlot * 2
+        current
+          .filter((fromNode) => fromNode.layoutSlot >= firstSourceSlot && fromNode.layoutSlot <= lastSourceSlot)
+          .forEach((fromNode) => lines.push({ fromX: fromNode.x + NODE_W, fromY: fromNode.y + NODE_H / 2, toX: nextNode.x, toY: nextNode.y + NODE_H / 2 }))
       })
     })
 
     return lines
   }, [nodesByStage, sortedStages])
 
-  const clampOffset = (nextX: number, nextY: number, localScale: number) => {
+  const fitToViewport = () => {
     const viewport = viewportRef.current?.getBoundingClientRect()
-    if (!viewport) return { x: nextX, y: nextY }
-
-    const minX = viewport.width - width * localScale - 20
-    const minY = viewport.height - height * localScale - 20
-    return {
-      x: clamp(nextX, Math.min(minX, 20), 20),
-      y: clamp(nextY, Math.min(minY, 20), 20),
-    }
-  }
-
-  const zoom = (delta: number) => {
-    setScale((prev) => {
-      const nextScale = clamp(Number((prev + delta).toFixed(2)), 0.68, 1.7)
-      setOffset((prevOffset) => clampOffset(prevOffset.x, prevOffset.y, nextScale))
-      return nextScale
+    if (!viewport) return
+    const fitScale = clamp(Math.min((viewport.width - 24) / width, (viewport.height - 24) / height), MIN_SCALE, 1)
+    setScale(fitScale)
+    setOffset({
+      x: (viewport.width - width * fitScale) / 2,
+      y: (viewport.height - height * fitScale) / 2,
     })
   }
 
-  const nodeClass = 'absolute block rounded-xl border border-white/10 bg-panelAlt/85 px-2.5 py-2 shadow-soft backdrop-blur'
-  const viewportClass = fullScreen ? 'relative h-[calc(100vh-11.6rem)] touch-none overflow-hidden' : 'relative h-[68vh] touch-none overflow-hidden rounded-xl'
+  useEffect(() => {
+    fitToViewport()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [width, height])
+
+  const zoom = (delta: number) => {
+    setScale((prev) => clamp(Number((prev + delta).toFixed(2)), MIN_SCALE, MAX_SCALE))
+  }
+
+  const zoomAtPoint = (nextScale: number, clientX: number, clientY: number) => {
+    const viewport = viewportRef.current?.getBoundingClientRect()
+    if (!viewport) return
+
+    setOffset((prev) => {
+      const pointX = clientX - viewport.left
+      const pointY = clientY - viewport.top
+      const contentX = (pointX - prev.x) / scale
+      const contentY = (pointY - prev.y) / scale
+      return {
+        x: pointX - contentX * nextScale,
+        y: pointY - contentY * nextScale,
+      }
+    })
+    setScale(nextScale)
+  }
+
+  const nodeClass = 'absolute block rounded-xl border border-white/10 bg-panelAlt/85 px-2 py-1.5 shadow-soft backdrop-blur'
+  const viewportClass = fullScreen ? 'relative h-[calc(100dvh-14.5rem)] overflow-hidden rounded-xl' : 'relative h-[68vh] overflow-hidden rounded-xl'
 
   return (
     <section className={fullScreen ? '' : 'matte-panel p-3'}>
       {!fullScreen && (
         <div className="mb-3 flex items-center justify-between gap-2 text-xs text-textMuted">
-          <p>Тяните сетку • масштаб: колесо</p>
+          <p>Тяните сетку • масштаб: колесо, пинч или кнопки</p>
         </div>
       )}
+      <div className="mb-2 flex justify-end gap-1.5">
+        <button type="button" onClick={fitToViewport} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-borderSubtle bg-panelBg text-textMuted hover:border-accentYellow/70 hover:text-accentYellow" aria-label="Показать всю сетку">
+          <LocateFixed size={14} />
+        </button>
+        <button type="button" onClick={() => zoom(-0.12)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-borderSubtle bg-panelBg text-textMuted hover:border-accentYellow/70 hover:text-accentYellow" aria-label="Уменьшить сетку">
+          <Minus size={14} />
+        </button>
+        <button type="button" onClick={() => zoom(0.12)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-borderSubtle bg-panelBg text-textMuted hover:border-accentYellow/70 hover:text-accentYellow" aria-label="Увеличить сетку">
+          <Plus size={14} />
+        </button>
+      </div>
 
       <div
         ref={viewportRef}
         className={viewportClass}
-        onWheel={(event) => {
-          event.preventDefault()
-          zoom(event.deltaY > 0 ? -0.08 : 0.08)
-        }}
+        style={{ touchAction: 'none' }}
         onPointerDown={(event) => {
-          dragRef.current = { x: event.clientX - offset.x, y: event.clientY - offset.y, active: true }
+          dragStateRef.current = { x: event.clientX, y: event.clientY, startOffsetX: offset.x, startOffsetY: offset.y }
         }}
         onPointerMove={(event) => {
-          if (!dragRef.current.active) return
-          const next = clampOffset(event.clientX - dragRef.current.x, event.clientY - dragRef.current.y, scale)
-          setOffset(next)
+          if (!dragStateRef.current) return
+          const deltaX = event.clientX - dragStateRef.current.x
+          const deltaY = event.clientY - dragStateRef.current.y
+          setOffset({
+            x: dragStateRef.current.startOffsetX + deltaX,
+            y: dragStateRef.current.startOffsetY + deltaY,
+          })
         }}
-        onPointerUp={() => { dragRef.current.active = false }}
-        onPointerLeave={() => { dragRef.current.active = false }}
+        onPointerUp={() => { dragStateRef.current = null }}
+        onPointerCancel={() => { dragStateRef.current = null }}
+        onTouchStart={(event) => {
+          if (event.touches.length !== 2) return
+          const [first, second] = Array.from(event.touches)
+          pinchStateRef.current = {
+            distance: Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY),
+            startScale: scale,
+          }
+        }}
+        onTouchMove={(event) => {
+          if (event.touches.length !== 2 || !pinchStateRef.current) return
+          event.preventDefault()
+          const [first, second] = Array.from(event.touches)
+          const midpointX = (first.clientX + second.clientX) / 2
+          const midpointY = (first.clientY + second.clientY) / 2
+          const distance = Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY)
+          const ratio = distance / pinchStateRef.current.distance
+          const nextScale = clamp(Number((pinchStateRef.current.startScale * ratio).toFixed(2)), MIN_SCALE, MAX_SCALE)
+          zoomAtPoint(nextScale, midpointX, midpointY)
+        }}
+        onTouchEnd={() => { pinchStateRef.current = null }}
+        onWheel={(event) => {
+          event.preventDefault()
+          const nextScale = clamp(Number((scale + (event.deltaY > 0 ? -0.08 : 0.08)).toFixed(2)), MIN_SCALE, MAX_SCALE)
+          zoomAtPoint(nextScale, event.clientX, event.clientY)
+        }}
       >
-        <div className="absolute left-0 top-0 origin-top-left" style={{ width, height, transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }}>
+        <div className="relative left-0 top-0 origin-top-left" style={{ width, height, transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }}>
           <svg width={width} height={height} className="absolute left-0 top-0">
             {connectors.map((line, index) => {
               const midX = line.fromX + CONNECTOR_STUB
@@ -227,14 +272,14 @@ export const BracketView = ({
               )
             }
 
+            const legs = [group.firstLeg, group.secondLeg, group.thirdLeg].filter(Boolean)
             const firstLeg = group.firstLeg.score
-            const secondLeg = group.secondLeg?.score
-            const canComputeTotal = group.tieFormat === 2 && firstLeg && secondLeg
-            const totalHome = canComputeTotal ? firstLeg.home + secondLeg.home : null
-            const totalAway = canComputeTotal ? firstLeg.away + secondLeg.away : null
-            const hasAllGamesFinished = group.tieFormat === 1
-              ? isFinished(group.firstLeg.status)
-              : isFinished(group.firstLeg.status) && isFinished(group.secondLeg?.status ?? 'scheduled')
+            const canComputeTotal = legs.length > 1 && legs.every((leg) => leg?.score)
+            const totalHome = canComputeTotal ? legs.reduce((sum, leg) => sum + (leg?.score?.home ?? 0), 0) : null
+            const totalAway = canComputeTotal ? legs.reduce((sum, leg) => sum + (leg?.score?.away ?? 0), 0) : null
+            const hasAllGamesFinished = legs.every((leg) => isFinished(leg?.status ?? 'scheduled'))
+            const homeScore = totalHome ?? firstLeg?.home
+            const awayScore = totalAway ?? firstLeg?.away
 
             const homeWinner = group.winnerTeamId ? group.homeTeamId === group.winnerTeamId : false
             const awayWinner = group.winnerTeamId ? group.awayTeamId === group.winnerTeamId : false
@@ -256,22 +301,9 @@ export const BracketView = ({
 
             const content = (
               <>
-                <div className="leading-4">{teamRow(group.homeTeamId, homeWinner, firstLeg?.home)}</div>
-                <div className="mt-1 leading-4">{teamRow(group.awayTeamId, awayWinner, firstLeg?.away)}</div>
-
-                {group.tieFormat === 2 && (
-                  <>
-                    <div className="mt-1.5 border-t border-white/10 pt-1.5">
-                      <div className="text-[10px] uppercase tracking-[0.08em] text-textMuted">2-й матч</div>
-                      <div className="mt-1 leading-4">{teamRow(group.homeTeamId, homeWinner, secondLeg?.home)}</div>
-                      <div className="mt-1 leading-4">{teamRow(group.awayTeamId, awayWinner, secondLeg?.away)}</div>
-                    </div>
-                    <div className="mt-1.5 flex items-center justify-between border-t border-white/10 pt-1 text-[10px] uppercase tracking-[0.08em] text-textMuted">
-                      <span>Тотал</span>
-                      <span className="font-semibold tabular-nums text-textPrimary">{totalHome === null || totalAway === null ? '- : -' : `${totalHome}:${totalAway}`}</span>
-                    </div>
-                  </>
-                )}
+                <div className="leading-4">{teamRow(group.homeTeamId, homeWinner, homeScore)}</div>
+                <div className="mt-1 leading-4">{teamRow(group.awayTeamId, awayWinner, awayScore)}</div>
+                {legs.length > 1 && <div className="mt-1 text-[9px] uppercase tracking-[0.08em] text-textMuted">матчей: {legs.length}</div>}
 
                 {group.adminLockedWinner && (
                   <div className="mt-1 inline-flex items-center gap-1 rounded-md border border-accentYellow/40 bg-accentYellow/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.08em] text-accentYellow">
@@ -282,26 +314,40 @@ export const BracketView = ({
             )
 
             const primaryMatch = group.firstLeg.matchId
-            const editButton = editable ? (
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  onEditTie?.(group)
-                }}
-                className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md border border-borderSubtle bg-panelBg/80 text-textMuted hover:border-accentYellow/70 hover:text-accentYellow"
-                aria-label="Редактировать плей-офф"
-              >
-                <Pencil size={12} />
-              </button>
+            const editControls = editable ? (
+              <div className="absolute right-2 top-2 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    onEditTie?.(group)
+                  }}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-borderSubtle bg-panelBg/80 text-textMuted hover:border-accentYellow/70 hover:text-accentYellow"
+                  aria-label="Редактировать плей-офф"
+                >
+                  <Pencil size={12} />
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    onDeleteTie?.(group)
+                  }}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-borderSubtle bg-panelBg/80 text-textMuted hover:border-rose-500/70 hover:text-rose-400"
+                  aria-label="Удалить плей-офф"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
             ) : null
 
             if (primaryMatch && !editable) {
               return <Link key={group.id} to={`/matches/${primaryMatch}`} className={nodeClass} style={{ left: group.x, top: group.y, width: NODE_W, height: NODE_H }}>{content}</Link>
             }
 
-            return <div key={group.id} className={`${nodeClass} relative`} style={{ left: group.x, top: group.y, width: NODE_W, height: NODE_H }}>{editButton}{content}</div>
+            return <div key={group.id} className={`${nodeClass} relative`} style={{ left: group.x, top: group.y, width: NODE_W, height: NODE_H }}>{editControls}{content}</div>
           })}
         </div>
       </div>

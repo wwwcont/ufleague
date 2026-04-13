@@ -203,14 +203,46 @@ export interface BracketMatchGroup {
   homeTeamId: ID | null
   awayTeamId: ID | null
   winnerTeamId?: ID | null
-  tieFormat: 1 | 2
+  tieFormat: 1 | 2 | 3
   firstLeg: BracketGameRef
   secondLeg?: BracketGameRef
+  thirdLeg?: BracketGameRef
   adminLockedWinner?: boolean
 }
 
 export interface BracketSettings {
   teamCapacity: BracketSize
+}
+
+export interface PlayoffTieViewModel {
+  id: ID
+  stageId: ID
+  stageLabel: string
+  slot: number
+  homeTeamId: ID | null
+  awayTeamId: ID | null
+  winnerTeamId?: ID | null
+  matches: Array<{ id: ID; status: MatchStatus; score?: { home: number; away: number } }>
+  total?: { home: number; away: number } | null
+}
+
+export interface BracketEditorNode {
+  id: ID
+  tieId: ID
+  stageId: ID
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+export interface BracketEditorEdge {
+  id: ID
+  fromTieId: ID
+  toTieId: ID
+  fromSide?: 'left' | 'right'
+  toSide?: 'left' | 'right'
+  type: 'winner'
 }
 
 export interface SearchResult {

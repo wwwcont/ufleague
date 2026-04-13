@@ -424,6 +424,11 @@ export const bracketRepository: BracketRepository = {
       const secondLegScore = group.second_leg_home_score !== undefined && group.second_leg_away_score !== undefined
         ? { home: Number(group.second_leg_home_score), away: Number(group.second_leg_away_score) }
         : undefined
+      const thirdLegScore = group.third_leg_home_score !== undefined && group.third_leg_away_score !== undefined
+        ? { home: Number(group.third_leg_home_score), away: Number(group.third_leg_away_score) }
+        : undefined
+      const tieFormatRaw = Number(group.tie_format ?? (thirdLegScore ? 3 : secondLegScore ? 2 : 1))
+      const tieFormat: 1 | 2 | 3 = tieFormatRaw === 3 ? 3 : tieFormatRaw === 2 ? 2 : 1
 
       return {
         id: String(group.id),
@@ -432,16 +437,21 @@ export const bracketRepository: BracketRepository = {
         homeTeamId: group.home_team_id ? String(group.home_team_id) : null,
         awayTeamId: group.away_team_id ? String(group.away_team_id) : null,
         winnerTeamId: group.winner_team_id ? String(group.winner_team_id) : null,
-        tieFormat: Number(group.tie_format ?? (secondLegScore ? 2 : 1)) === 2 ? 2 : 1,
+        tieFormat,
         firstLeg: {
           matchId: group.first_leg_match_id ? String(group.first_leg_match_id) : group.linked_match_id ? String(group.linked_match_id) : null,
           status: (group.first_leg_status ?? group.status ?? 'scheduled') as Match['status'],
           score: firstLegScore,
         },
-        secondLeg: Number(group.tie_format ?? (secondLegScore ? 2 : 1)) === 2 ? {
+        secondLeg: tieFormat >= 2 ? {
           matchId: group.second_leg_match_id ? String(group.second_leg_match_id) : null,
           status: (group.second_leg_status ?? 'scheduled') as Match['status'],
           score: secondLegScore,
+        } : undefined,
+        thirdLeg: tieFormat >= 3 ? {
+          matchId: group.third_leg_match_id ? String(group.third_leg_match_id) : null,
+          status: (group.third_leg_status ?? 'scheduled') as Match['status'],
+          score: thirdLegScore,
         } : undefined,
         adminLockedWinner: Boolean(group.admin_locked_winner),
       }
@@ -834,23 +844,113 @@ export const cabinetRepository: CabinetRepository = {
     }
   },
   async createBracketTie(input) {
-    await api('/api/admin/bracket/ties', {
+    const payload = await api<any>(`/api/admin/brackets/${input.bracketId}/ties`, {
       method: 'POST',
       body: JSON.stringify({
-        tournament_id: Number(input.tournamentId),
-        stage_id: input.stageId,
+        // backend no longer requires stage_id for grid-based playoff ties
+        // keep nullable for compatibility with old payloads
+        stage_id: input.stageId ? Number(input.stageId) : null,
         slot: input.slot,
-        home_team_id: Number(input.homeTeamId),
-        away_team_id: Number(input.awayTeamId),
-        label: input.label ?? '',
+        home_team_id: input.homeTeamId ? Number(input.homeTeamId) : null,
+        away_team_id: input.awayTeamId ? Number(input.awayTeamId) : null,
+        legs_planned: 1,
       }),
-    }).catch(() => undefined)
+    })
+    const tieID = payload?.id ?? payload?.tie_id
+    if (!tieID) throw new Error('create tie: missing id in response')
+    return { id: String(tieID) }
+  },
+  async getBracketEditorLayout(tournamentId) {
+    const fetchBracket = async () => api<any>(`/api/admin/brackets/${tournamentId}`)
+    try {
+      const payload = await fetchBracket()
+      const bracketId = String(payload?.id ?? payload?.bracket_id ?? '')
+      const defaultStageId = String(payload?.stages?.[0]?.id ?? '')
+      const nodes = Array.isArray(payload?.layout) ? payload.layout
+        .filter((item: any) => String(item.node_type ?? '') === 'tie')
+        .map((item: any) => ({
+          id: `node_${String(item.node_id)}`,
+          tieId: String(item.node_id),
+          stageId: '',
+          x: Number(item.x ?? 0),
+          y: Number(item.y ?? 0),
+          w: 150,
+          h: 78,
+        })) : []
+      const edges = Array.isArray(payload?.layout)
+        ? payload.layout
+          .filter((item: any) => String(item.node_type ?? '') === 'tie')
+          .flatMap((item: any) => {
+            const fromTieId = String(item.node_id)
+            const toTieIds = Array.isArray(item.meta?.to_tie_ids) ? item.meta.to_tie_ids : []
+            return toTieIds.map((toTieId: any) => ({
+              id: `${fromTieId}:${String(toTieId)}:right:left`,
+              fromTieId,
+              toTieId: String(toTieId),
+              fromSide: 'right' as const,
+              toSide: 'left' as const,
+              type: 'winner' as const,
+            }))
+          })
+        : []
+      if (!bracketId) return null
+      return { bracketId, defaultStageId, nodes, edges }
+    } catch {
+      try {
+        await api('/api/admin/brackets', { method: 'POST', body: JSON.stringify({ tournament_id: Number(tournamentId), team_capacity: 16 }) })
+        const payload = await fetchBracket()
+        const bracketId = String(payload?.id ?? payload?.bracket_id ?? '')
+        const defaultStageId = String(payload?.stages?.[0]?.id ?? '')
+        if (!bracketId) return null
+        return { bracketId, defaultStageId, nodes: [], edges: [] }
+      } catch {
+        return null
+      }
+    }
+  },
+  async saveBracketEditorLayout(input) {
+    const bracketPayload = await api<any>(`/api/admin/brackets/${input.tournamentId}`).catch(() => null)
+    const bracketId = bracketPayload?.id ?? bracketPayload?.bracket_id
+    if (!bracketId) throw new Error('save layout: bracket id not found')
+
+    const outgoing = new Map<string, string[]>()
+    for (const edge of input.edges) {
+      const list = outgoing.get(edge.fromTieId) ?? []
+      list.push(edge.toTieId)
+      outgoing.set(edge.fromTieId, list)
+    }
+
+    const body = JSON.stringify({
+      nodes: input.nodes.map((node) => ({
+        node_type: 'tie',
+        node_id: Number(node.tieId),
+        x: Math.round(node.x),
+        y: Math.round(node.y),
+        meta: { to_tie_ids: outgoing.get(node.tieId) ?? [] },
+      })),
+    })
+    await api(`/api/admin/brackets/${bracketId}/layout`, { method: 'POST', body })
   },
   async attachMatchToTie(input) {
-    await api('/api/admin/bracket/ties/attach-match', {
+    await api('/api/admin/brackets/ties/attach-match', {
+      method: 'POST',
+      body: JSON.stringify({
+        tie_id: input.tieId,
+        match_id: Number(input.matchId),
+      }),
+    }).catch(async () => api('/api/admin/bracket/ties/attach-match', {
       method: 'POST',
       body: JSON.stringify({
         tournament_id: Number(input.tournamentId),
+        tie_id: input.tieId,
+        match_id: Number(input.matchId),
+      }),
+    }).catch(() => undefined))
+  },
+  async detachMatchFromTie(input) {
+    await api('/api/admin/brackets/ties/detach-match', {
+      method: 'POST',
+      body: JSON.stringify({
         tie_id: input.tieId,
         match_id: Number(input.matchId),
       }),
