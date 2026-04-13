@@ -10,7 +10,7 @@ import { useTeams } from '../../hooks/data/useTeams'
 import { useSession } from '../../app/providers/use-session'
 import { canManageMatch } from '../../domain/services/accessControl'
 import { useRepositories } from '../../app/providers/use-repositories'
-import type { BracketEditorEdge, BracketEditorNode, BracketMatchGroup, PlayoffTieViewModel } from '../../domain/entities/types'
+import type { BracketEditorEdge, BracketEditorNode, PlayoffTieViewModel } from '../../domain/entities/types'
 
 const ModeSwitch = ({ mode, setMode }: { mode: 'table' | 'bracket'; setMode: (mode: 'table' | 'bracket') => void }) => (
   <div className="matte-panel mb-3 flex p-1">
@@ -19,14 +19,11 @@ const ModeSwitch = ({ mode, setMode }: { mode: 'table' | 'bracket'; setMode: (mo
   </div>
 )
 
-const NODE_W = 150
-const NODE_H = 78
-
 export const TablePage = () => {
   const [mode, setMode] = useState<'table' | 'bracket'>('table')
   const [transitionName, setTransitionName] = useState<'swipe-left' | 'swipe-right'>('swipe-left')
   const { data: rows } = useStandings()
-  const { data: bracket } = useBracket()
+  const { data: bracket, refetch: refetchBracket } = useBracket()
   const { data: teams } = useTeams()
   const { session } = useSession()
   const { cabinetRepository } = useRepositories()
@@ -38,7 +35,6 @@ export const TablePage = () => {
   const [activeTournamentId, setActiveTournamentId] = useState('')
   const [bracketStatus, setBracketStatus] = useState<string | null>(null)
 
-  const [localCreatedGroups, setLocalCreatedGroups] = useState<BracketMatchGroup[]>([])
   const [deletedTieIds, setDeletedTieIds] = useState<Set<string>>(new Set())
   const [editorNodes, setEditorNodes] = useState<BracketEditorNode[]>([])
   const [editorEdges, setEditorEdges] = useState<BracketEditorEdge[]>([])
@@ -79,8 +75,8 @@ export const TablePage = () => {
 
   const mergedGroups = useMemo(() => {
     const remote = bracket?.groups ?? []
-    return [...remote, ...localCreatedGroups].filter((group) => !deletedTieIds.has(group.id))
-  }, [bracket?.groups, deletedTieIds, localCreatedGroups])
+    return remote.filter((group) => !deletedTieIds.has(group.id))
+  }, [bracket?.groups, deletedTieIds])
 
   const tieViewModels = useMemo<PlayoffTieViewModel[]>(() => {
     const stageById = Object.fromEntries((bracket?.stages ?? []).map((stage) => [stage.id, stage]))
@@ -164,55 +160,36 @@ export const TablePage = () => {
     if (!tieHomeTeamId || !tieAwayTeamId || tieHomeTeamId === tieAwayTeamId) return
 
     if (selectedTieId) {
-      setLocalCreatedGroups((prev) => prev.map((group) => (group.id === selectedTieId
-        ? { ...group, stageId: tieStageId || group.stageId, homeTeamId: tieHomeTeamId, awayTeamId: tieAwayTeamId }
-        : group)))
-      setBracketStatus('Плей-офф обновлён локально')
+      setBracketStatus('Редактирование существующего tie через это окно отключено')
       setSelectedTieId(null)
       return
     }
 
     if (!pendingCreateAnchor) return
 
-    const tieId = `local_tie_${Date.now()}`
     const stageId = tieStageId || bracket?.stages?.[0]?.id || 'custom'
-    const nextGroup: BracketMatchGroup = {
-      id: tieId,
-      stageId,
-      slot: Date.now(),
-      homeTeamId: tieHomeTeamId,
-      awayTeamId: tieAwayTeamId,
-      winnerTeamId: null,
-      tieFormat: 1,
-      firstLeg: { matchId: null, status: 'scheduled' },
-    }
-
-    setLocalCreatedGroups((prev) => [...prev, nextGroup])
-    setEditorNodes((prev) => [...prev, {
-      id: `node_${tieId}`,
-      tieId,
-      stageId,
-      x: (pendingCreateAnchor.col - 1) * NODE_W,
-      y: (pendingCreateAnchor.row - 1) * NODE_H,
-      w: NODE_W,
-      h: NODE_H,
-    }])
+    const slot = Date.now()
 
     if (activeTournamentId && cabinetRepository.createBracketTie) {
       try {
         await cabinetRepository.createBracketTie({
           tournamentId: activeTournamentId,
           stageId,
-          slot: nextGroup.slot,
+          slot,
           homeTeamId: tieHomeTeamId,
           awayTeamId: tieAwayTeamId,
         })
+        await refetchBracket()
       } catch {
-        // local-first mode
+        setBracketStatus('Не удалось создать tie на сервере')
+        return
       }
+    } else {
+      setBracketStatus('Нет API метода createBracketTie')
+      return
     }
 
-    setBracketStatus('Плей-офф добавлен')
+    setBracketStatus('Плей-офф добавлен на сервере')
     setPendingCreateAnchor(null)
   }
 
@@ -225,7 +202,6 @@ export const TablePage = () => {
   }
 
   const deleteTie = (tieId: string) => {
-    setLocalCreatedGroups((prev) => prev.filter((group) => group.id !== tieId))
     setDeletedTieIds((prev) => new Set(prev).add(tieId))
     setEditorNodes((prev) => prev.filter((node) => node.tieId !== tieId))
     setEditorEdges((prev) => prev.filter((edge) => edge.fromTieId !== tieId && edge.toTieId !== tieId))

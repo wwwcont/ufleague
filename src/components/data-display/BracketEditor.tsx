@@ -86,6 +86,7 @@ export const BracketEditor = ({
 
   const onCanvasPointerDown = (event: ReactPointerEvent) => {
     if (event.target !== event.currentTarget) return
+    if (!editable) return
     panRef.current = { pointerStartX: event.clientX, pointerStartY: event.clientY, x: viewport.x, y: viewport.y }
     setSelectedEdgeId(null)
     setSelectedHandle(null)
@@ -221,17 +222,18 @@ export const BracketEditor = ({
           applyZoomAtClientPoint(event.clientX, event.clientY, viewport.scale + (event.deltaY > 0 ? -0.07 : 0.07))
         }}
       >
-        {showGrid && (
-          <div
-            className="absolute inset-0"
-            style={{
-              backgroundImage: `linear-gradient(to right, rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.08) 1px, transparent 1px)`,
-              backgroundSize: `${NODE_W}px ${NODE_H}px`,
-            }}
-          />
-        )}
-
         <div className="absolute left-0 top-0 origin-top-left" style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})`, width: CANVAS_W, height: CANVAS_H }}>
+          {showGrid && (
+            <div
+              className="absolute left-0 top-0"
+              style={{
+                width: CANVAS_W,
+                height: CANVAS_H,
+                backgroundImage: `linear-gradient(to right, rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.08) 1px, transparent 1px)`,
+                backgroundSize: `${NODE_W}px ${NODE_H}px`,
+              }}
+            />
+          )}
           <svg width={CANVAS_W} height={CANVAS_H} className="absolute left-0 top-0">
             {edgeLines.map((edge) => (
               <g key={edge.id}>
