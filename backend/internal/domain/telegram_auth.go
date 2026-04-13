@@ -17,6 +17,20 @@ type TelegramCodeLoginRequest struct {
 	Code      string `json:"code"`
 }
 
+type TelegramIssueCodeRequest struct {
+	RequestID        string `json:"request_id"`
+	TelegramUserID   int64  `json:"telegram_user_id"`
+	TelegramUsername string `json:"telegram_username,omitempty"`
+	FirstName        string `json:"first_name,omitempty"`
+	LastName         string `json:"last_name,omitempty"`
+	Role             *Role  `json:"role,omitempty"`
+}
+
+type TelegramIssueCodeResponse struct {
+	Code      string    `json:"code"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
 type TelegramMockCodeLoginRequest struct {
 	Code string `json:"code"`
 }

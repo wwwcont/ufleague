@@ -2,11 +2,14 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"football_ui/backend/internal/domain"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func (r *AuthRepository) CreateTelegramLoginSession(ctx context.Context, sessionID string, expiresAt time.Time) error {
@@ -18,6 +21,12 @@ func (r *AuthRepository) CreateTelegramLoginSession(ctx context.Context, session
 }
 
 func (r *AuthRepository) StoreTelegramLoginCode(ctx context.Context, code domain.TelegramLoginCode) error {
+	_, _ = r.pool.Exec(ctx, `
+		UPDATE telegram_login_codes
+		SET consumed_at = NOW()
+		WHERE login_session_id = $1 AND consumed_at IS NULL
+	`, code.SessionID)
+
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO telegram_login_codes (
 			login_session_id,
@@ -37,6 +46,24 @@ func (r *AuthRepository) StoreTelegramLoginCode(ctx context.Context, code domain
 		VALUES ('code_issued', $1, $2, $3, jsonb_build_object('issued_by', $4))
 	`, code.SessionID, code.TelegramUserID, code.Role, code.IssuedBy)
 	return nil
+}
+
+func (r *AuthRepository) IsTelegramLoginSessionActive(ctx context.Context, sessionID string) (bool, error) {
+	var id string
+	err := r.pool.QueryRow(ctx, `
+		SELECT id
+		FROM telegram_login_sessions
+		WHERE id = $1
+		  AND consumed_at IS NULL
+		  AND expires_at > NOW()
+	`, sessionID).Scan(&id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return id != "", nil
 }
 
 func (r *AuthRepository) ConsumeTelegramLoginCode(ctx context.Context, sessionID string, codeHash []byte) (domain.TelegramLoginCode, error) {

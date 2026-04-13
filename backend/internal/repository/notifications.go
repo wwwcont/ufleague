@@ -23,6 +23,34 @@ func (r *NotificationsRepository) CreateSubscription(ctx context.Context, sub do
 	return err
 }
 
+func (r *NotificationsRepository) EnsureDefaultTelegramSubscriptions(ctx context.Context, userID int64, chatID int64) error {
+	types := []domain.NotificationType{
+		domain.NotificationTeamEvent,
+		domain.NotificationGlobalEvent,
+		domain.NotificationCommentReply,
+		domain.NotificationPlayerCommentNew,
+	}
+	for _, nt := range types {
+		_, err := r.pool.Exec(ctx, `
+			INSERT INTO notification_subscriptions (user_id, notification_type, scope_type, scope_id, telegram_chat_id, is_enabled)
+			SELECT $1, $2, NULL, NULL, $3, TRUE
+			WHERE NOT EXISTS (
+				SELECT 1
+				FROM notification_subscriptions
+				WHERE user_id = $1
+				  AND notification_type = $2
+				  AND scope_type IS NULL
+				  AND scope_id IS NULL
+				  AND telegram_chat_id = $3
+			)
+		`, userID, nt, chatID)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *NotificationsRepository) Enqueue(ctx context.Context, userID int64, nt domain.NotificationType, payload map[string]any) error {
 	data, _ := json.Marshal(payload)
 	_, err := r.pool.Exec(ctx, `
