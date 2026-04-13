@@ -214,6 +214,35 @@ export interface BracketSettings {
   teamCapacity: BracketSize
 }
 
+export interface PlayoffTieViewModel {
+  id: ID
+  stageId: ID
+  stageLabel: string
+  slot: number
+  homeTeamId: ID | null
+  awayTeamId: ID | null
+  winnerTeamId?: ID | null
+  matches: Array<{ id: ID; status: MatchStatus; score?: { home: number; away: number } }>
+  total?: { home: number; away: number } | null
+}
+
+export interface BracketEditorNode {
+  id: ID
+  tieId: ID
+  stageId: ID
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+export interface BracketEditorEdge {
+  id: ID
+  fromTieId: ID
+  toTieId: ID
+  type: 'winner'
+}
+
 export interface SearchResult {
   id: ID
   type: SearchEntityType

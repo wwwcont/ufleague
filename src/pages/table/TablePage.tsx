@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { BracketView } from '../../components/data-display/BracketView'
+import { BracketEditor, buildInitialEditorNodes } from '../../components/data-display/BracketEditor'
 import { StandingsTable } from '../../components/data-display/StandingsTable'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { PageContainer } from '../../layouts/containers/PageContainer'
@@ -10,7 +11,7 @@ import { useTeams } from '../../hooks/data/useTeams'
 import { useSession } from '../../app/providers/use-session'
 import { canManageMatch } from '../../domain/services/accessControl'
 import { useRepositories } from '../../app/providers/use-repositories'
-import type { BracketMatchGroup, BracketStage } from '../../domain/entities/types'
+import type { BracketEditorEdge, BracketEditorNode, BracketMatchGroup, BracketStage, PlayoffTieViewModel } from '../../domain/entities/types'
 
 const ModeSwitch = ({ mode, setMode }: { mode: 'table' | 'bracket'; setMode: (mode: 'table' | 'bracket') => void }) => (
   <div className="matte-panel mb-3 flex p-1">
@@ -48,6 +49,8 @@ export const TablePage = () => {
   const [tiePendingDelete, setTiePendingDelete] = useState<BracketMatchGroup | null>(null)
   const [isSizeModalOpen, setIsSizeModalOpen] = useState(false)
   const [sizeDraft, setSizeDraft] = useState<4 | 8 | 16>(16)
+  const [editorNodes, setEditorNodes] = useState<BracketEditorNode[]>([])
+  const [editorEdges, setEditorEdges] = useState<BracketEditorEdge[]>([])
 
   const getPlayoffNumber = (groupOrSlot: { tieId?: string; stageId: string; slot: number }) => groupOrSlot.tieId ? String(groupOrSlot.tieId).replace(/\D/g, '') || String(groupOrSlot.tieId) : `${groupOrSlot.stageId}-${groupOrSlot.slot}`
 
@@ -126,6 +129,57 @@ export const TablePage = () => {
       })
   }, [bracket, hiddenTieIds, localTieOverrides, visibleStageIds])
 
+  const tieViewModels = useMemo<PlayoffTieViewModel[]>(() => {
+    const stageById = Object.fromEntries(playoffStages.map((stage) => [stage.id, stage]))
+    return playoffGroups.map((group) => {
+      const matches = [group.firstLeg, group.secondLeg, group.thirdLeg]
+        .filter(Boolean)
+        .map((leg, index) => ({
+          id: String(leg?.matchId ?? `${group.id}_${index + 1}`),
+          status: leg?.status ?? 'scheduled',
+          score: leg?.score,
+        }))
+      const total = matches.length > 1 && matches.every((item) => item.score)
+        ? { home: matches.reduce((sum, item) => sum + (item.score?.home ?? 0), 0), away: matches.reduce((sum, item) => sum + (item.score?.away ?? 0), 0) }
+        : null
+      return {
+        id: group.id,
+        stageId: group.stageId,
+        stageLabel: stageById[group.stageId]?.label ?? group.stageId,
+        slot: group.slot,
+        homeTeamId: group.homeTeamId,
+        awayTeamId: group.awayTeamId,
+        winnerTeamId: group.winnerTeamId,
+        matches,
+        total,
+      }
+    })
+  }, [playoffGroups, playoffStages])
+
+  useEffect(() => {
+    if (!isEditingBracket) return
+    const existingTieIds = new Set(tieViewModels.map((tie) => tie.id))
+    setEditorNodes((prev) => {
+      const filtered = prev.filter((node) => existingTieIds.has(node.tieId))
+      if (filtered.length === tieViewModels.length && filtered.length > 0) return filtered
+      return buildInitialEditorNodes(tieViewModels)
+    })
+    setEditorEdges((prev) => prev.filter((edge) => existingTieIds.has(edge.fromTieId) && existingTieIds.has(edge.toTieId)))
+  }, [isEditingBracket, tieViewModels])
+
+  useEffect(() => {
+    if (!isEditingBracket || !activeTournamentId) return
+    const raw = localStorage.getItem(`bracket_editor_layout_${activeTournamentId}`)
+    if (!raw) return
+    try {
+      const parsed = JSON.parse(raw) as { nodes?: BracketEditorNode[]; edges?: BracketEditorEdge[] }
+      if (Array.isArray(parsed.nodes)) setEditorNodes(parsed.nodes)
+      if (Array.isArray(parsed.edges)) setEditorEdges(parsed.edges)
+    } catch {
+      // ignore malformed cache
+    }
+  }, [activeTournamentId, isEditingBracket])
+
   const changePlayoffSize = async (nextSize: 4 | 8 | 16) => {
     setPlayoffSize(nextSize)
     setBracketStatus(null)
@@ -190,7 +244,7 @@ export const TablePage = () => {
         {mode === 'bracket'
           ? (
             <>
-              {bracket && (
+              {bracket && !isEditingBracket && (
                 <BracketView
                   stages={playoffStages}
                   groups={playoffGroups}
@@ -214,6 +268,35 @@ export const TablePage = () => {
                     setBracketStatus(null)
                   }}
                   onDeleteTie={(group) => { setTiePendingDelete(group) }}
+                />
+              )}
+              {bracket && isEditingBracket && (
+                <BracketEditor
+                  ties={tieViewModels}
+                  nodes={editorNodes}
+                  edges={editorEdges}
+                  teamMap={teamMap}
+                  onChange={({ nodes, edges }) => {
+                    setEditorNodes(nodes)
+                    setEditorEdges(edges)
+                  }}
+                  onEditTie={(tieId) => {
+                    const tie = playoffGroups.find((group) => group.id === tieId)
+                    if (!tie) return
+                    const next = { stageId: tie.stageId, slot: tie.slot, tieId: tie.id }
+                    setSelectedSlot(next)
+                    setSelectedPlayoffNumber(getPlayoffNumber(next))
+                    setTieHomeTeamId(tie.homeTeamId ?? '')
+                    setTieAwayTeamId(tie.awayTeamId ?? '')
+                  }}
+                  onSave={() => {
+                    if (!activeTournamentId) {
+                      setBracketStatus('Layout сохранён локально')
+                      return
+                    }
+                    localStorage.setItem(`bracket_editor_layout_${activeTournamentId}`, JSON.stringify({ nodes: editorNodes, edges: editorEdges }))
+                    setBracketStatus('Layout сохранён локально')
+                  }}
                 />
               )}
               {bracketStatus && <p className="mt-2 text-xs text-textMuted">{bracketStatus}</p>}
