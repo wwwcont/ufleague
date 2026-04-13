@@ -2,6 +2,8 @@ import type {
   AuthSession,
   BracketSize,
   BracketMatchGroup,
+  BracketEditorEdge,
+  BracketEditorNode,
   BracketSettings,
   BracketStage,
   CommentAuthorState,
@@ -128,6 +130,8 @@ export interface CabinetRepository {
   setActiveTournamentCycle?(cycleId: string): Promise<void>
   updateTournamentBracketSettings?(cycleId: string, settings: { teamCapacity: 4 | 8 | 16 | 32 }): Promise<void>
   createBracketTie?(input: { tournamentId: string; stageId: string; slot: number; homeTeamId: string; awayTeamId: string; label?: string }): Promise<{ id: string } | void>
+  getBracketEditorLayout?(tournamentId: string): Promise<{ nodes: BracketEditorNode[]; edges: BracketEditorEdge[] } | null>
+  saveBracketEditorLayout?(input: { tournamentId: string; nodes: BracketEditorNode[]; edges: BracketEditorEdge[] }): Promise<void>
   attachMatchToTie?(input: { tournamentId: string; tieId: string; matchId: string }): Promise<void>
   detachMatchFromTie?(input: { tournamentId: string; tieId: string; matchId: string }): Promise<void>
 }

@@ -45,7 +45,7 @@ export const TablePage = () => {
 
   const [selectedTieId, setSelectedTieId] = useState<string | null>(null)
   const [tiePendingDelete, setTiePendingDelete] = useState<string | null>(null)
-  const [pendingCreateAnchor, setPendingCreateAnchor] = useState<{ x: number; y: number } | null>(null)
+  const [pendingCreateAnchor, setPendingCreateAnchor] = useState<{ col: number; row: number } | null>(null)
 
   const [tieStageId, setTieStageId] = useState('')
   const [tieHomeTeamId, setTieHomeTeamId] = useState('')
@@ -81,52 +81,6 @@ export const TablePage = () => {
     const remote = bracket?.groups ?? []
     return [...remote, ...localCreatedGroups].filter((group) => !deletedTieIds.has(group.id))
   }, [bracket?.groups, deletedTieIds, localCreatedGroups])
-
-  useEffect(() => {
-    if ((bracket?.groups?.length ?? 0) > 0 || localCreatedGroups.length > 0) return
-    const demo: BracketMatchGroup[] = [
-      {
-        id: 'demo_tie_1',
-        stageId: 'demo_stage',
-        slot: 1,
-        homeTeamId: (teams ?? [])[0]?.id ?? null,
-        awayTeamId: (teams ?? [])[1]?.id ?? null,
-        winnerTeamId: null,
-        tieFormat: 1,
-        firstLeg: { matchId: null, status: 'scheduled' },
-      },
-      {
-        id: 'demo_tie_2',
-        stageId: 'demo_stage',
-        slot: 2,
-        homeTeamId: (teams ?? [])[2]?.id ?? null,
-        awayTeamId: (teams ?? [])[3]?.id ?? null,
-        winnerTeamId: null,
-        tieFormat: 1,
-        firstLeg: { matchId: null, status: 'scheduled' },
-      },
-      {
-        id: 'demo_tie_3',
-        stageId: 'demo_stage',
-        slot: 3,
-        homeTeamId: null,
-        awayTeamId: null,
-        winnerTeamId: null,
-        tieFormat: 1,
-        firstLeg: { matchId: null, status: 'scheduled' },
-      },
-    ]
-    setLocalCreatedGroups(demo)
-    setEditorNodes([
-      { id: 'node_demo_1', tieId: 'demo_tie_1', stageId: 'demo_stage', x: 120, y: 160, w: NODE_W, h: NODE_H },
-      { id: 'node_demo_2', tieId: 'demo_tie_2', stageId: 'demo_stage', x: 120, y: 360, w: NODE_W, h: NODE_H },
-      { id: 'node_demo_3', tieId: 'demo_tie_3', stageId: 'demo_stage', x: 460, y: 260, w: NODE_W, h: NODE_H },
-    ])
-    setEditorEdges([
-      { id: 'demo_tie_1:demo_tie_3', fromTieId: 'demo_tie_1', toTieId: 'demo_tie_3', type: 'winner' },
-      { id: 'demo_tie_2:demo_tie_3', fromTieId: 'demo_tie_2', toTieId: 'demo_tie_3', type: 'winner' },
-    ])
-  }, [bracket, localCreatedGroups.length, teams])
 
   const tieViewModels = useMemo<PlayoffTieViewModel[]>(() => {
     const stageById = Object.fromEntries((bracket?.stages ?? []).map((stage) => [stage.id, stage]))
@@ -174,17 +128,14 @@ export const TablePage = () => {
   }, [tieViewModels])
 
   useEffect(() => {
-    if (!activeTournamentId) return
-    const raw = localStorage.getItem(`bracket_editor_layout_${activeTournamentId}`)
-    if (!raw) return
-    try {
-      const parsed = JSON.parse(raw) as { nodes?: BracketEditorNode[]; edges?: BracketEditorEdge[] }
-      if (Array.isArray(parsed.nodes)) setEditorNodes(parsed.nodes)
-      if (Array.isArray(parsed.edges)) setEditorEdges(parsed.edges)
-    } catch {
-      // ignore malformed cache
-    }
-  }, [activeTournamentId])
+    if (!activeTournamentId || !cabinetRepository.getBracketEditorLayout) return
+    void (async () => {
+      const layout = await cabinetRepository.getBracketEditorLayout?.(activeTournamentId)
+      if (!layout) return
+      setEditorNodes(layout.nodes)
+      setEditorEdges(layout.edges)
+    })()
+  }, [activeTournamentId, cabinetRepository])
 
   const openTieEdit = (tieId: string) => {
     const tie = mergedGroups.find((group) => group.id === tieId)
@@ -198,11 +149,15 @@ export const TablePage = () => {
 
   const saveLayout = () => {
     if (!activeTournamentId) {
-      setBracketStatus('Layout сохранён локально')
+      setBracketStatus('Нет активного турнира')
       return
     }
-    localStorage.setItem(`bracket_editor_layout_${activeTournamentId}`, JSON.stringify({ nodes: editorNodes, edges: editorEdges }))
-    setBracketStatus('Layout сохранён')
+    if (!cabinetRepository.saveBracketEditorLayout) {
+      setBracketStatus('Сохранение layout недоступно')
+      return
+    }
+    void cabinetRepository.saveBracketEditorLayout({ tournamentId: activeTournamentId, nodes: editorNodes, edges: editorEdges })
+    setBracketStatus('Layout сохранён на сервере')
   }
 
   const handleUpsertTie = async () => {
@@ -237,8 +192,8 @@ export const TablePage = () => {
       id: `node_${tieId}`,
       tieId,
       stageId,
-      x: pendingCreateAnchor.x,
-      y: pendingCreateAnchor.y,
+      x: (pendingCreateAnchor.col - 1) * NODE_W,
+      y: (pendingCreateAnchor.row - 1) * NODE_H,
       w: NODE_W,
       h: NODE_H,
     }])
@@ -261,7 +216,7 @@ export const TablePage = () => {
     setPendingCreateAnchor(null)
   }
 
-  const startCreateTie = (anchor: { x: number; y: number }) => {
+  const startCreateTie = (anchor: { col: number; row: number }) => {
     setPendingCreateAnchor(anchor)
     setSelectedTieId(null)
     setTieStageId(bracket?.stages?.[0]?.id ?? '')

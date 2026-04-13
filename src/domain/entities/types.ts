@@ -240,6 +240,8 @@ export interface BracketEditorEdge {
   id: ID
   fromTieId: ID
   toTieId: ID
+  fromSide?: 'left' | 'right'
+  toSide?: 'left' | 'right'
   type: 'winner'
 }
 
