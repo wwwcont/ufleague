@@ -47,6 +47,7 @@ export const PlayoffGridEditor = ({
   const [viewport, setViewport] = useState({ x: 16, y: 16, scale: 0.76 })
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
 
   const boardW = GRID_COLS * CELL_W
   const boardH = GRID_ROWS * CELL_H
@@ -63,6 +64,7 @@ export const PlayoffGridEditor = ({
     setSelectedCellId(null)
     setSelectedLineId(null)
     setLineSourceCellId(null)
+    setIsEditing(false)
   }, [grid])
 
   const cellsById = useMemo(() => Object.fromEntries(cellsDraft.map((cell) => [cell.id, cell])), [cellsDraft])
@@ -99,6 +101,33 @@ export const PlayoffGridEditor = ({
     setDirty(true)
   }
 
+  const addCell = () => {
+    for (let row = 1; row <= GRID_ROWS; row += 1) {
+      for (let col = 1; col <= GRID_COLS; col += 1) {
+        if (!occupied.has(`${col}:${row}`)) {
+          const tmpId = `tmp_${Date.now()}_${row}_${col}`
+          setCellsDraft((prev) => [...prev, {
+            id: tmpId,
+            clientKey: `cell:${tmpId}`,
+            homeTeamId: null,
+            awayTeamId: null,
+            col,
+            row,
+            attachedMatchIds: [],
+            attachedMatches: [],
+            aggregateHomeScore: null,
+            aggregateAwayScore: null,
+            winnerTeamId: null,
+            allMatchesFinished: false,
+          }])
+          setSelectedCellId(tmpId)
+          setDirty(true)
+          return
+        }
+      }
+    }
+  }
+
   const boardPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     activePointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
     if (activePointers.current.size === 2) {
@@ -116,7 +145,7 @@ export const PlayoffGridEditor = ({
     if (!activePointers.current.has(event.pointerId)) return
     activePointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
 
-    if (movingCell.current && editorMode === 'move') {
+    if (isEditing && movingCell.current && editorMode === 'move') {
       moveCellToPoint(movingCell.current.id, event.clientX, event.clientY)
       return
     }
@@ -147,7 +176,7 @@ export const PlayoffGridEditor = ({
   const onCellTap = (cellId: string) => {
     setSelectedCellId(cellId)
     setSelectedLineId(null)
-    if (!editable || editorMode !== 'lines') return
+    if (!editable || !isEditing || editorMode !== 'lines') return
     if (!lineSourceCellId) {
       setLineSourceCellId(cellId)
       return
@@ -195,6 +224,7 @@ export const PlayoffGridEditor = ({
     try {
       await onSave(payload)
       setDirty(false)
+      setIsEditing(false)
     } finally {
       setSaving(false)
     }
@@ -207,6 +237,7 @@ export const PlayoffGridEditor = ({
     setSelectedCellId(null)
     setSelectedLineId(null)
     setLineSourceCellId(null)
+    setIsEditing(false)
     setShowCancelConfirm(false)
   }
 
@@ -278,7 +309,7 @@ export const PlayoffGridEditor = ({
                 style={{ left: (cell.col - 1) * CELL_W, top: (cell.row - 1) * CELL_H, width: CELL_W, height: CELL_H }}
                 onPointerDown={(event) => {
                   event.stopPropagation()
-                  if (editable && editorMode === 'move') movingCell.current = { id: cell.id }
+                  if (editable && isEditing && editorMode === 'move') movingCell.current = { id: cell.id }
                 }}
                 onClick={() => onCellTap(cell.id)}
               >
@@ -300,12 +331,25 @@ export const PlayoffGridEditor = ({
         </div>
       </div>
 
-      {editable && (
+      {editable && !isEditing && (
+        <div className="absolute right-3 top-3">
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app"
+          >
+            Редактировать
+          </button>
+        </div>
+      )}
+
+      {editable && isEditing && (
         <div className="absolute inset-x-0 bottom-0 border-t border-borderSubtle bg-app/95 p-2">
-        <div className="grid grid-cols-3 gap-2 text-xs">
+        <div className="grid grid-cols-4 gap-2 text-xs">
           <button type="button" onClick={() => setEditorMode('navigation')} className={`rounded-lg px-2 py-2 ${editorMode === 'navigation' ? 'bg-accentYellow text-app font-semibold' : 'bg-panelAlt text-textSecondary'}`}>Навигация</button>
           <button type="button" onClick={() => setEditorMode('move')} className={`rounded-lg px-2 py-2 ${editorMode === 'move' ? 'bg-accentYellow text-app font-semibold' : 'bg-panelAlt text-textSecondary'}`}>Движение</button>
           <button type="button" onClick={() => setEditorMode('lines')} className={`rounded-lg px-2 py-2 ${editorMode === 'lines' ? 'bg-accentYellow text-app font-semibold' : 'bg-panelAlt text-textSecondary'}`}>Линии</button>
+          <button type="button" onClick={addCell} className="rounded-lg border border-borderSubtle px-2 py-2 text-textSecondary">Добавить</button>
         </div>
         <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
           <button type="button" onClick={() => setShowCancelConfirm(true)} className="rounded-lg border border-borderSubtle px-2 py-2 text-textSecondary">Отмена</button>
@@ -316,7 +360,7 @@ export const PlayoffGridEditor = ({
       )}
 
       <ConfirmDialog
-        open={editable && showCancelConfirm}
+        open={editable && isEditing && showCancelConfirm}
         title="Отменить изменения?"
         description="Несохраненные изменения сетки будут потеряны."
         confirmLabel="Сбросить"
