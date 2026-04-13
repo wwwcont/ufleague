@@ -34,6 +34,8 @@ export const TablePage = () => {
   const [isEditingBracket, setIsEditingBracket] = useState(false)
   const [cancelEditOpen, setCancelEditOpen] = useState(false)
   const [activeTournamentId, setActiveTournamentId] = useState('')
+  const [activeBracketId, setActiveBracketId] = useState('')
+  const [defaultStageId, setDefaultStageId] = useState('')
   const [bracketStatus, setBracketStatus] = useState<string | null>(null)
 
   const [editorNodes, setEditorNodes] = useState<BracketEditorNode[]>([])
@@ -126,10 +128,14 @@ export const TablePage = () => {
     const layout = await cabinetRepository.getBracketEditorLayout(activeTournamentId)
     if (!layout) {
       if (preserveOnEmpty) return
+      setActiveBracketId('')
+      setDefaultStageId('')
       setEditorNodes([])
       setEditorEdges([])
       return
     }
+    setActiveBracketId(layout.bracketId)
+    setDefaultStageId(layout.defaultStageId)
     setEditorNodes(layout.nodes)
     setEditorEdges(layout.edges)
   }
@@ -162,14 +168,15 @@ export const TablePage = () => {
     try {
       let tieIdMap = new Map<string, string>()
       for (const tie of draftCreatedTies) {
-        const created = await cabinetRepository.createBracketTie?.({
-          tournamentId: activeTournamentId,
+        if (!cabinetRepository.createBracketTie || !activeBracketId) throw new Error('create tie api unavailable')
+        const created = await cabinetRepository.createBracketTie({
+          bracketId: activeBracketId,
           stageId: tie.stageId,
           slot: tie.slot,
           homeTeamId: String(tie.homeTeamId),
           awayTeamId: String(tie.awayTeamId),
         })
-        if (created?.id) tieIdMap.set(tie.id, created.id)
+        tieIdMap.set(tie.id, created.id)
       }
 
       const nodesPrepared = nodesSource
@@ -209,12 +216,16 @@ export const TablePage = () => {
 
     if (!pendingCreateAnchor) return
 
-    const stageId = bracket?.stages?.[0]?.id || 'custom'
+    const stageId = defaultStageId || ''
+    if (!stageId) {
+      setBracketStatus('Не найден stage для создания tie')
+      return
+    }
     const tieId = `draft_${Date.now()}`
     setDraftCreatedTies((prev) => [...prev, {
       id: tieId,
       stageId,
-      stageLabel: stageId,
+      stageLabel: (bracket?.stages ?? []).find((stage) => stage.id === stageId)?.label ?? stageId,
       slot: Date.now(),
       homeTeamId: tieHomeTeamId,
       awayTeamId: tieAwayTeamId,

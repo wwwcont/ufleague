@@ -57,6 +57,11 @@ export const BracketEditor = ({
 
   const tieMap = useMemo(() => Object.fromEntries(ties.map((tie) => [tie.id, tie])), [ties])
   const nodeByTieId = useMemo(() => new Map(nodes.map((node) => [node.tieId, node])), [nodes])
+  const getNodeHeight = (tieId: string) => {
+    const tie = tieMap[tieId]
+    if (!tie) return NODE_H
+    return tie.matches.length > 1 ? NODE_H + 18 : NODE_H
+  }
 
   const edgeLines = useMemo(() => edges
     .map((edge) => {
@@ -65,14 +70,16 @@ export const BracketEditor = ({
       if (!from || !to) return null
       const fromSide = edge.fromSide ?? 'right'
       const toSide = edge.toSide ?? 'left'
-      const x1 = fromSide === 'right' ? from.x + NODE_W : from.x
-      const y1 = from.y + NODE_H / 2
-      const x2 = toSide === 'left' ? to.x : to.x + NODE_W
-      const y2 = to.y + NODE_H / 2
-      const midX = (x1 + x2) / 2
-      return { id: edge.id, x1, y1, x2, y2, midX, midY: (y1 + y2) / 2 }
+      const fromH = getNodeHeight(edge.fromTieId)
+      const toH = getNodeHeight(edge.toTieId)
+      const x1 = fromSide === 'right' ? from.x + from.w : from.x
+      const y1 = from.y + fromH / 2
+      const x2 = toSide === 'left' ? to.x : to.x + to.w
+      const y2 = to.y + toH / 2
+      const control = Math.max(48, Math.abs(x2 - x1) * 0.4)
+      return { id: edge.id, x1, y1, x2, y2, c1x: x1 + control, c2x: x2 - control, midX: (x1 + x2) / 2, midY: (y1 + y2) / 2 }
     })
-    .filter(Boolean) as Array<{ id: string; x1: number; y1: number; x2: number; y2: number; midX: number; midY: number }>, [edges, nodeByTieId])
+    .filter(Boolean) as Array<{ id: string; x1: number; y1: number; x2: number; y2: number; c1x: number; c2x: number; midX: number; midY: number }>, [edges, nodeByTieId, tieMap])
 
   const applyZoomAtClientPoint = (clientX: number, clientY: number, nextScale: number) => {
     setViewport((prev) => {
@@ -255,7 +262,7 @@ export const BracketEditor = ({
             {edgeLines.map((edge) => (
               <g key={edge.id}>
                 <path
-                  d={`M ${edge.x1} ${edge.y1} L ${edge.midX} ${edge.y1} L ${edge.midX} ${edge.y2} L ${edge.x2} ${edge.y2}`}
+                  d={`M ${edge.x1} ${edge.y1} C ${edge.c1x} ${edge.y1}, ${edge.c2x} ${edge.y2}, ${edge.x2} ${edge.y2}`}
                   fill="none"
                   stroke="rgba(227,193,75,0.82)"
                   strokeWidth={3}
@@ -291,7 +298,7 @@ export const BracketEditor = ({
               <article
                 key={node.id}
                 className="absolute block rounded-xl border border-white/10 bg-panelAlt/85 px-2 py-1.5 shadow-soft backdrop-blur relative"
-                style={{ left: node.x, top: node.y, width: node.w, height: node.h }}
+                style={{ left: node.x, top: node.y, width: node.w, minHeight: getNodeHeight(node.tieId) }}
                 onPointerDown={(event) => onNodePointerDown(event, node)}
               >
                 {editable && (

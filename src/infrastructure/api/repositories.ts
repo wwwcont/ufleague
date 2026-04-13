@@ -844,25 +844,25 @@ export const cabinetRepository: CabinetRepository = {
     }
   },
   async createBracketTie(input) {
-    const payload = await api<any>('/api/admin/bracket/ties', {
+    const payload = await api<any>(`/api/admin/brackets/${input.bracketId}/ties`, {
       method: 'POST',
       body: JSON.stringify({
-        tournament_id: Number(input.tournamentId),
-        stage_id: input.stageId,
+        stage_id: Number(input.stageId),
         slot: input.slot,
         home_team_id: Number(input.homeTeamId),
         away_team_id: Number(input.awayTeamId),
-        label: input.label ?? '',
+        legs_planned: 1,
       }),
-    }).catch(() => undefined)
-    if (payload?.id || payload?.tie_id) {
-      return { id: String(payload.id ?? payload.tie_id) }
-    }
-    return undefined
+    })
+    const tieID = payload?.id ?? payload?.tie_id
+    if (!tieID) throw new Error('create tie: missing id in response')
+    return { id: String(tieID) }
   },
   async getBracketEditorLayout(tournamentId) {
     try {
       const payload = await api<any>(`/api/admin/brackets/${tournamentId}`)
+      const bracketId = String(payload?.id ?? payload?.bracket_id ?? '')
+      const defaultStageId = String(payload?.stages?.[0]?.id ?? '')
       const nodes = Array.isArray(payload?.layout) ? payload.layout
         .filter((item: any) => String(item.node_type ?? '') === 'tie')
         .map((item: any) => ({
@@ -890,8 +890,8 @@ export const cabinetRepository: CabinetRepository = {
             }))
           })
         : []
-      if (!nodes.length && !edges.length) return null
-      return { nodes, edges }
+      if (!bracketId) return null
+      return { bracketId, defaultStageId, nodes, edges }
     } catch {
       return null
     }
@@ -899,7 +899,7 @@ export const cabinetRepository: CabinetRepository = {
   async saveBracketEditorLayout(input) {
     const bracketPayload = await api<any>(`/api/admin/brackets/${input.tournamentId}`).catch(() => null)
     const bracketId = bracketPayload?.id ?? bracketPayload?.bracket_id
-    if (!bracketId) return
+    if (!bracketId) throw new Error('save layout: bracket id not found')
 
     const outgoing = new Map<string, string[]>()
     for (const edge of input.edges) {
@@ -917,7 +917,7 @@ export const cabinetRepository: CabinetRepository = {
         meta: { to_tie_ids: outgoing.get(node.tieId) ?? [] },
       })),
     })
-    await api(`/api/admin/brackets/${bracketId}/layout`, { method: 'POST', body }).catch(() => undefined)
+    await api(`/api/admin/brackets/${bracketId}/layout`, { method: 'POST', body })
   },
   async attachMatchToTie(input) {
     await api('/api/admin/brackets/ties/attach-match', {
