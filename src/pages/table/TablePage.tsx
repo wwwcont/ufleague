@@ -61,13 +61,13 @@ export const TablePage = () => {
         {mode === 'bracket'
           ? (
             <>
-              {!canEditBracket && <p className="mb-3 text-xs text-textMuted">Сетка доступна только в режиме администратора.</p>}
               {playoffLoading && <p className="text-sm text-textMuted">Загрузка сетки...</p>}
               {error && <p className="text-sm text-red-400">Ошибка загрузки: {String(error)}</p>}
-              {playoffGrid && canEditBracket && (
+              {playoffGrid && (
                 <PlayoffGridEditor
                   grid={playoffGrid}
                   teamMap={teamMap}
+                  editable={canEditBracket}
                   onSave={async (payload) => {
                     await playoffGridRepository.validateDraft(activeTournamentId, payload)
                     await playoffGridRepository.savePlayoffGrid(activeTournamentId, payload)

@@ -384,48 +384,58 @@ export const standingsRepository: StandingsRepository = {
 }
 export const playoffGridRepository: PlayoffGridRepository = {
   async getPlayoffGrid(tournamentId) {
-    const data = await api<any>(`/api/playoff-grid/${tournamentId}`)
-    return {
-      cells: (data.cells ?? []).map((cell: any) => ({
+    try {
+      const data = await api<any>(`/api/playoff-grid/${tournamentId}`)
+      return {
+        cells: (data.cells ?? []).map((cell: any) => ({
+          id: String(cell.id),
+          homeTeamId: cell.home_team_id ? String(cell.home_team_id) : null,
+          awayTeamId: cell.away_team_id ? String(cell.away_team_id) : null,
+          col: Number(cell.col),
+          row: Number(cell.row),
+          attachedMatchIds: Array.isArray(cell.attached_match_ids) ? cell.attached_match_ids.map((id: number) => String(id)) : [],
+          attachedMatches: Array.isArray(cell.attached_matches) ? cell.attached_matches.map((match: any) => ({
+            id: String(match.id),
+            status: match.status as Match['status'],
+            homeScore: Number(match.home_score ?? 0),
+            awayScore: Number(match.away_score ?? 0),
+          })) : [],
+          aggregateHomeScore: cell.aggregate_home_score ?? null,
+          aggregateAwayScore: cell.aggregate_away_score ?? null,
+          winnerTeamId: cell.winner_team_id ? String(cell.winner_team_id) : null,
+          allMatchesFinished: Boolean(cell.all_matches_finished),
+        })),
+        lines: (data.lines ?? []).map((line: any) => ({
+          id: String(line.id),
+          fromPlayoffId: String(line.from_playoff_id),
+          toPlayoffId: String(line.to_playoff_id),
+        })),
+      } satisfies PlayoffGrid
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) return { cells: [], lines: [] }
+      throw error
+    }
+  },
+  async getMatchCandidates(tournamentId, matchId) {
+    try {
+      const data = await api<{ cells?: any[] }>(`/api/admin/playoff-grid/${tournamentId}/match-candidates?matchId=${encodeURIComponent(matchId)}`)
+      return (data.cells ?? []).map((cell) => ({
         id: String(cell.id),
         homeTeamId: cell.home_team_id ? String(cell.home_team_id) : null,
         awayTeamId: cell.away_team_id ? String(cell.away_team_id) : null,
         col: Number(cell.col),
         row: Number(cell.row),
         attachedMatchIds: Array.isArray(cell.attached_match_ids) ? cell.attached_match_ids.map((id: number) => String(id)) : [],
-        attachedMatches: Array.isArray(cell.attached_matches) ? cell.attached_matches.map((match: any) => ({
-          id: String(match.id),
-          status: match.status as Match['status'],
-          homeScore: Number(match.home_score ?? 0),
-          awayScore: Number(match.away_score ?? 0),
-        })) : [],
-        aggregateHomeScore: cell.aggregate_home_score ?? null,
-        aggregateAwayScore: cell.aggregate_away_score ?? null,
-        winnerTeamId: cell.winner_team_id ? String(cell.winner_team_id) : null,
-        allMatchesFinished: Boolean(cell.all_matches_finished),
-      })),
-      lines: (data.lines ?? []).map((line: any) => ({
-        id: String(line.id),
-        fromPlayoffId: String(line.from_playoff_id),
-        toPlayoffId: String(line.to_playoff_id),
-      })),
-    } satisfies PlayoffGrid
-  },
-  async getMatchCandidates(tournamentId, matchId) {
-    const data = await api<{ cells?: any[] }>(`/api/admin/playoff-grid/${tournamentId}/match-candidates?matchId=${encodeURIComponent(matchId)}`)
-    return (data.cells ?? []).map((cell) => ({
-      id: String(cell.id),
-      homeTeamId: cell.home_team_id ? String(cell.home_team_id) : null,
-      awayTeamId: cell.away_team_id ? String(cell.away_team_id) : null,
-      col: Number(cell.col),
-      row: Number(cell.row),
-      attachedMatchIds: Array.isArray(cell.attached_match_ids) ? cell.attached_match_ids.map((id: number) => String(id)) : [],
-      attachedMatches: [],
-      aggregateHomeScore: null,
-      aggregateAwayScore: null,
-      winnerTeamId: null,
-      allMatchesFinished: false,
-    }))
+        attachedMatches: [],
+        aggregateHomeScore: null,
+        aggregateAwayScore: null,
+        winnerTeamId: null,
+        allMatchesFinished: false,
+      }))
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) return []
+      throw error
+    }
   },
   async attachMatch(playoffCellId, matchId) {
     await api('/api/admin/playoff-grid/attach-match', {
