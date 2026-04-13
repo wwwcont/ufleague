@@ -20,9 +20,10 @@ export const TablePage = () => {
   const [mode, setMode] = useState<'table' | 'bracket'>('table')
   const [transitionName, setTransitionName] = useState<'swipe-left' | 'swipe-right'>('swipe-left')
   const [activeTournamentId, setActiveTournamentId] = useState('1')
+  const normalizedTournamentId = /^\d+$/.test(activeTournamentId) ? activeTournamentId : '1'
   const { data: rows } = useStandings()
   const { data: teams } = useTeams()
-  const { data: playoffGrid, isLoading: playoffLoading, error, refetch } = usePlayoffGrid(activeTournamentId)
+  const { data: playoffGrid, isLoading: playoffLoading, error, refetch } = usePlayoffGrid(normalizedTournamentId)
   const { session } = useSession()
   const { cabinetRepository, playoffGridRepository } = useRepositories()
   const teamMap = useMemo(() => Object.fromEntries((teams ?? []).map((t) => [t.id, t])), [teams])
@@ -50,7 +51,7 @@ export const TablePage = () => {
     void (async () => {
       const cycles = await cabinetRepository.getTournamentCycles?.()
       const active = cycles?.find((item) => item.isActive)
-      if (active) setActiveTournamentId(active.id)
+      if (active && /^\d+$/.test(active.id)) setActiveTournamentId(active.id)
     })()
   }, [cabinetRepository, canEditBracket])
 
@@ -69,8 +70,8 @@ export const TablePage = () => {
                   teamMap={teamMap}
                   editable={canEditBracket}
                   onSave={async (payload) => {
-                    await playoffGridRepository.validateDraft(activeTournamentId, payload)
-                    await playoffGridRepository.savePlayoffGrid(activeTournamentId, payload)
+                    await playoffGridRepository.validateDraft(normalizedTournamentId, payload)
+                    await playoffGridRepository.savePlayoffGrid(normalizedTournamentId, payload)
                     await refetch()
                   }}
                 />

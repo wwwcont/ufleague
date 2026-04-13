@@ -771,25 +771,6 @@ const mapProfile = (payload: any) => ({
   socials: (payload.socials ?? {}) as Record<string, string>,
 })
 
-const tournamentCyclesStorageKey = 'ufl.tournament.cycles'
-type TournamentCycleDraft = { id: string; name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive: boolean }
-const localCyclesFallback: TournamentCycleDraft[] = [{ id: 'cycle_2026', name: 'Сезон 2026', bracketTeamCapacity: 16, isActive: true }]
-const loadLocalTournamentCycles = () => {
-  if (typeof window === 'undefined') return localCyclesFallback
-  const raw = window.localStorage.getItem(tournamentCyclesStorageKey)
-  if (!raw) return localCyclesFallback
-  try {
-    const parsed = JSON.parse(raw) as TournamentCycleDraft[]
-    return Array.isArray(parsed) && parsed.length ? parsed : localCyclesFallback
-  } catch {
-    return localCyclesFallback
-  }
-}
-const saveLocalTournamentCycles = (cycles: TournamentCycleDraft[]) => {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(tournamentCyclesStorageKey, JSON.stringify(cycles))
-}
-
 export const cabinetRepository: CabinetRepository = {
   async getMyProfile() {
     return mapProfile(await api<any>('/api/me/profile'))
@@ -859,46 +840,22 @@ export const cabinetRepository: CabinetRepository = {
     }))
   },
   async getTournamentCycles() {
-    try {
-      const payload = await api<any[]>('/api/tournament/cycles')
-      return payload.map((item) => ({
-        id: String(item.id),
-        name: String(item.name),
-        bracketTeamCapacity: [4, 8, 16, 32].includes(Number(item.bracket_team_capacity)) ? Number(item.bracket_team_capacity) as 4 | 8 | 16 | 32 : 16,
-        isActive: Boolean(item.is_active),
-      }))
-    } catch {
-      return loadLocalTournamentCycles()
-    }
+    const payload = await api<any[]>('/api/tournament/cycles')
+    return payload.map((item) => ({
+      id: String(item.id),
+      name: String(item.name),
+      bracketTeamCapacity: [4, 8, 16, 32].includes(Number(item.bracket_team_capacity)) ? Number(item.bracket_team_capacity) as 4 | 8 | 16 | 32 : 16,
+      isActive: Boolean(item.is_active),
+    }))
   },
   async createTournamentCycle(input) {
-    try {
-      await api('/api/admin/tournament/cycles', { method: 'POST', body: JSON.stringify({ name: input.name, bracket_team_capacity: input.bracketTeamCapacity, is_active: Boolean(input.isActive) }) })
-      return
-    } catch {
-      const cycles = loadLocalTournamentCycles()
-      const next = [
-        ...cycles.map((cycle) => ({ ...cycle, isActive: input.isActive ? false : cycle.isActive })),
-        { id: `cycle_${Date.now()}`, name: input.name, bracketTeamCapacity: input.bracketTeamCapacity, isActive: Boolean(input.isActive) },
-      ]
-      saveLocalTournamentCycles(next)
-    }
+    await api('/api/admin/tournament/cycles', { method: 'POST', body: JSON.stringify({ name: input.name, bracket_team_capacity: input.bracketTeamCapacity, is_active: Boolean(input.isActive) }) })
   },
   async setActiveTournamentCycle(cycleId) {
-    try {
-      await api(`/api/admin/tournament/cycles/${cycleId}/activate`, { method: 'POST' })
-      return
-    } catch {
-      saveLocalTournamentCycles(loadLocalTournamentCycles().map((cycle) => ({ ...cycle, isActive: cycle.id === cycleId })))
-    }
+    await api(`/api/admin/tournament/cycles/${cycleId}/activate`, { method: 'POST' })
   },
   async updateTournamentBracketSettings(cycleId, settings) {
-    try {
-      await api(`/api/admin/tournament/cycles/${cycleId}/settings`, { method: 'PATCH', body: JSON.stringify({ bracket_team_capacity: settings.teamCapacity }) })
-      return
-    } catch {
-      saveLocalTournamentCycles(loadLocalTournamentCycles().map((cycle) => (cycle.id === cycleId ? { ...cycle, bracketTeamCapacity: settings.teamCapacity } : cycle)))
-    }
+    await api(`/api/admin/tournament/cycles/${cycleId}/settings`, { method: 'PATCH', body: JSON.stringify({ bracket_team_capacity: settings.teamCapacity }) })
   },
 }
 

@@ -107,6 +107,7 @@ export const MatchDetailsPage = () => {
   const [goalAssistId, setGoalAssistId] = useState('')
   const [goalStatus, setGoalStatus] = useState<string | null>(null)
   const [activeTournamentId, setActiveTournamentId] = useState('1')
+  const normalizedTournamentId = /^\d+$/.test(activeTournamentId) ? activeTournamentId : '1'
   const [playoffModalOpen, setPlayoffModalOpen] = useState(false)
   const [playoffCandidates, setPlayoffCandidates] = useState<Array<{ id: string; col: number; row: number }>>([])
   const [playoffLoading, setPlayoffLoading] = useState(false)
@@ -126,7 +127,7 @@ export const MatchDetailsPage = () => {
     void (async () => {
       const cycles = await cabinetRepository.getTournamentCycles?.()
       const active = cycles?.find((item) => item.isActive)
-      if (active) setActiveTournamentId(active.id)
+      if (active && /^\d+$/.test(active.id)) setActiveTournamentId(active.id)
     })()
   }, [cabinetRepository, session])
 
@@ -137,14 +138,14 @@ export const MatchDetailsPage = () => {
     }
     void (async () => {
       try {
-        const grid = await playoffGridRepository.getPlayoffGrid(activeTournamentId)
+        const grid = await playoffGridRepository.getPlayoffGrid(normalizedTournamentId)
         const linked = grid.cells.find((cell) => cell.id === match.playoffCellId)
         setCurrentPlayoffCell(linked ? { id: linked.id, col: linked.col, row: linked.row } : null)
       } catch {
         setCurrentPlayoffCell(null)
       }
     })()
-  }, [activeTournamentId, match?.playoffCellId, playoffGridRepository])
+  }, [match?.playoffCellId, normalizedTournamentId, playoffGridRepository])
 
   if (!match || !teams || !home || !away || !allMatches || !players) {
     return (
@@ -182,7 +183,7 @@ export const MatchDetailsPage = () => {
   const refreshAfterPlayoffAction = async () => {
     await Promise.all([
       refetchMatch(),
-      playoffGridRepository.getPlayoffGrid(activeTournamentId),
+      playoffGridRepository.getPlayoffGrid(normalizedTournamentId),
     ])
   }
 
@@ -192,7 +193,7 @@ export const MatchDetailsPage = () => {
     setPlayoffStatus(null)
     setSelectedPlayoffId(null)
     try {
-      const items = await playoffGridRepository.getMatchCandidates(activeTournamentId, match.id)
+      const items = await playoffGridRepository.getMatchCandidates(normalizedTournamentId, match.id)
       setPlayoffCandidates(items.map((item) => ({ id: item.id, col: item.col, row: item.row })))
     } catch (error) {
       setPlayoffStatus(actionError(error))
