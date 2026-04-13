@@ -10,6 +10,7 @@ import { CommentsSection } from '../../components/comments'
 import { useSession } from '../../app/providers/use-session'
 import { useTeams } from '../../hooks/data/useTeams'
 import { usePlayers } from '../../hooks/data/usePlayers'
+import { useMatches } from '../../hooks/data/useMatches'
 import { canManageEvent } from '../../domain/services/accessControl'
 import { formatDateTimeMsk } from '../../lib/date-time'
 import { useRepositories } from '../../app/providers/use-repositories'
@@ -18,6 +19,7 @@ import { EditableSection, EditableSectionHeader, EditableTextField, EditableText
 import { EventContentRenderer, EventEditor } from '../../components/events'
 import type { EventContentBlock } from '../../domain/entities/types'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
+import { resolveEventSourceLabel } from '../../domain/services/eventSourceLabel'
 
 export const EventDetailsPage = () => {
   const { eventId } = useParams()
@@ -25,6 +27,7 @@ export const EventDetailsPage = () => {
   const { session } = useSession()
   const { data: teams } = useTeams()
   const { data: players } = usePlayers()
+  const { data: matches } = useMatches()
   const { eventsRepository, uploadsRepository } = useRepositories()
   const navigate = useNavigate()
 
@@ -57,7 +60,9 @@ export const EventDetailsPage = () => {
 
   const teamMap = Object.fromEntries((teams ?? []).map((team) => [team.id, team]))
   const playerMap = Object.fromEntries((players ?? []).map((player) => [player.id, player]))
+  const matchMap = Object.fromEntries((matches ?? []).map((match) => [match.id, match]))
   const canManage = canManageEvent(session, teamMap, event, playerMap)
+  const sourceLabel = resolveEventSourceLabel({ event, teamsById: teamMap, playersById: playerMap, matchesById: matchMap })
 
   const actionError = (err: unknown) => {
     if (err instanceof ApiError) return `Ошибка API ${err.status}: ${err.message}`
@@ -68,13 +73,13 @@ export const EventDetailsPage = () => {
     <PageContainer>
       <EditableSection isEditing={isEditing} className="p-5">
         <div className="mb-2 flex items-center justify-between text-xs text-textMuted">
-          <span>{event.source}</span>
+          <span>{sourceLabel}</span>
           <span>{formatDateTimeMsk(event.timestamp)}</span>
         </div>
 
         <EditableSectionHeader
           title={isEditing ? editableTitle || 'Без названия' : event.title}
-          subtitle="Событие как контент-сущность: title, summary и content blocks"
+          subtitle="Материал события"
           canEdit={canManage}
           isEditing={isEditing}
           onStartEdit={() => {

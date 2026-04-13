@@ -4,6 +4,10 @@ import type { PublicEvent } from '../../domain/entities/types'
 import { EntityReactions } from '../ui/EntityReactions'
 import { formatDateTimeMsk } from '../../lib/date-time'
 import { MediaPreviewModal } from '../ui/MediaPreviewModal'
+import { useTeams } from '../../hooks/data/useTeams'
+import { usePlayers } from '../../hooks/data/usePlayers'
+import { useMatches } from '../../hooks/data/useMatches'
+import { resolveEventSourceLabel } from '../../domain/services/eventSourceLabel'
 
 const categoryLabel: Record<string, string> = {
   news: 'Новость',
@@ -25,10 +29,17 @@ export const EventCard = ({ event, showRoleActions = true }: EventCardProps) => 
 
 const EventCardInner = ({ event, showRoleActions }: EventCardProps) => {
   const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const { data: teams } = useTeams()
+  const { data: players } = usePlayers()
+  const { data: matches } = useMatches()
   const coverImageUrl = useMemo(
     () => event.imageUrl ?? event.contentBlocks?.find((block) => block.type === 'image')?.imageUrl ?? null,
     [event.contentBlocks, event.imageUrl],
   )
+  const teamsById = useMemo(() => Object.fromEntries((teams ?? []).map((team) => [team.id, team])), [teams])
+  const playersById = useMemo(() => Object.fromEntries((players ?? []).map((player) => [player.id, player])), [players])
+  const matchesById = useMemo(() => Object.fromEntries((matches ?? []).map((match) => [match.id, match])), [matches])
+  const sourceLabel = resolveEventSourceLabel({ event, teamsById, playersById, matchesById })
 
   return (
     <>
@@ -50,7 +61,7 @@ const EventCardInner = ({ event, showRoleActions }: EventCardProps) => {
         </Link>
 
         <div className="mt-2 flex items-center justify-between gap-2">
-          <p className="text-xs text-textMuted">{event.source} · {event.authorName}</p>
+          <p className="text-xs text-textMuted">{sourceLabel} · {event.authorName}</p>
           <EntityReactions entityKey={`event:${event.id}`} compact />
         </div>
 

@@ -398,7 +398,7 @@ export const PlayerDetailsPage = () => {
       {canEditPlayer && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
           {!eventCreateOpen ? (
-            <button type="button" onClick={() => setEventCreateOpen(true)} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary">Создать событие</button>
+            <button type="button" onClick={() => setEventCreateOpen(true)} className="w-full rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app">Создать событие</button>
           ) : (
             <div className="space-y-3">
               <p className="text-sm font-semibold text-textPrimary">Новое событие игрока</p>

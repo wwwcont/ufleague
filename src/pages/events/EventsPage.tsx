@@ -8,17 +8,26 @@ import { LoadingState } from '../../components/ui/LoadingState'
 import { ErrorState } from '../../components/ui/ErrorState'
 import { useSession } from '../../app/providers/use-session'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
-import { canManageTeam } from '../../domain/services/accessControl'
+import { canManageTeam, isAdmin } from '../../domain/services/accessControl'
 import { useRepositories } from '../../app/providers/use-repositories'
 import type { PublicEvent } from '../../domain/entities/types'
 
 export const EventsPage = () => {
   const [searchParams] = useSearchParams()
-  const teamId = searchParams.get('teamId') ?? undefined
-  const { data, isLoading, error } = useEvents(teamId ? { entityType: 'team', entityId: teamId } : undefined)
+  const scope = searchParams.get('scope') ?? 'global'
+  const scopeId = searchParams.get('id') ?? undefined
+  const teamId = scope === 'team' ? scopeId : undefined
+  const { data, isLoading, error } = useEvents(
+    scope === 'all'
+      ? undefined
+      : scope === 'global'
+        ? { entityType: 'global' }
+        : { entityType: scope as 'team' | 'player' | 'match', entityId: scopeId },
+  )
   const { session } = useSession()
   const { data: team } = useTeamDetails(teamId)
   const canManageCurrentTeam = canManageTeam(session, team)
+  const canCreateGlobal = isAdmin(session) && scope === 'global'
   const { eventsRepository } = useRepositories()
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
@@ -29,12 +38,16 @@ export const EventsPage = () => {
     () => [...createdLocal, ...((data ?? []).map((event) => (teamId && canManageCurrentTeam ? { ...event, canEdit: true, canDelete: true } : event)))],
     [canManageCurrentTeam, createdLocal, data, teamId],
   )
-  const pageTitle = teamId ? `События команды${team ? `: ${team.name}` : ''}` : 'События турнира'
+  const pageTitle = scope === 'all'
+    ? 'Все события'
+    : teamId
+      ? `События команды${team ? `: ${team.name}` : ''}`
+      : 'События турнира'
 
   return (
     <PageContainer>
       <SectionHeader title={pageTitle} action={<Link to="/" className="text-sm text-accentYellow">На главную</Link>} />
-      {teamId && canManageCurrentTeam && (
+      {(teamId && canManageCurrentTeam) || canCreateGlobal ? (
         <section className="mb-3 rounded-2xl border border-borderSubtle bg-panelBg p-4">
           <button
             type="button"
@@ -43,7 +56,13 @@ export const EventsPage = () => {
               setPending(true)
               setStatus('Публикуем событие...')
               try {
-                await eventsRepository.createEventForScope?.({ scopeType: 'team', scopeId: teamId, title: title.trim(), body: body.trim() })
+                const scopeType = (teamId ? 'team' : 'global') as 'team' | 'global'
+                await eventsRepository.createEventForScope?.({
+                  scopeType,
+                  scopeId: scopeType === 'team' ? teamId : undefined,
+                  title: title.trim(),
+                  body: body.trim(),
+                })
                 setCreatedLocal((prev) => [{
                   id: `local_${Date.now()}`,
                   title: title.trim(),
@@ -51,11 +70,11 @@ export const EventsPage = () => {
                   text: body.trim(),
                   contentBlocks: [],
                   timestamp: new Date().toISOString(),
-                  source: 'team',
+                  source: scopeType,
                   authorName: session.user.displayName,
                   category: 'news',
-                  entityType: 'team',
-                  entityId: teamId,
+                  entityType: scopeType,
+                  entityId: scopeType === 'team' ? teamId : undefined,
                   canEdit: true,
                   canDelete: true,
                 }, ...prev])
@@ -68,7 +87,7 @@ export const EventsPage = () => {
                 setPending(false)
               }
             }}
-            className="mb-3 block w-full rounded-lg bg-accentYellow px-3 py-3 text-sm font-semibold text-app disabled:opacity-50"
+            className="mb-3 block w-full rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50"
           >
             Создать событие
           </button>
@@ -76,10 +95,10 @@ export const EventsPage = () => {
           <textarea value={body} onChange={(event) => setBody(event.target.value)} rows={3} placeholder="Текст события" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm" />
           {status && <p className="mt-2 text-xs text-textMuted">{status}</p>}
         </section>
-      )}
+      ) : null}
       {isLoading && <LoadingState title="Загружаем ленту событий" />}
       {error && <ErrorState title="Ошибка ленты" subtitle="Не удалось загрузить события" />}
-      {!isLoading && !error && <EventFeedSection title={teamId ? 'Лента событий команды' : 'Public event timeline'} layout="timeline" events={events} messageWhenEmpty="Событий пока нет." />}
+      {!isLoading && !error && <EventFeedSection title={teamId ? 'Лента событий команды' : scope === 'all' ? 'Общая лента событий' : 'Лента главных событий'} layout="timeline" events={events} messageWhenEmpty="Событий пока нет." />}
     </PageContainer>
   )
 }
