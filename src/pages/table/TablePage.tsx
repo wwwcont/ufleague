@@ -39,6 +39,7 @@ export const TablePage = () => {
   const [bracketStatus, setBracketStatus] = useState<string | null>(null)
 
   const [localCreatedGroups, setLocalCreatedGroups] = useState<BracketMatchGroup[]>([])
+  const [deletedTieIds, setDeletedTieIds] = useState<Set<string>>(new Set())
   const [editorNodes, setEditorNodes] = useState<BracketEditorNode[]>([])
   const [editorEdges, setEditorEdges] = useState<BracketEditorEdge[]>([])
 
@@ -78,8 +79,54 @@ export const TablePage = () => {
 
   const mergedGroups = useMemo(() => {
     const remote = bracket?.groups ?? []
-    return [...remote, ...localCreatedGroups]
-  }, [bracket?.groups, localCreatedGroups])
+    return [...remote, ...localCreatedGroups].filter((group) => !deletedTieIds.has(group.id))
+  }, [bracket?.groups, deletedTieIds, localCreatedGroups])
+
+  useEffect(() => {
+    if ((bracket?.groups?.length ?? 0) > 0 || localCreatedGroups.length > 0) return
+    const demo: BracketMatchGroup[] = [
+      {
+        id: 'demo_tie_1',
+        stageId: 'demo_stage',
+        slot: 1,
+        homeTeamId: (teams ?? [])[0]?.id ?? null,
+        awayTeamId: (teams ?? [])[1]?.id ?? null,
+        winnerTeamId: null,
+        tieFormat: 1,
+        firstLeg: { matchId: null, status: 'scheduled' },
+      },
+      {
+        id: 'demo_tie_2',
+        stageId: 'demo_stage',
+        slot: 2,
+        homeTeamId: (teams ?? [])[2]?.id ?? null,
+        awayTeamId: (teams ?? [])[3]?.id ?? null,
+        winnerTeamId: null,
+        tieFormat: 1,
+        firstLeg: { matchId: null, status: 'scheduled' },
+      },
+      {
+        id: 'demo_tie_3',
+        stageId: 'demo_stage',
+        slot: 3,
+        homeTeamId: null,
+        awayTeamId: null,
+        winnerTeamId: null,
+        tieFormat: 1,
+        firstLeg: { matchId: null, status: 'scheduled' },
+      },
+    ]
+    setLocalCreatedGroups(demo)
+    setEditorNodes([
+      { id: 'node_demo_1', tieId: 'demo_tie_1', stageId: 'demo_stage', x: 120, y: 160, w: NODE_W, h: NODE_H },
+      { id: 'node_demo_2', tieId: 'demo_tie_2', stageId: 'demo_stage', x: 120, y: 360, w: NODE_W, h: NODE_H },
+      { id: 'node_demo_3', tieId: 'demo_tie_3', stageId: 'demo_stage', x: 460, y: 260, w: NODE_W, h: NODE_H },
+    ])
+    setEditorEdges([
+      { id: 'demo_tie_1:demo_tie_3', fromTieId: 'demo_tie_1', toTieId: 'demo_tie_3', type: 'winner' },
+      { id: 'demo_tie_2:demo_tie_3', fromTieId: 'demo_tie_2', toTieId: 'demo_tie_3', type: 'winner' },
+    ])
+  }, [bracket, localCreatedGroups.length, teams])
 
   const tieViewModels = useMemo<PlayoffTieViewModel[]>(() => {
     const stageById = Object.fromEntries((bracket?.stages ?? []).map((stage) => [stage.id, stage]))
@@ -224,6 +271,7 @@ export const TablePage = () => {
 
   const deleteTie = (tieId: string) => {
     setLocalCreatedGroups((prev) => prev.filter((group) => group.id !== tieId))
+    setDeletedTieIds((prev) => new Set(prev).add(tieId))
     setEditorNodes((prev) => prev.filter((node) => node.tieId !== tieId))
     setEditorEdges((prev) => prev.filter((edge) => edge.fromTieId !== tieId && edge.toTieId !== tieId))
     setTiePendingDelete(null)

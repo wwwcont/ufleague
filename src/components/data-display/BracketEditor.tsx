@@ -127,6 +127,7 @@ export const BracketEditor = ({
   }
 
   const onCanvasPointerDown = (event: ReactPointerEvent) => {
+    if (event.target !== event.currentTarget) return
     panRef.current = { pointerStartX: event.clientX, pointerStartY: event.clientY, x: viewport.x, y: viewport.y }
     setSelectedEdgeId(null)
     setConnectingFrom(null)
@@ -147,11 +148,12 @@ export const BracketEditor = ({
       return
     }
 
-    if (panRef.current) {
+    const pan = panRef.current
+    if (pan) {
       setViewport((prev) => ({
         ...prev,
-        x: panRef.current!.x + (event.clientX - panRef.current!.pointerStartX),
-        y: panRef.current!.y + (event.clientY - panRef.current!.pointerStartY),
+        x: pan.x + (event.clientX - pan.pointerStartX),
+        y: pan.y + (event.clientY - pan.pointerStartY),
       }))
     }
   }
@@ -243,7 +245,7 @@ export const BracketEditor = ({
             {edgeLines.map((edge) => (
               <g key={edge.id}>
                 <path
-                  d={`M ${edge.x1} ${edge.y1} C ${edge.x1 + 80} ${edge.y1}, ${edge.x2 - 80} ${edge.y2}, ${edge.x2} ${edge.y2}`}
+                  d={`M ${edge.x1} ${edge.y1} L ${(edge.x1 + edge.x2) / 2} ${edge.y1} L ${(edge.x1 + edge.x2) / 2} ${edge.y2} L ${edge.x2} ${edge.y2}`}
                   fill="none"
                   stroke="rgba(227,193,75,0.82)"
                   strokeWidth={3}
