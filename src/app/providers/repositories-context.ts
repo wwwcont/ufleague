@@ -1,4 +1,4 @@
 import { createContext } from 'react'
-import { repositories } from '../../mocks/repositories'
+import { repositories } from '../../infrastructure/api/repositories'
 
 export const RepositoriesContext = createContext(repositories)

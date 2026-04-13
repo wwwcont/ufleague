@@ -1,9 +1,9 @@
 import type {
   CabinetRepository,
-  BracketRepository,
   CommentsRepository,
   EventsRepository,
   MatchesRepository,
+  PlayoffGridRepository,
   PlayersRepository,
   SearchRepository,
   SessionRepository,
@@ -13,7 +13,6 @@ import type {
   UploadsRepository,
 } from '../../domain/repositories/contracts'
 import type { FormResult, PublicUserCard, UserRole } from '../../domain/entities/types'
-import { bracketGroups, bracketSettings, bracketStages } from '../data/bracket'
 import { comments, currentCommentAuthor } from '../data/comments'
 import { events } from '../data/events'
 import { matches } from '../data/matches'
@@ -180,9 +179,91 @@ export const standingsRepository: StandingsRepository = {
   },
 }
 
-export const bracketRepository: BracketRepository = {
-  async getBracket() {
-    return { stages: bracketStages, groups: bracketGroups, settings: bracketSettings }
+let mockPlayoffGrid: { cells: any[]; lines: any[] } = { cells: [], lines: [] }
+export const playoffGridRepository: PlayoffGridRepository = {
+  async getPlayoffGrid() {
+    return {
+      cells: mockPlayoffGrid.cells.map((cell) => ({ ...cell, attachedMatchIds: [...cell.attachedMatchIds], attachedMatches: [...cell.attachedMatches] })),
+      lines: mockPlayoffGrid.lines.map((line) => ({ ...line })),
+    }
+  },
+  async validateDraft(_tournamentId, payload) {
+    const occupied = new Set<string>()
+    payload.cells.forEach((cell) => {
+      const key = `${cell.col}:${cell.row}`
+      if (occupied.has(key)) throw new Error('duplicate cell position')
+      occupied.add(key)
+      if (cell.attachedMatchIds.length > 3) throw new Error('too many attached matches')
+    })
+  },
+  async getMatchCandidates(_tournamentId, matchId) {
+    const targetMatch = matches.find((item) => item.id === matchId)
+    if (!targetMatch) return []
+    return mockPlayoffGrid.cells
+      .filter((cell) => {
+        if (!cell.homeTeamId || !cell.awayTeamId) return false
+        const direct = cell.homeTeamId === targetMatch.homeTeamId && cell.awayTeamId === targetMatch.awayTeamId
+        const reverse = cell.homeTeamId === targetMatch.awayTeamId && cell.awayTeamId === targetMatch.homeTeamId
+        return direct || reverse
+      })
+      .filter((cell) => (cell.attachedMatchIds?.length ?? 0) < 3)
+  },
+  async attachMatch(playoffCellId, matchId) {
+    mockPlayoffGrid = {
+      ...mockPlayoffGrid,
+      cells: mockPlayoffGrid.cells.map((cell) => {
+        if (cell.id !== playoffCellId) {
+          return { ...cell, attachedMatchIds: cell.attachedMatchIds.filter((currentId: string) => currentId !== matchId) }
+        }
+        if (cell.attachedMatchIds.includes(matchId) || cell.attachedMatchIds.length >= 3) return cell
+        return { ...cell, attachedMatchIds: [...cell.attachedMatchIds, matchId] }
+      }),
+    }
+  },
+  async detachMatch(playoffCellId, matchId) {
+    mockPlayoffGrid = {
+      ...mockPlayoffGrid,
+      cells: mockPlayoffGrid.cells.map((cell) => (
+        cell.id === playoffCellId
+          ? { ...cell, attachedMatchIds: cell.attachedMatchIds.filter((currentId: string) => currentId !== matchId) }
+          : cell
+      )),
+    }
+  },
+  async savePlayoffGrid(tournamentId, payload) {
+    await this.validateDraft(tournamentId, payload)
+    const byRef = new Map<string, string>()
+    const cells = payload.cells.map((cell, index) => {
+      const id = cell.id ?? `pg_${Date.now()}_${index}`
+      if (cell.tempId) byRef.set(cell.tempId, id)
+      byRef.set(id, id)
+      const attachedMatches = cell.attachedMatchIds.map((matchId) => ({
+        id: matchId,
+        status: 'scheduled' as const,
+        homeScore: 0,
+        awayScore: 0,
+      }))
+      return {
+        id,
+        homeTeamId: cell.homeTeamId,
+        awayTeamId: cell.awayTeamId,
+        col: cell.col,
+        row: cell.row,
+        attachedMatchIds: [...cell.attachedMatchIds],
+        attachedMatches,
+        aggregateHomeScore: attachedMatches.length ? attachedMatches.reduce((sum, m) => sum + m.homeScore, 0) : null,
+        aggregateAwayScore: attachedMatches.length ? attachedMatches.reduce((sum, m) => sum + m.awayScore, 0) : null,
+        winnerTeamId: null,
+        allMatchesFinished: false,
+      }
+    })
+    const lines = payload.lines.map((line, index) => ({
+      id: line.id ?? `pl_${Date.now()}_${index}`,
+      fromPlayoffId: byRef.get(line.fromRef) ?? line.fromRef,
+      toPlayoffId: byRef.get(line.toRef) ?? line.toRef,
+    }))
+    mockPlayoffGrid = { cells, lines }
+    return { cells, lines }
   },
 }
 
@@ -343,12 +424,6 @@ export const cabinetRepository: CabinetRepository = {
   async updateTournamentBracketSettings(cycleId, settings) {
     mockTournamentCycles = mockTournamentCycles.map((cycle) => (cycle.id === cycleId ? { ...cycle, bracketTeamCapacity: settings.teamCapacity } : cycle))
   },
-  async createBracketTie() {
-    return { id: `tie_mock_${Date.now()}` }
-  },
-  async attachMatchToTie() {
-    return
-  },
 }
 
 const buildUserCard = (user: { id: string; displayName: string; telegramUsername: string }): PublicUserCard => {
@@ -420,7 +495,7 @@ export const repositories = {
   playersRepository,
   matchesRepository,
   standingsRepository,
-  bracketRepository,
+  playoffGridRepository,
   searchRepository,
   commentsRepository,
   eventsRepository,

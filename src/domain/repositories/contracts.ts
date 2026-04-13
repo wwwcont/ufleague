@@ -1,13 +1,11 @@
 import type {
   AuthSession,
   BracketSize,
-  BracketMatchGroup,
-  BracketSettings,
-  BracketStage,
   CommentAuthorState,
   CommentEntityType,
   CommentNode,
   Match,
+  PlayoffGrid,
   Player,
   PublicEvent,
   PublicUserCard,
@@ -16,9 +14,6 @@ import type {
   Team,
   TournamentAggregate,
   TournamentBracketSettings,
-  TournamentBracketStage,
-  TournamentBracketTie,
-  TournamentStandingsContext,
   UserRole,
 } from '../entities/types'
 
@@ -51,8 +46,13 @@ export interface StandingsRepository {
   getStandings(): Promise<StandingRow[]>
 }
 
-export interface BracketRepository {
-  getBracket(): Promise<{ stages: BracketStage[]; groups: BracketMatchGroup[]; settings: BracketSettings }>
+export interface PlayoffGridRepository {
+  getPlayoffGrid(tournamentId: string): Promise<PlayoffGrid>
+  getMatchCandidates(tournamentId: string, matchId: string): Promise<PlayoffGrid['cells']>
+  attachMatch(playoffCellId: string, matchId: string): Promise<void>
+  detachMatch(playoffCellId: string, matchId: string): Promise<void>
+  validateDraft(tournamentId: string, payload: { cells: Array<{ id?: string; tempId?: string; homeTeamId: string | null; awayTeamId: string | null; col: number; row: number; attachedMatchIds: string[] }>; lines: Array<{ id?: string; fromRef: string; toRef: string }> }): Promise<void>
+  savePlayoffGrid(tournamentId: string, payload: { cells: Array<{ id?: string; tempId?: string; homeTeamId: string | null; awayTeamId: string | null; col: number; row: number; attachedMatchIds: string[] }>; lines: Array<{ id?: string; fromRef: string; toRef: string }> }): Promise<PlayoffGrid>
 }
 
 export interface TournamentRepository {
@@ -61,14 +61,6 @@ export interface TournamentRepository {
   setActiveTournament?(tournamentId: string): Promise<void>
   getBracketSettings?(tournamentId: string): Promise<TournamentBracketSettings | null>
   updateBracketSettings?(tournamentId: string, patch: Partial<Pick<TournamentBracketSettings, 'bracketSize' | 'legsPerTieDefault'>>): Promise<void>
-}
-
-export interface BracketAdminRepository {
-  getStagesByTournament?(tournamentId: string): Promise<TournamentBracketStage[]>
-  createTie?(input: { tournamentId: string; stageId: string; slot: number; homeTeamId?: string | null; awayTeamId?: string | null; legsPlanned?: 1 | 2 }): Promise<{ id: string }>
-  attachMatchToTie?(input: { tournamentId: string; tieId: string; matchId: string; legNumber: number }): Promise<void>
-  getTiesByStage?(stageId: string): Promise<TournamentBracketTie[]>
-  getStandingsContexts?(tournamentId: string): Promise<TournamentStandingsContext[]>
 }
 
 export interface SearchRepository {
@@ -127,6 +119,4 @@ export interface CabinetRepository {
   createTournamentCycle?(input: { name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive?: boolean }): Promise<void>
   setActiveTournamentCycle?(cycleId: string): Promise<void>
   updateTournamentBracketSettings?(cycleId: string, settings: { teamCapacity: 4 | 8 | 16 | 32 }): Promise<void>
-  createBracketTie?(input: { tournamentId: string; stageId: string; slot: number; homeTeamId: string; awayTeamId: string; label?: string }): Promise<{ id: string } | void>
-  attachMatchToTie?(input: { tournamentId: string; tieId: string; matchId: string }): Promise<void>
 }
