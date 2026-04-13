@@ -22,8 +22,12 @@ export const useQueryState = <T,>(loader: () => Promise<T>, emptyCheck?: (data: 
     try {
       const res = await loader()
       setData(res)
-    } catch {
-      setError('Failed to load data')
+    } catch (error) {
+      if (error instanceof Error && error.message.trim()) {
+        setError(error.message)
+      } else {
+        setError('Failed to load data')
+      }
     } finally {
       setIsLoading(false)
       setIsRefreshing(false)

@@ -21,6 +21,14 @@ const sameLine = (a: { fromCellId: string; toCellId: string }, b: { fromCellId: 
   || (a.fromCellId === b.toCellId && a.toCellId === b.fromCellId)
 )
 
+const buildLinePath = (fromX: number, fromY: number, toX: number, toY: number) => {
+  if (Math.abs(fromY - toY) < 1) return `M ${fromX} ${fromY} L ${toX} ${toY}`
+  const dx = Math.max(48, Math.abs(toX - fromX) * 0.35)
+  const c1x = fromX + (toX >= fromX ? dx : -dx)
+  const c2x = toX - (toX >= fromX ? dx : -dx)
+  return `M ${fromX} ${fromY} C ${c1x} ${fromY}, ${c2x} ${toY}, ${toX} ${toY}`
+}
+
 export const PlayoffGridEditor = ({
   grid,
   teamMap,
@@ -53,6 +61,7 @@ export const PlayoffGridEditor = ({
   const [editingCellId, setEditingCellId] = useState<string | null>(null)
   const [cellDialogHomeTeamId, setCellDialogHomeTeamId] = useState<string | null>(null)
   const [cellDialogAwayTeamId, setCellDialogAwayTeamId] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const boardW = GRID_COLS * CELL_W
   const boardH = GRID_ROWS * CELL_H
@@ -74,6 +83,7 @@ export const PlayoffGridEditor = ({
     setEditingCellId(null)
     setCellDialogHomeTeamId(null)
     setCellDialogAwayTeamId(null)
+    setSaveError(null)
   }, [grid])
 
   const cellsById = useMemo(() => Object.fromEntries(cellsDraft.map((cell) => [cell.id, cell])), [cellsDraft])
@@ -270,10 +280,13 @@ export const PlayoffGridEditor = ({
       })),
     }
     setSaving(true)
+    setSaveError(null)
     try {
       await onSave(payload)
       setDirty(false)
       setIsEditing(false)
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Ошибка сохранения сетки')
     } finally {
       setSaving(false)
     }
@@ -324,21 +337,51 @@ export const PlayoffGridEditor = ({
               const fromY = (from.row - 1) * CELL_H + CELL_H / 2
               const toX = (to.col - 1) * CELL_W + (to.col >= from.col ? 0 : CELL_W)
               const toY = (to.row - 1) * CELL_H + CELL_H / 2
+              const path = buildLinePath(fromX, fromY, toX, toY)
+              const midX = (fromX + toX) / 2
+              const midY = (fromY + toY) / 2
               return (
-                <line
-                  key={line.clientKey}
-                  x1={fromX}
-                  y1={fromY}
-                  x2={toX}
-                  y2={toY}
-                  stroke={selectedLineId === line.id ? 'rgba(244,207,73,1)' : 'rgba(244,207,73,0.7)'}
-                  strokeWidth={selectedLineId === line.id ? 4 : 2}
-                  onPointerDown={(event) => {
-                    event.stopPropagation()
-                    setSelectedLineId(line.id)
-                    setSelectedCellId(null)
-                  }}
-                />
+                <g key={line.clientKey}>
+                  <path
+                    d={path}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={14}
+                    onPointerDown={(event) => {
+                      event.stopPropagation()
+                      setSelectedLineId(line.id)
+                      setSelectedCellId(null)
+                    }}
+                  />
+                  <path
+                    d={path}
+                    fill="none"
+                    stroke={selectedLineId === line.id ? 'rgba(244,207,73,1)' : 'rgba(244,207,73,0.7)'}
+                    strokeWidth={selectedLineId === line.id ? 4 : 2}
+                    pointerEvents="none"
+                  />
+                  {editable && isEditing && editorMode === 'lines' && (
+                    <g transform={`translate(${midX}, ${midY})`}>
+                      <circle r="9" fill="rgba(18, 23, 39, 0.95)" stroke="rgba(255,255,255,0.2)" />
+                      <text
+                        x="0"
+                        y="3.5"
+                        textAnchor="middle"
+                        fontSize="11"
+                        fill="#f87171"
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        onPointerDown={(event) => {
+                          event.stopPropagation()
+                          setLinesDraft((prev) => prev.filter((item) => item.id !== line.id))
+                          setSelectedLineId(null)
+                          setDirty(true)
+                        }}
+                      >
+                        ×
+                      </text>
+                    </g>
+                  )}
+                </g>
               )
             })}
           </svg>
@@ -454,6 +497,7 @@ export const PlayoffGridEditor = ({
           <button type="button" disabled={!selectedLineId} onClick={deleteSelectedLine} className="rounded-lg border border-borderSubtle px-2 py-2 text-textSecondary disabled:opacity-40">Удалить линию</button>
           <button type="button" disabled={!dirty || saving} onClick={() => { void saveDraft() }} className="rounded-lg bg-accentYellow px-2 py-2 font-semibold text-app disabled:opacity-50">Сохранить</button>
         </div>
+        {saveError && <p className="mt-2 text-xs text-red-400">{saveError}</p>}
         </div>
       )}
 
@@ -473,21 +517,21 @@ export const PlayoffGridEditor = ({
             <div className="space-y-2">
               <label className="block text-xs text-textMuted">Команда 1 (необязательно)</label>
               <select
-                className="w-full rounded-lg border border-borderSubtle bg-panelAlt px-2 py-2 text-sm"
+                className="w-full rounded-lg border border-borderSubtle bg-panelAlt px-2 py-2 text-sm text-textPrimary"
                 value={cellDialogHomeTeamId ?? ''}
                 onChange={(event) => setCellDialogHomeTeamId(event.target.value || null)}
               >
-                <option value="">Не выбрана</option>
-                {Object.values(teamMap).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
+                <option value="" className="text-app">Не выбрана</option>
+                {Object.values(teamMap).map((team) => <option key={team.id} value={team.id} className="text-app">{team.shortName}</option>)}
               </select>
               <label className="block text-xs text-textMuted">Команда 2 (необязательно)</label>
               <select
-                className="w-full rounded-lg border border-borderSubtle bg-panelAlt px-2 py-2 text-sm"
+                className="w-full rounded-lg border border-borderSubtle bg-panelAlt px-2 py-2 text-sm text-textPrimary"
                 value={cellDialogAwayTeamId ?? ''}
                 onChange={(event) => setCellDialogAwayTeamId(event.target.value || null)}
               >
-                <option value="">Не выбрана</option>
-                {Object.values(teamMap).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
+                <option value="" className="text-app">Не выбрана</option>
+                {Object.values(teamMap).map((team) => <option key={team.id} value={team.id} className="text-app">{team.shortName}</option>)}
               </select>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2">
