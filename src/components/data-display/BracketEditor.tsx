@@ -50,6 +50,7 @@ export const BracketEditor = ({
   const [selectedHandle, setSelectedHandle] = useState<{ tieId: string; side: HandleSide } | null>(null)
   const [viewport, setViewport] = useState({ scale: 1, x: 24, y: 24 })
 
+  const viewportRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef<{ nodeId: string; pointerStartX: number; pointerStartY: number; nodeStartX: number; nodeStartY: number } | null>(null)
   const panRef = useRef<{ pointerStartX: number; pointerStartY: number; x: number; y: number } | null>(null)
   const pinchRef = useRef<{ initialDistance: number; initialScale: number } | null>(null)
@@ -84,10 +85,12 @@ export const BracketEditor = ({
   }
 
   const clampViewport = (state: { scale: number; x: number; y: number }) => {
+    const viewportWidth = viewportRef.current?.clientWidth ?? window.innerWidth
+    const viewportHeight = viewportRef.current?.clientHeight ?? window.innerHeight
     const boundX = NODE_W * 2
     const boundY = NODE_H * 2
-    const minX = Math.min(boundX, window.innerWidth - CANVAS_W * state.scale - boundX)
-    const minY = Math.min(boundY, window.innerHeight - CANVAS_H * state.scale - boundY)
+    const minX = Math.min(boundX, viewportWidth - CANVAS_W * state.scale - boundX)
+    const minY = Math.min(boundY, viewportHeight - CANVAS_H * state.scale - boundY)
     return {
       ...state,
       x: Math.max(minX, Math.min(boundX, state.x)),
@@ -222,6 +225,7 @@ export const BracketEditor = ({
       )}
 
       <div
+        ref={viewportRef}
         className="relative h-full w-full touch-none pb-24"
         onPointerDown={onCanvasPointerDown}
         onPointerMove={onPointerMove}

@@ -42,7 +42,6 @@ export const TablePage = () => {
   const [tiePendingDelete, setTiePendingDelete] = useState<string | null>(null)
   const [pendingCreateAnchor, setPendingCreateAnchor] = useState<{ col: number; row: number } | null>(null)
 
-  const [tieStageId, setTieStageId] = useState('')
   const [tieHomeTeamId, setTieHomeTeamId] = useState('')
   const [tieAwayTeamId, setTieAwayTeamId] = useState('')
 
@@ -132,7 +131,6 @@ export const TablePage = () => {
     const tie = mergedGroups.find((group) => group.id === tieId)
     if (!tie) return
     setSelectedTieId(tie.id)
-    setTieStageId(tie.stageId)
     setTieHomeTeamId(tie.homeTeamId ?? '')
     setTieAwayTeamId(tie.awayTeamId ?? '')
     setPendingCreateAnchor(null)
@@ -166,8 +164,9 @@ export const TablePage = () => {
 
     if (!pendingCreateAnchor) return
 
-    const stageId = tieStageId || bracket?.stages?.[0]?.id || 'custom'
+    const stageId = bracket?.stages?.[0]?.id || 'custom'
     const slot = Date.now()
+    const existingIds = new Set((bracket?.groups ?? []).map((group) => group.id))
 
     if (activeTournamentId && cabinetRepository.createBracketTie) {
       try {
@@ -181,9 +180,13 @@ export const TablePage = () => {
         let tieId = created?.id
         if (!tieId) {
           const fresh = await bracketRepository.getBracket()
-          const candidate = [...fresh.groups]
-            .reverse()
-            .find((group) => group.stageId === stageId && group.homeTeamId === tieHomeTeamId && group.awayTeamId === tieAwayTeamId)
+          const candidate = [...fresh.groups].reverse().find((group) => !existingIds.has(group.id))
+            ?? [...fresh.groups]
+              .reverse()
+              .find((group) => (
+                (group.homeTeamId === tieHomeTeamId && group.awayTeamId === tieAwayTeamId)
+                || (group.homeTeamId === tieAwayTeamId && group.awayTeamId === tieHomeTeamId)
+              ))
           tieId = candidate?.id
         }
         if (tieId) {
@@ -213,9 +216,25 @@ export const TablePage = () => {
   }
 
   const startCreateTie = (anchor: { col: number; row: number }) => {
-    setPendingCreateAnchor(anchor)
+    const occupied = new Set(editorNodes.map((node) => `${Math.round(node.x / 150) + 1}:${Math.round(node.y / 78) + 1}`))
+    let best = anchor
+    if (occupied.has(`${anchor.col}:${anchor.row}`)) {
+      let found = false
+      for (let radius = 1; radius < 35 && !found; radius += 1) {
+        for (let dc = -radius; dc <= radius && !found; dc += 1) {
+          for (let dr = -radius; dr <= radius && !found; dr += 1) {
+            const col = Math.max(1, Math.min(35, anchor.col + dc))
+            const row = Math.max(1, Math.min(35, anchor.row + dr))
+            if (!occupied.has(`${col}:${row}`)) {
+              best = { col, row }
+              found = true
+            }
+          }
+        }
+      }
+    }
+    setPendingCreateAnchor(best)
     setSelectedTieId(null)
-    setTieStageId(bracket?.stages?.[0]?.id ?? '')
     setTieHomeTeamId('')
     setTieAwayTeamId('')
   }
@@ -293,9 +312,6 @@ export const TablePage = () => {
             <p className="text-sm font-semibold text-textPrimary">{selectedTieId ? 'Редактировать плей-офф' : 'Новый плей-офф'}</p>
             <p className="mt-1 text-xs text-textSecondary">Добавление требует выбора двух команд.</p>
 
-            <select value={tieStageId} onChange={(event) => setTieStageId(event.target.value)} className="mt-3 w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm">
-              {(bracket?.stages ?? []).map((stage) => <option key={stage.id} value={stage.id}>{stage.label}</option>)}
-            </select>
             <select value={tieHomeTeamId} onChange={(event) => setTieHomeTeamId(event.target.value)} className="mt-2 w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm">
               <option value="">Команда 1</option>
               {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
