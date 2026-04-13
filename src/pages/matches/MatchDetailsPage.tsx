@@ -89,7 +89,7 @@ export const MatchDetailsPage = () => {
   const { data: players } = usePlayers()
   const { session } = useSession()
   const { matchesRepository, cabinetRepository } = useRepositories()
-  const { data: bracket } = useBracket()
+  const { data: bracket, refetch: refetchBracket } = useBracket()
   const isAdmin = canManageMatch(session)
 
   const teamMap = Object.fromEntries((teams ?? []).map((team) => [team.id, team]))
@@ -110,13 +110,35 @@ export const MatchDetailsPage = () => {
   const [goalAssistId, setGoalAssistId] = useState('')
   const [goalStatus, setGoalStatus] = useState<string | null>(null)
   const [activeTournamentId, setActiveTournamentId] = useState('')
+  const [selectedBracketId, setSelectedBracketId] = useState('')
+  const [selectedStageId, setSelectedStageId] = useState('')
   const [selectedTieId, setSelectedTieId] = useState('')
   const [tieAttachStatus, setTieAttachStatus] = useState<string | null>(null)
+  const [isTieSubmitting, setIsTieSubmitting] = useState(false)
   const candidatePlayers = useMemo(() => (players ?? []).filter((p) => p.teamId === goalTeamId), [goalTeamId, players])
 
-  const tiesForCurrentMatch = useMemo(() => {
+  const bracketSelectionOptions = useMemo(() => {
+    if (!activeTournamentId) return []
+    return [{ id: activeTournamentId, label: `Bracket ${activeTournamentId}` }]
+  }, [activeTournamentId])
+
+  const currentAttachment = useMemo(() => {
+    if (!bracket) return null
+    return bracket.groups.find((group) => {
+      const attachedMatchIds = [group.firstLeg.matchId, group.secondLeg?.matchId, group.thirdLeg?.matchId].filter(Boolean)
+      return attachedMatchIds.includes(match?.id ?? '')
+    })
+  }, [bracket, match?.id])
+
+  const stageOptions = useMemo(() => {
     if (!bracket) return []
+    return [...bracket.stages].sort((a, b) => a.order - b.order)
+  }, [bracket])
+
+  const tiesForCurrentMatch = useMemo(() => {
+    if (!bracket || !selectedStageId) return []
     return bracket.groups.filter((group) => {
+      if (group.stageId !== selectedStageId) return false
       const direct = group.homeTeamId === match?.homeTeamId && group.awayTeamId === match?.awayTeamId
       const reverse = group.homeTeamId === match?.awayTeamId && group.awayTeamId === match?.homeTeamId
       if (!(direct || reverse)) return false
@@ -124,7 +146,7 @@ export const MatchDetailsPage = () => {
       const alreadyContainsThisMatch = attachedMatchIds.includes(match?.id ?? '')
       return !alreadyContainsThisMatch && attachedMatchIds.length < 3
     })
-  }, [bracket, match?.awayTeamId, match?.homeTeamId, match?.id])
+  }, [bracket, match?.awayTeamId, match?.homeTeamId, match?.id, selectedStageId])
 
   useEffect(() => {
     if (!isAdmin) return
@@ -134,6 +156,16 @@ export const MatchDetailsPage = () => {
       if (active) setActiveTournamentId(active.id)
     })()
   }, [cabinetRepository, isAdmin])
+
+  useEffect(() => {
+    if (!activeTournamentId) return
+    setSelectedBracketId(activeTournamentId)
+  }, [activeTournamentId])
+
+  useEffect(() => {
+    if (!stageOptions.length) return
+    setSelectedStageId((prev) => prev || stageOptions[0].id)
+  }, [stageOptions])
 
   useEffect(() => {
     if (!match) return
@@ -328,33 +360,94 @@ export const MatchDetailsPage = () => {
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-semibold text-textPrimary">ПЛЕЙ-ОФФ</p>
           </div>
-          <p className="mt-1 text-xs text-textMuted">Добавьте матч в подходящую вершину сетки. В один плей-офф можно привязать до трех матчей, при 2+ используется тотал.</p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <p className="mt-1 text-xs text-textMuted">Выберите bracket → стадию → tie. Можно привязать, отвязать и перенести матч между tie.</p>
+
+          {currentAttachment && (
+            <div className="mt-2 rounded-lg border border-accentYellow/30 bg-accentYellow/10 px-3 py-2 text-xs text-textSecondary">
+              Текущая привязка: {currentAttachment.stageId} / слот {currentAttachment.slot}. Матчи tie: {[currentAttachment.firstLeg, currentAttachment.secondLeg, currentAttachment.thirdLeg].filter(Boolean).map((leg) => leg?.score ? `${leg.score.home}:${leg.score.away}` : '—').join(', ') || '—'}.
+            </div>
+          )}
+
+          <div className="mt-2 grid gap-2">
+            <select value={selectedBracketId} onChange={(event) => setSelectedBracketId(event.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm">
+              <option value="">Выберите bracket</option>
+              {bracketSelectionOptions.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+            </select>
+
+            <select value={selectedStageId} onChange={(event) => { setSelectedStageId(event.target.value); setSelectedTieId('') }} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm">
+              <option value="">Выберите стадию</option>
+              {stageOptions.map((stage) => <option key={stage.id} value={stage.id}>{stage.label}</option>)}
+            </select>
+
             <select value={selectedTieId} onChange={(event) => setSelectedTieId(event.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm">
               <option value="">Выберите плей-офф</option>
               {tiesForCurrentMatch.map((group) => {
                 const count = [group.firstLeg.matchId, group.secondLeg?.matchId, group.thirdLeg?.matchId].filter(Boolean).length
-                return <option key={group.id} value={group.id}>#{group.id} • {group.stageId} / слот {group.slot} • матчей: {count}/3</option>
+                const mini = [group.firstLeg, group.secondLeg, group.thirdLeg].filter(Boolean).map((leg) => leg?.score ? `${leg.score.home}:${leg.score.away}` : '—').join(', ')
+                const legs = [group.firstLeg, group.secondLeg, group.thirdLeg].filter((leg) => leg?.score)
+                const total = legs.length > 1
+                  ? `${legs.reduce((sum, leg) => sum + (leg?.score?.home ?? 0), 0)}:${legs.reduce((sum, leg) => sum + (leg?.score?.away ?? 0), 0)}`
+                  : null
+                return <option key={group.id} value={group.id}>#{group.id} • слот {group.slot} • матчи {count}/3 • {mini}{total ? ` • total ${total}` : ''}</option>
               })}
             </select>
-            <button
-              type="button"
-              disabled={!selectedTieId || !activeTournamentId}
-              className="rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app disabled:opacity-50"
-              onClick={async () => {
-                try {
-                  await cabinetRepository.attachMatchToTie?.({ tournamentId: activeTournamentId, tieId: selectedTieId, matchId: match.id })
-                  setTieAttachStatus('Матч добавлен в плей-офф.')
+
+            <div className="grid gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                disabled={!selectedTieId || !selectedBracketId || isTieSubmitting}
+                className="rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app disabled:opacity-50"
+                onClick={async () => {
+                  setIsTieSubmitting(true)
+                  try {
+                    if (currentAttachment?.id && currentAttachment.id !== selectedTieId) {
+                      await cabinetRepository.detachMatchFromTie?.({ tournamentId: selectedBracketId, tieId: currentAttachment.id, matchId: match.id })
+                    }
+                    await cabinetRepository.attachMatchToTie?.({ tournamentId: selectedBracketId, tieId: selectedTieId, matchId: match.id })
+                    setTieAttachStatus(currentAttachment?.id && currentAttachment.id !== selectedTieId ? 'Матч перенесён в другую tie.' : 'Матч добавлен в tie.')
+                    await refetchBracket()
+                  } catch (error) {
+                    setTieAttachStatus(actionError(error))
+                  } finally {
+                    setIsTieSubmitting(false)
+                  }
+                }}
+              >
+                {currentAttachment?.id && currentAttachment.id !== selectedTieId ? 'Перенести в tie' : 'Attach to playoff tie'}
+              </button>
+              <button
+                type="button"
+                disabled={!currentAttachment?.id || !selectedBracketId || isTieSubmitting}
+                className="rounded-lg border border-borderSubtle px-3 py-1.5 text-xs text-textSecondary disabled:opacity-50"
+                onClick={async () => {
+                  if (!currentAttachment?.id) return
+                  setIsTieSubmitting(true)
+                  try {
+                    await cabinetRepository.detachMatchFromTie?.({ tournamentId: selectedBracketId, tieId: currentAttachment.id, matchId: match.id })
+                    setTieAttachStatus('Матч отвязан от tie.')
+                    await refetchBracket()
+                  } catch (error) {
+                    setTieAttachStatus(actionError(error))
+                  } finally {
+                    setIsTieSubmitting(false)
+                  }
+                }}
+              >
+                Отвязать
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-borderSubtle px-3 py-1.5 text-xs text-textSecondary"
+                onClick={() => {
                   setSelectedTieId('')
-                } catch (error) {
-                  setTieAttachStatus(actionError(error))
-                }
-              }}
-            >
-              Добавить в плей-офф
-            </button>
+                  setTieAttachStatus(null)
+                }}
+              >
+                Сбросить выбор
+              </button>
+            </div>
           </div>
-          {tiesForCurrentMatch.length === 0 && <p className="mt-2 text-xs text-textMuted">Подходящих плей-офф с этими командами и свободным слотом пока нет.</p>}
+          {tiesForCurrentMatch.length === 0 && <p className="mt-2 text-xs text-textMuted">Для выбранной стадии нет свободных tie для этих команд.</p>}
           {tieAttachStatus && <p className="mt-2 text-xs text-textMuted">{tieAttachStatus}</p>}
         </section>
       )}

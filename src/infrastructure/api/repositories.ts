@@ -857,10 +857,25 @@ export const cabinetRepository: CabinetRepository = {
     }).catch(() => undefined)
   },
   async attachMatchToTie(input) {
-    await api('/api/admin/bracket/ties/attach-match', {
+    await api('/api/admin/brackets/ties/attach-match', {
+      method: 'POST',
+      body: JSON.stringify({
+        tie_id: input.tieId,
+        match_id: Number(input.matchId),
+      }),
+    }).catch(async () => api('/api/admin/bracket/ties/attach-match', {
       method: 'POST',
       body: JSON.stringify({
         tournament_id: Number(input.tournamentId),
+        tie_id: input.tieId,
+        match_id: Number(input.matchId),
+      }),
+    }).catch(() => undefined))
+  },
+  async detachMatchFromTie(input) {
+    await api('/api/admin/brackets/ties/detach-match', {
+      method: 'POST',
+      body: JSON.stringify({
         tie_id: input.tieId,
         match_id: Number(input.matchId),
       }),

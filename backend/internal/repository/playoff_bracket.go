@@ -3,9 +3,12 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"football_ui/backend/internal/domain"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func (r *TournamentRepository) CreatePlayoffBracket(ctx context.Context, req domain.CreatePlayoffBracketRequest) (domain.PlayoffBracket, error) {
@@ -94,16 +97,39 @@ func (r *TournamentRepository) CreatePlayoffTie(ctx context.Context, req domain.
 }
 
 func (r *TournamentRepository) AttachMatchToTie(ctx context.Context, req domain.AttachMatchToTieRequest) error {
+	var existingTieID int64
+	err := r.pool.QueryRow(ctx, `SELECT tie_id FROM playoff_bracket_tie_matches WHERE match_id=$1`, req.MatchID).Scan(&existingTieID)
+	if err == nil && existingTieID != req.TieID {
+		return errors.New("match already attached to another tie")
+	}
+	if err != nil && err.Error() != "no rows in result set" {
+		// ignore no rows, fail on real db error
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+	}
+
+	var tiesLegCount int
+	if err = r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM playoff_bracket_tie_matches WHERE tie_id=$1`, req.TieID).Scan(&tiesLegCount); err != nil {
+		return err
+	}
+	if tiesLegCount >= 3 {
+		return errors.New("tie already has maximum number of matches")
+	}
+
 	leg := req.LegNumber
 	if leg <= 0 {
 		if err := r.pool.QueryRow(ctx, `SELECT COALESCE(MAX(leg_number),0)+1 FROM playoff_bracket_tie_matches WHERE tie_id=$1`, req.TieID).Scan(&leg); err != nil {
 			return err
 		}
 	}
-	_, err := r.pool.Exec(ctx, `
+	if leg > 3 {
+		return errors.New("leg number exceeds supported limit")
+	}
+	_, err = r.pool.Exec(ctx, `
 		INSERT INTO playoff_bracket_tie_matches (tie_id, match_id, leg_number)
 		VALUES ($1,$2,$3)
-		ON CONFLICT (match_id) DO NOTHING
+		ON CONFLICT (tie_id, leg_number) DO NOTHING
 	`, req.TieID, req.MatchID, leg)
 	return err
 }
