@@ -44,7 +44,6 @@ export const BracketView = ({
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const viewportRef = useRef<HTMLDivElement | null>(null)
-  const slotMemoryRef = useRef<Map<string, number>>(new Map())
   const dragStateRef = useRef<{ x: number; y: number; startOffsetX: number; startOffsetY: number } | null>(null)
   const pinchStateRef = useRef<{ distance: number; startScale: number } | null>(null)
 
@@ -57,18 +56,9 @@ export const BracketView = ({
         .filter((group) => group.stageId === stage.id)
         .sort((a, b) => a.slot - b.slot)
 
-      const occupiedLayoutSlots = new Set<number>()
-      const existingWithLayout: StageNode[] = existing.map((group) => {
-        const memoryKey = `${stage.id}:${group.id}`
-        const remembered = slotMemoryRef.current.get(memoryKey)
+      const existingWithLayout: StageNode[] = existing.map((group, index) => {
         const slotCandidate = Number.isInteger(group.slot) && group.slot >= 1 && group.slot <= stage.size ? group.slot : null
-        const preferred = slotCandidate ?? (remembered && remembered >= 1 && remembered <= stage.size ? remembered : null)
-        let layoutSlot = preferred && !occupiedLayoutSlots.has(preferred) ? preferred : null
-        if (!layoutSlot) {
-          layoutSlot = Array.from({ length: stage.size }, (_, offset) => offset + 1).find((slot) => !occupiedLayoutSlots.has(slot)) ?? 1
-        }
-        occupiedLayoutSlots.add(layoutSlot)
-        slotMemoryRef.current.set(memoryKey, layoutSlot)
+        const layoutSlot = slotCandidate ?? Math.min(stage.size, index + 1)
         return { ...group, slot: group.slot, layoutSlot }
       })
 
@@ -103,7 +93,7 @@ export const BracketView = ({
     sortedStages.forEach((stage, index) => centers.set(stage.id, PADDING_X + index * ROUND_GAP + NODE_W / 2))
 
     return { positionedGroups: positioned, width: maxX, height: maxY, stageCenters: centers }
-  }, [editable, groups, sortedStages])
+  }, [groups, sortedStages])
 
   const nodesByStage = useMemo(() => {
     const map = new Map<string, LayoutNode[]>()
