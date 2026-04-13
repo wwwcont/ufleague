@@ -56,6 +56,12 @@ export const BracketView = ({
         .filter((group) => group.stageId === stage.id)
         .sort((a, b) => a.slot - b.slot)
 
+      if (!editable) {
+        const existingWithLayout: StageNode[] = existing.map((group, index) => ({ ...group, slot: group.slot, layoutSlot: index + 1 }))
+        byStage.set(stage.id, existingWithLayout)
+        return
+      }
+
       const occupiedLayoutSlots = new Set<number>()
       const existingWithLayout: StageNode[] = existing.map((group) => {
         const slotCandidate = Number.isInteger(group.slot) && group.slot >= 1 && group.slot <= stage.size ? group.slot : null
@@ -65,11 +71,6 @@ export const BracketView = ({
         occupiedLayoutSlots.add(normalizedSlot)
         return { ...group, slot: group.slot, layoutSlot: normalizedSlot }
       })
-
-      if (!editable) {
-        byStage.set(stage.id, existingWithLayout)
-        return
-      }
 
       const placeholders: StageNode[] = []
       for (let slot = 1; slot <= stage.size; slot += 1) {
