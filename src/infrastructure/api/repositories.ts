@@ -863,26 +863,33 @@ export const cabinetRepository: CabinetRepository = {
   async getBracketEditorLayout(tournamentId) {
     try {
       const payload = await api<any>(`/api/admin/brackets/${tournamentId}`)
-      const nodes = Array.isArray(payload?.layout_nodes) ? payload.layout_nodes.map((item: any) => ({
-        id: String(item.node_id ?? item.id),
-        tieId: String(item.tie_id ?? item.node_id ?? ''),
-        stageId: String(item.stage_id ?? ''),
-        x: Number(item.x ?? 0),
-        y: Number(item.y ?? 0),
-        w: 150,
-        h: 78,
-      })) : []
-      const edges = Array.isArray(payload?.ties) ? payload.ties.flatMap((tie: any) => {
-        const fromList = Array.isArray(tie.to_tie_ids) ? tie.to_tie_ids : []
-        return fromList.map((toTieId: any) => ({
-          id: `${tie.id}:${toTieId}:right:left`,
-          fromTieId: String(tie.id),
-          toTieId: String(toTieId),
-          fromSide: 'right' as const,
-          toSide: 'left' as const,
-          type: 'winner' as const,
-        }))
-      }) : []
+      const nodes = Array.isArray(payload?.layout) ? payload.layout
+        .filter((item: any) => String(item.node_type ?? '') === 'tie')
+        .map((item: any) => ({
+          id: `node_${String(item.node_id)}`,
+          tieId: String(item.node_id),
+          stageId: '',
+          x: Number(item.x ?? 0),
+          y: Number(item.y ?? 0),
+          w: 150,
+          h: 78,
+        })) : []
+      const edges = Array.isArray(payload?.layout)
+        ? payload.layout
+          .filter((item: any) => String(item.node_type ?? '') === 'tie')
+          .flatMap((item: any) => {
+            const fromTieId = String(item.node_id)
+            const toTieIds = Array.isArray(item.meta?.to_tie_ids) ? item.meta.to_tie_ids : []
+            return toTieIds.map((toTieId: any) => ({
+              id: `${fromTieId}:${String(toTieId)}:right:left`,
+              fromTieId,
+              toTieId: String(toTieId),
+              fromSide: 'right' as const,
+              toSide: 'left' as const,
+              type: 'winner' as const,
+            }))
+          })
+        : []
       if (!nodes.length && !edges.length) return null
       return { nodes, edges }
     } catch {
@@ -890,19 +897,27 @@ export const cabinetRepository: CabinetRepository = {
     }
   },
   async saveBracketEditorLayout(input) {
+    const bracketPayload = await api<any>(`/api/admin/brackets/${input.tournamentId}`).catch(() => null)
+    const bracketId = bracketPayload?.id ?? bracketPayload?.bracket_id
+    if (!bracketId) return
+
+    const outgoing = new Map<string, string[]>()
+    for (const edge of input.edges) {
+      const list = outgoing.get(edge.fromTieId) ?? []
+      list.push(edge.toTieId)
+      outgoing.set(edge.fromTieId, list)
+    }
+
     const body = JSON.stringify({
-      nodes: input.nodes.map((node) => ({ tie_id: node.tieId, x: node.x, y: node.y, w: node.w, h: node.h })),
-      edges: input.edges.map((edge) => ({ from_tie_id: edge.fromTieId, to_tie_id: edge.toTieId, from_side: edge.fromSide ?? 'right', to_side: edge.toSide ?? 'left' })),
+      nodes: input.nodes.map((node) => ({
+        node_type: 'tie',
+        node_id: Number(node.tieId),
+        x: Math.round(node.x),
+        y: Math.round(node.y),
+        meta: { to_tie_ids: outgoing.get(node.tieId) ?? [] },
+      })),
     })
-    await api(`/api/admin/brackets/${input.tournamentId}/layout`, {
-      method: 'POST',
-      body,
-    }).catch(async () => {
-      const bracketPayload = await api<any>(`/api/admin/brackets/${input.tournamentId}`).catch(() => null)
-      const bracketId = bracketPayload?.id ?? bracketPayload?.bracket_id
-      if (!bracketId) return
-      await api(`/api/admin/brackets/${bracketId}/layout`, { method: 'POST', body }).catch(() => undefined)
-    })
+    await api(`/api/admin/brackets/${bracketId}/layout`, { method: 'POST', body }).catch(() => undefined)
   },
   async attachMatchToTie(input) {
     await api('/api/admin/brackets/ties/attach-match', {
