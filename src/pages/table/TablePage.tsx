@@ -26,17 +26,22 @@ export const TablePage = () => {
   const { data: bracket, refetch: refetchBracket } = useBracket()
   const { data: teams } = useTeams()
   const { session } = useSession()
-  const { cabinetRepository, bracketRepository } = useRepositories()
+  const { cabinetRepository } = useRepositories()
 
   const teamMap = useMemo(() => Object.fromEntries((teams ?? []).map((team) => [team.id, team])), [teams])
   const canEditBracket = canManageMatch(session)
 
   const [isEditingBracket, setIsEditingBracket] = useState(false)
+  const [cancelEditOpen, setCancelEditOpen] = useState(false)
   const [activeTournamentId, setActiveTournamentId] = useState('')
   const [bracketStatus, setBracketStatus] = useState<string | null>(null)
 
   const [editorNodes, setEditorNodes] = useState<BracketEditorNode[]>([])
   const [editorEdges, setEditorEdges] = useState<BracketEditorEdge[]>([])
+  const [draftNodes, setDraftNodes] = useState<BracketEditorNode[]>([])
+  const [draftEdges, setDraftEdges] = useState<BracketEditorEdge[]>([])
+  const [draftCreatedTies, setDraftCreatedTies] = useState<PlayoffTieViewModel[]>([])
+  const [draftDeletedTieIds, setDraftDeletedTieIds] = useState<Set<string>>(new Set())
 
   const [selectedTieId, setSelectedTieId] = useState<string | null>(null)
   const [tiePendingDelete, setTiePendingDelete] = useState<string | null>(null)
@@ -73,7 +78,7 @@ export const TablePage = () => {
 
   const mergedGroups = useMemo(() => bracket?.groups ?? [], [bracket?.groups])
 
-  const tieViewModels = useMemo<PlayoffTieViewModel[]>(() => {
+  const baseTieViewModels = useMemo<PlayoffTieViewModel[]>(() => {
     const stageById = Object.fromEntries((bracket?.stages ?? []).map((stage) => [stage.id, stage]))
     return mergedGroups.map((group) => {
       const matches = [group.firstLeg, group.secondLeg, group.thirdLeg]
@@ -105,11 +110,16 @@ export const TablePage = () => {
     })
   }, [bracket?.stages, mergedGroups])
 
+  const tieViewModels = useMemo(() => {
+    if (!isEditingBracket) return baseTieViewModels
+    return [...baseTieViewModels.filter((tie) => !draftDeletedTieIds.has(tie.id)), ...draftCreatedTies]
+  }, [baseTieViewModels, draftCreatedTies, draftDeletedTieIds, isEditingBracket])
+
   useEffect(() => {
-    const tieIds = new Set(tieViewModels.map((tie) => tie.id))
+    const tieIds = new Set(baseTieViewModels.map((tie) => tie.id))
     setEditorNodes((prev) => prev.filter((node) => tieIds.has(node.tieId)))
     setEditorEdges((prev) => prev.filter((edge) => tieIds.has(edge.fromTieId) && tieIds.has(edge.toTieId)))
-  }, [tieViewModels])
+  }, [baseTieViewModels])
 
   const loadLayoutFromBackend = async () => {
     if (!activeTournamentId || !cabinetRepository.getBracketEditorLayout) return
@@ -128,7 +138,7 @@ export const TablePage = () => {
   }, [activeTournamentId, cabinetRepository])
 
   const openTieEdit = (tieId: string) => {
-    const tie = mergedGroups.find((group) => group.id === tieId)
+    const tie = tieViewModels.find((item) => item.id === tieId)
     if (!tie) return
     setSelectedTieId(tie.id)
     setTieHomeTeamId(tie.homeTeamId ?? '')
@@ -145,11 +155,43 @@ export const TablePage = () => {
       setBracketStatus('Сохранение layout недоступно')
       return
     }
+    const nodesSource = isEditingBracket ? draftNodes : editorNodes
+    const edgesSource = isEditingBracket ? draftEdges : editorEdges
+
     void (async () => {
-      await cabinetRepository.saveBracketEditorLayout?.({ tournamentId: activeTournamentId, nodes: editorNodes, edges: editorEdges })
+      let tieIdMap = new Map<string, string>()
+      for (const tie of draftCreatedTies) {
+        const created = await cabinetRepository.createBracketTie?.({
+          tournamentId: activeTournamentId,
+          stageId: tie.stageId,
+          slot: tie.slot,
+          homeTeamId: String(tie.homeTeamId),
+          awayTeamId: String(tie.awayTeamId),
+        })
+        if (created?.id) tieIdMap.set(tie.id, created.id)
+      }
+
+      const nodesPrepared = nodesSource
+        .filter((node) => !draftDeletedTieIds.has(node.tieId))
+        .map((node) => {
+          const mappedTie = tieIdMap.get(node.tieId) ?? node.tieId
+          return { ...node, tieId: mappedTie, id: `node_${mappedTie}` }
+        })
+      const edgesPrepared = edgesSource
+        .map((edge) => ({
+          ...edge,
+          fromTieId: tieIdMap.get(edge.fromTieId) ?? edge.fromTieId,
+          toTieId: tieIdMap.get(edge.toTieId) ?? edge.toTieId,
+        }))
+        .filter((edge) => !draftDeletedTieIds.has(edge.fromTieId) && !draftDeletedTieIds.has(edge.toTieId))
+
+      await cabinetRepository.saveBracketEditorLayout?.({ tournamentId: activeTournamentId, nodes: nodesPrepared, edges: edgesPrepared })
       await loadLayoutFromBackend()
       await refetchBracket()
     })()
+    setIsEditingBracket(false)
+    setDraftCreatedTies([])
+    setDraftDeletedTieIds(new Set())
     setBracketStatus('Layout сохранён на сервере')
   }
 
@@ -165,58 +207,34 @@ export const TablePage = () => {
     if (!pendingCreateAnchor) return
 
     const stageId = bracket?.stages?.[0]?.id || 'custom'
-    const slot = Date.now()
-    const existingIds = new Set((bracket?.groups ?? []).map((group) => group.id))
-
-    if (activeTournamentId && cabinetRepository.createBracketTie) {
-      try {
-        const created = await cabinetRepository.createBracketTie({
-          tournamentId: activeTournamentId,
-          stageId,
-          slot,
-          homeTeamId: tieHomeTeamId,
-          awayTeamId: tieAwayTeamId,
-        })
-        let tieId = created?.id
-        if (!tieId) {
-          const fresh = await bracketRepository.getBracket()
-          const candidate = [...fresh.groups].reverse().find((group) => !existingIds.has(group.id))
-            ?? [...fresh.groups]
-              .reverse()
-              .find((group) => (
-                (group.homeTeamId === tieHomeTeamId && group.awayTeamId === tieAwayTeamId)
-                || (group.homeTeamId === tieAwayTeamId && group.awayTeamId === tieHomeTeamId)
-              ))
-          tieId = candidate?.id
-        }
-        if (tieId) {
-          setEditorNodes((prev) => [...prev, {
-            id: `node_${tieId}`,
-            tieId,
-            stageId,
-            x: (pendingCreateAnchor.col - 1) * 150,
-            y: (pendingCreateAnchor.row - 1) * 78,
-            w: 150,
-            h: 78,
-          }])
-        }
-        await refetchBracket()
-        await loadLayoutFromBackend()
-      } catch {
-        setBracketStatus('Не удалось создать tie на сервере')
-        return
-      }
-    } else {
-      setBracketStatus('Нет API метода createBracketTie')
-      return
-    }
-
-    setBracketStatus('Плей-офф добавлен на сервере')
+    const tieId = `draft_${Date.now()}`
+    setDraftCreatedTies((prev) => [...prev, {
+      id: tieId,
+      stageId,
+      stageLabel: stageId,
+      slot: Date.now(),
+      homeTeamId: tieHomeTeamId,
+      awayTeamId: tieAwayTeamId,
+      winnerTeamId: null,
+      matches: [],
+      total: null,
+    }])
+    setDraftNodes((prev) => [...prev, {
+      id: `node_${tieId}`,
+      tieId,
+      stageId,
+      x: (pendingCreateAnchor.col - 1) * 150,
+      y: (pendingCreateAnchor.row - 1) * 78,
+      w: 150,
+      h: 78,
+    }])
+    setBracketStatus('Плейофф добавлен в черновик')
     setPendingCreateAnchor(null)
   }
 
   const startCreateTie = (anchor: { col: number; row: number }) => {
-    const occupied = new Set(editorNodes.map((node) => `${Math.round(node.x / 150) + 1}:${Math.round(node.y / 78) + 1}`))
+    const sourceNodes = isEditingBracket ? draftNodes : editorNodes
+    const occupied = new Set(sourceNodes.map((node) => `${Math.round(node.x / 150) + 1}:${Math.round(node.y / 78) + 1}`))
     let best = anchor
     if (occupied.has(`${anchor.col}:${anchor.row}`)) {
       let found = false
@@ -240,8 +258,12 @@ export const TablePage = () => {
   }
 
   const deleteTie = (tieId: string) => {
+    setDraftDeletedTieIds((prev) => new Set(prev).add(tieId))
+    setDraftCreatedTies((prev) => prev.filter((tie) => tie.id !== tieId))
+    setDraftNodes((prev) => prev.filter((node) => node.tieId !== tieId))
+    setDraftEdges((prev) => prev.filter((edge) => edge.fromTieId !== tieId && edge.toTieId !== tieId))
     setTiePendingDelete(null)
-    setBracketStatus(`Удаление tie ${tieId} нужно делать через backend endpoint`)
+    setBracketStatus(`Плейофф ${tieId} удален в черновике`)
   }
 
   return (
@@ -254,12 +276,20 @@ export const TablePage = () => {
             type="button"
             className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs ${isEditingBracket ? 'border-accentYellow text-accentYellow' : 'border-borderSubtle text-textMuted'}`}
             onClick={() => {
-              setIsEditingBracket((prev) => !prev)
+              if (isEditingBracket) {
+                setCancelEditOpen(true)
+                return
+              }
+              setDraftNodes(editorNodes)
+              setDraftEdges(editorEdges)
+              setDraftCreatedTies([])
+              setDraftDeletedTieIds(new Set())
+              setIsEditingBracket(true)
               setSelectedTieId(null)
               setPendingCreateAnchor(null)
             }}
           >
-            <Pencil size={12} /> {isEditingBracket ? 'Завершить редактирование' : 'Редактировать сетку'}
+            <Pencil size={12} /> {isEditingBracket ? 'Отмена' : 'Редактировать сетку'}
           </button>
         </div>
       )}
@@ -270,12 +300,17 @@ export const TablePage = () => {
             <>
               <BracketEditor
                 ties={tieViewModels}
-                nodes={editorNodes}
-                edges={editorEdges}
+                nodes={isEditingBracket ? draftNodes : editorNodes}
+                edges={isEditingBracket ? draftEdges : editorEdges}
                 teamMap={teamMap}
                 editable={isEditingBracket}
                 showGrid={isEditingBracket}
                 onChange={({ nodes, edges }) => {
+                  if (isEditingBracket) {
+                    setDraftNodes(nodes)
+                    setDraftEdges(edges)
+                    return
+                  }
                   setEditorNodes(nodes)
                   setEditorEdges(edges)
                 }}
@@ -293,6 +328,25 @@ export const TablePage = () => {
             </PageContainer>
           )}
       </div>
+
+      <ConfirmDialog
+        open={cancelEditOpen}
+        title="Отменить редактирование"
+        description="Все несохраненные изменения, создания и удаления будут отменены."
+        confirmLabel="Отменить изменения"
+        onCancel={() => setCancelEditOpen(false)}
+        onConfirm={() => {
+          setCancelEditOpen(false)
+          setIsEditingBracket(false)
+          setDraftNodes([])
+          setDraftEdges([])
+          setDraftCreatedTies([])
+          setDraftDeletedTieIds(new Set())
+          setSelectedTieId(null)
+          setPendingCreateAnchor(null)
+          setBracketStatus('Изменения отменены')
+        }}
+      />
 
       <ConfirmDialog
         open={Boolean(tiePendingDelete)}
