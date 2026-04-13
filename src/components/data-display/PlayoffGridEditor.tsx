@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from 'react'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import type { PlayoffGrid, Team } from '../../domain/entities/types'
 
@@ -202,6 +202,12 @@ export const PlayoffGridEditor = ({
     }
   }
 
+  const boardWheel = (event: WheelEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const delta = event.deltaY > 0 ? -0.08 : 0.08
+    setViewport((prev) => clampViewport({ ...prev, scale: clamp(prev.scale + delta, 0.55, 1.9) }))
+  }
+
   const boardPointerUp = (event: PointerEvent<HTMLDivElement>) => {
     activePointers.current.delete(event.pointerId)
     if (activePointers.current.size < 2) pinchStart.current = null
@@ -301,6 +307,7 @@ export const PlayoffGridEditor = ({
         onPointerUp={boardPointerUp}
         onPointerCancel={boardPointerUp}
         onPointerLeave={boardPointerUp}
+        onWheel={boardWheel}
       >
         <div
           className="absolute left-0 top-0 origin-top-left"
@@ -345,13 +352,11 @@ export const PlayoffGridEditor = ({
             const showWinner = Boolean(cell.allMatchesFinished && cell.winnerTeamId)
 
             return (
-              <button
+              <div
                 key={cell.clientKey}
-                type="button"
                 className={`absolute rounded-lg border bg-panelAlt/95 px-2 py-1 text-left text-[11px] shadow-soft ${isSelected ? 'border-accentYellow' : 'border-white/15'}`}
                 style={{ left: (cell.col - 1) * CELL_W, top: (cell.row - 1) * CELL_H, width: CELL_W, height: CELL_H }}
-                onPointerDown={(event) => {
-                  event.stopPropagation()
+                onPointerDown={() => {
                   if (editable && isEditing && editorMode === 'move') movingCell.current = { id: cell.id }
                 }}
                 onClick={() => {
@@ -394,7 +399,7 @@ export const PlayoffGridEditor = ({
                     <div className="border-t border-white/15 pt-0.5 text-textPrimary">Σ {totalHome ?? '-'}:{totalAway ?? '-'}</div>
                   </div>
                 )}
-              </button>
+              </div>
             )
           })}
           {editable && isEditing && editorMode === 'lines' && cellsDraft.map((cell) => (
