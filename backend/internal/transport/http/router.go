@@ -71,6 +71,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 			r.Post("/dev-login", h.DevLogin)
 		}
 		r.Post("/telegram/start", h.TelegramAuthStart)
+		r.Post("/telegram/bot/issue-code", h.TelegramIssueCode)
 		r.Post("/telegram/complete-code", h.TelegramCodeLogin)
 		if cfg.Features.TelegramMockLoginEnabled {
 			r.Post("/telegram/mock-code-login", h.TelegramMockCodeLogin)
@@ -352,8 +353,34 @@ func (h Handler) TelegramCodeLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to create session", 500)
 		return
 	}
+	if user.TelegramID != nil {
+		_ = h.notifications.EnsureDefaultTelegramSubscriptions(r.Context(), user.ID, *user.TelegramID)
+	}
 	setSessionCookie(w, h.session, rawToken, sess.ExpiresAt)
 	writeJSON(w, 200, domain.MeResponse{User: user, Session: sess})
+}
+
+func (h Handler) TelegramIssueCode(w http.ResponseWriter, r *http.Request) {
+	var req domain.TelegramIssueCodeRequest
+	if err := decodeJSONStrict(r, &req); err != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	botToken := strings.TrimSpace(h.cfg.Telegram.BotToken)
+	if botToken != "" && strings.TrimSpace(r.Header.Get("X-Telegram-Bot-Token")) != botToken {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	resp, err := h.telegramAuth.IssueCode(r.Context(), req)
+	if err != nil {
+		if errors.Is(err, telegramauth.ErrSessionExpired) {
+			http.Error(w, "expired login session", 410)
+			return
+		}
+		http.Error(w, "failed to issue code", 400)
+		return
+	}
+	writeJSON(w, 200, resp)
 }
 
 func (h Handler) TelegramMockCodeLogin(w http.ResponseWriter, r *http.Request) {

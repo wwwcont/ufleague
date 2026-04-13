@@ -32,6 +32,10 @@ func (s Service) EnqueuePlayerCommentNew(ctx context.Context, userID int64, payl
 	return s.repo.Enqueue(ctx, userID, domain.NotificationPlayerCommentNew, payload)
 }
 
+func (s Service) EnsureDefaultTelegramSubscriptions(ctx context.Context, userID int64, chatID int64) error {
+	return s.repo.EnsureDefaultTelegramSubscriptions(ctx, userID, chatID)
+}
+
 func (s Service) ClaimPending(ctx context.Context, limit int) ([]domain.NotificationJob, error) {
 	return s.repo.ClaimPending(ctx, limit)
 }
