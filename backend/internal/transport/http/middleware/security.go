@@ -99,6 +99,10 @@ func (m *SecurityMiddleware) CORS(next http.Handler) http.Handler {
 
 func (m *SecurityMiddleware) CSRFSimple(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isCSRFExemptPath(r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
+		}
 		cookie, _ := r.Cookie("csrf_token")
 		if cookie == nil || cookie.Value == "" {
 			token := randomToken(16)
@@ -123,6 +127,10 @@ func (m *SecurityMiddleware) CSRFSimple(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func isCSRFExemptPath(path string) bool {
+	return strings.HasPrefix(path, "/api/auth/telegram/webhook") || path == "/api/auth/telegram/bot/issue-code"
 }
 
 func randomToken(bytesN int) string {
