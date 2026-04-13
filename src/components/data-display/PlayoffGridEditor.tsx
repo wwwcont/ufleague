@@ -9,6 +9,7 @@ const CELL_H = 124
 const PAN_MARGIN_CELLS = 3
 
 type EditorMode = 'navigation' | 'move' | 'lines'
+type LineAnchorSide = 'left' | 'right'
 
 type DraftCell = PlayoffGrid['cells'][number] & { clientKey: string }
 type DraftLine = PlayoffGrid['lines'][number] & { clientKey: string; fromCellId: string; toCellId: string }
@@ -42,12 +43,16 @@ export const PlayoffGridEditor = ({
   const [dirty, setDirty] = useState(false)
   const [selectedCellId, setSelectedCellId] = useState<string | null>(null)
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null)
-  const [lineSourceCellId, setLineSourceCellId] = useState<string | null>(null)
+  const [lineSourceAnchor, setLineSourceAnchor] = useState<{ cellId: string; side: LineAnchorSide } | null>(null)
   const [editorMode, setEditorMode] = useState<EditorMode>('navigation')
   const [viewport, setViewport] = useState({ x: 16, y: 16, scale: 0.76 })
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [showCellDialog, setShowCellDialog] = useState(false)
+  const [editingCellId, setEditingCellId] = useState<string | null>(null)
+  const [cellDialogHomeTeamId, setCellDialogHomeTeamId] = useState<string | null>(null)
+  const [cellDialogAwayTeamId, setCellDialogAwayTeamId] = useState<string | null>(null)
 
   const boardW = GRID_COLS * CELL_W
   const boardH = GRID_ROWS * CELL_H
@@ -63,8 +68,12 @@ export const PlayoffGridEditor = ({
     setDirty(false)
     setSelectedCellId(null)
     setSelectedLineId(null)
-    setLineSourceCellId(null)
+    setLineSourceAnchor(null)
     setIsEditing(false)
+    setShowCellDialog(false)
+    setEditingCellId(null)
+    setCellDialogHomeTeamId(null)
+    setCellDialogAwayTeamId(null)
   }, [grid])
 
   const cellsById = useMemo(() => Object.fromEntries(cellsDraft.map((cell) => [cell.id, cell])), [cellsDraft])
@@ -101,7 +110,33 @@ export const PlayoffGridEditor = ({
     setDirty(true)
   }
 
-  const addCell = () => {
+  const openAddCellDialog = () => {
+    setEditingCellId(null)
+    setCellDialogHomeTeamId(null)
+    setCellDialogAwayTeamId(null)
+    setShowCellDialog(true)
+  }
+
+  const openEditCellDialog = (cellId: string) => {
+    const cell = cellsById[cellId]
+    if (!cell) return
+    setEditingCellId(cellId)
+    setCellDialogHomeTeamId(cell.homeTeamId)
+    setCellDialogAwayTeamId(cell.awayTeamId)
+    setShowCellDialog(true)
+  }
+
+  const submitCellDialog = () => {
+    if (editingCellId) {
+      setCellsDraft((prev) => prev.map((cell) => (
+        cell.id === editingCellId
+          ? { ...cell, homeTeamId: cellDialogHomeTeamId, awayTeamId: cellDialogAwayTeamId }
+          : cell
+      )))
+      setDirty(true)
+      setShowCellDialog(false)
+      return
+    }
     for (let row = 1; row <= GRID_ROWS; row += 1) {
       for (let col = 1; col <= GRID_COLS; col += 1) {
         if (!occupied.has(`${col}:${row}`)) {
@@ -109,8 +144,8 @@ export const PlayoffGridEditor = ({
           setCellsDraft((prev) => [...prev, {
             id: tmpId,
             clientKey: `cell:${tmpId}`,
-            homeTeamId: null,
-            awayTeamId: null,
+            homeTeamId: cellDialogHomeTeamId,
+            awayTeamId: cellDialogAwayTeamId,
             col,
             row,
             attachedMatchIds: [],
@@ -122,6 +157,7 @@ export const PlayoffGridEditor = ({
           }])
           setSelectedCellId(tmpId)
           setDirty(true)
+          setShowCellDialog(false)
           return
         }
       }
@@ -173,19 +209,19 @@ export const PlayoffGridEditor = ({
     movingCell.current = null
   }
 
-  const onCellTap = (cellId: string) => {
+  const onLineAnchorTap = (cellId: string, side: LineAnchorSide) => {
     setSelectedCellId(cellId)
     setSelectedLineId(null)
     if (!editable || !isEditing || editorMode !== 'lines') return
-    if (!lineSourceCellId) {
-      setLineSourceCellId(cellId)
+    if (!lineSourceAnchor) {
+      setLineSourceAnchor({ cellId, side })
       return
     }
-    if (lineSourceCellId === cellId) {
-      setLineSourceCellId(null)
+    if (lineSourceAnchor.cellId === cellId && lineSourceAnchor.side === side) {
+      setLineSourceAnchor(null)
       return
     }
-    const probe = { fromCellId: lineSourceCellId, toCellId: cellId }
+    const probe = { fromCellId: lineSourceAnchor.cellId, toCellId: cellId }
     const existing = linesDraft.find((line) => sameLine(line, probe))
     if (existing) {
       setLinesDraft((prev) => prev.filter((line) => line.id !== existing.id))
@@ -199,7 +235,14 @@ export const PlayoffGridEditor = ({
         toCellId: probe.toCellId,
       }])
     }
-    setLineSourceCellId(null)
+    setLineSourceAnchor(null)
+    setDirty(true)
+  }
+
+  const deleteCell = (cellId: string) => {
+    setCellsDraft((prev) => prev.filter((cell) => cell.id !== cellId))
+    setLinesDraft((prev) => prev.filter((line) => line.fromCellId !== cellId && line.toCellId !== cellId))
+    setSelectedCellId((prev) => (prev === cellId ? null : prev))
     setDirty(true)
   }
 
@@ -236,7 +279,7 @@ export const PlayoffGridEditor = ({
     setDirty(false)
     setSelectedCellId(null)
     setSelectedLineId(null)
-    setLineSourceCellId(null)
+    setLineSourceAnchor(null)
     setIsEditing(false)
     setShowCancelConfirm(false)
   }
@@ -311,9 +354,35 @@ export const PlayoffGridEditor = ({
                   event.stopPropagation()
                   if (editable && isEditing && editorMode === 'move') movingCell.current = { id: cell.id }
                 }}
-                onClick={() => onCellTap(cell.id)}
+                onClick={() => {
+                  setSelectedCellId(cell.id)
+                  setSelectedLineId(null)
+                }}
               >
-                <div className="truncate text-[10px] text-textMuted">{cell.col}:{cell.row}</div>
+                {editable && isEditing && (
+                  <div className="mb-1 flex items-center justify-end gap-1">
+                    <button
+                      type="button"
+                      className="rounded bg-panelBg px-1.5 py-0.5 text-[10px] text-textSecondary"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        openEditCellDialog(cell.id)
+                      }}
+                    >
+                      ✎
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded bg-panelBg px-1.5 py-0.5 text-[10px] text-red-400"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        deleteCell(cell.id)
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
                 <div className={`truncate ${showWinner && cell.winnerTeamId === cell.homeTeamId ? 'text-accentYellow font-semibold' : 'text-textPrimary'}`}>{home?.shortName ?? 'TBD'}</div>
                 <div className={`truncate ${showWinner && cell.winnerTeamId === cell.awayTeamId ? 'text-accentYellow font-semibold' : 'text-textPrimary'}`}>{away?.shortName ?? 'TBD'}</div>
                 {cell.attachedMatches.length === 1 && (
@@ -328,6 +397,30 @@ export const PlayoffGridEditor = ({
               </button>
             )
           })}
+          {editable && isEditing && editorMode === 'lines' && cellsDraft.map((cell) => (
+            <div key={`anchors:${cell.id}`} className="absolute" style={{ left: (cell.col - 1) * CELL_W, top: (cell.row - 1) * CELL_H, width: CELL_W, height: CELL_H }}>
+              <button
+                type="button"
+                className="absolute left-[-10px] top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border border-borderSubtle bg-panelBg text-[12px] text-textPrimary"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onLineAnchorTap(cell.id, 'left')
+                }}
+              >
+                +
+              </button>
+              <button
+                type="button"
+                className="absolute right-[-10px] top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border border-borderSubtle bg-panelBg text-[12px] text-textPrimary"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onLineAnchorTap(cell.id, 'right')
+                }}
+              >
+                +
+              </button>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -349,7 +442,7 @@ export const PlayoffGridEditor = ({
           <button type="button" onClick={() => setEditorMode('navigation')} className={`rounded-lg px-2 py-2 ${editorMode === 'navigation' ? 'bg-accentYellow text-app font-semibold' : 'bg-panelAlt text-textSecondary'}`}>Навигация</button>
           <button type="button" onClick={() => setEditorMode('move')} className={`rounded-lg px-2 py-2 ${editorMode === 'move' ? 'bg-accentYellow text-app font-semibold' : 'bg-panelAlt text-textSecondary'}`}>Движение</button>
           <button type="button" onClick={() => setEditorMode('lines')} className={`rounded-lg px-2 py-2 ${editorMode === 'lines' ? 'bg-accentYellow text-app font-semibold' : 'bg-panelAlt text-textSecondary'}`}>Линии</button>
-          <button type="button" onClick={addCell} className="rounded-lg border border-borderSubtle px-2 py-2 text-textSecondary">Добавить</button>
+          <button type="button" onClick={openAddCellDialog} className="rounded-lg border border-borderSubtle px-2 py-2 text-textSecondary">Добавить</button>
         </div>
         <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
           <button type="button" onClick={() => setShowCancelConfirm(true)} className="rounded-lg border border-borderSubtle px-2 py-2 text-textSecondary">Отмена</button>
@@ -367,6 +460,38 @@ export const PlayoffGridEditor = ({
         onConfirm={cancelDraft}
         onCancel={() => setShowCancelConfirm(false)}
       />
+
+      {editable && isEditing && showCellDialog && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-xl border border-borderSubtle bg-app p-4">
+            <p className="mb-3 text-sm font-semibold">{editingCellId ? 'Редактировать плейофф' : 'Добавить плейофф'}</p>
+            <div className="space-y-2">
+              <label className="block text-xs text-textMuted">Команда 1 (необязательно)</label>
+              <select
+                className="w-full rounded-lg border border-borderSubtle bg-panelAlt px-2 py-2 text-sm"
+                value={cellDialogHomeTeamId ?? ''}
+                onChange={(event) => setCellDialogHomeTeamId(event.target.value || null)}
+              >
+                <option value="">Не выбрана</option>
+                {Object.values(teamMap).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
+              </select>
+              <label className="block text-xs text-textMuted">Команда 2 (необязательно)</label>
+              <select
+                className="w-full rounded-lg border border-borderSubtle bg-panelAlt px-2 py-2 text-sm"
+                value={cellDialogAwayTeamId ?? ''}
+                onChange={(event) => setCellDialogAwayTeamId(event.target.value || null)}
+              >
+                <option value="">Не выбрана</option>
+                {Object.values(teamMap).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
+              </select>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button type="button" className="rounded-lg border border-borderSubtle px-2 py-2 text-sm text-textSecondary" onClick={() => setShowCellDialog(false)}>Отмена</button>
+              <button type="button" className="rounded-lg bg-accentYellow px-2 py-2 text-sm font-semibold text-app" onClick={submitCellDialog}>{editingCellId ? 'Сохранить' : 'Добавить'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
