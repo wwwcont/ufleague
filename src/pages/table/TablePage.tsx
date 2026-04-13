@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Pencil } from 'lucide-react'
-import { BracketEditor, buildInitialEditorNodes } from '../../components/data-display/BracketEditor'
+import { BracketEditor } from '../../components/data-display/BracketEditor'
 import { StandingsTable } from '../../components/data-display/StandingsTable'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { PageContainer } from '../../layouts/containers/PageContainer'
@@ -112,14 +112,7 @@ export const TablePage = () => {
 
   useEffect(() => {
     const tieIds = new Set(tieViewModels.map((tie) => tie.id))
-
-    setEditorNodes((prev) => {
-      const filtered = prev.filter((node) => tieIds.has(node.tieId))
-      const missingTies = tieViewModels.filter((tie) => !filtered.some((node) => node.tieId === tie.id))
-      if (missingTies.length === 0) return filtered
-      return [...filtered, ...buildInitialEditorNodes(missingTies)]
-    })
-
+    setEditorNodes((prev) => prev.filter((node) => tieIds.has(node.tieId)))
     setEditorEdges((prev) => prev.filter((edge) => tieIds.has(edge.fromTieId) && tieIds.has(edge.toTieId)))
   }, [tieViewModels])
 
@@ -127,7 +120,11 @@ export const TablePage = () => {
     if (!activeTournamentId || !cabinetRepository.getBracketEditorLayout) return
     void (async () => {
       const layout = await cabinetRepository.getBracketEditorLayout?.(activeTournamentId)
-      if (!layout) return
+      if (!layout) {
+        setEditorNodes([])
+        setEditorEdges([])
+        return
+      }
       setEditorNodes(layout.nodes)
       setEditorEdges(layout.edges)
     })()
@@ -172,13 +169,25 @@ export const TablePage = () => {
 
     if (activeTournamentId && cabinetRepository.createBracketTie) {
       try {
-        await cabinetRepository.createBracketTie({
+        const created = await cabinetRepository.createBracketTie({
           tournamentId: activeTournamentId,
           stageId,
           slot,
           homeTeamId: tieHomeTeamId,
           awayTeamId: tieAwayTeamId,
         })
+        const tieId = created?.id
+        if (tieId) {
+          setEditorNodes((prev) => [...prev, {
+            id: `node_${tieId}`,
+            tieId,
+            stageId,
+            x: (pendingCreateAnchor.col - 1) * 150,
+            y: (pendingCreateAnchor.row - 1) * 78,
+            w: 150,
+            h: 78,
+          }])
+        }
         await refetchBracket()
       } catch {
         setBracketStatus('Не удалось создать tie на сервере')

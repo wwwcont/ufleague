@@ -844,7 +844,7 @@ export const cabinetRepository: CabinetRepository = {
     }
   },
   async createBracketTie(input) {
-    await api('/api/admin/bracket/ties', {
+    const payload = await api<any>('/api/admin/bracket/ties', {
       method: 'POST',
       body: JSON.stringify({
         tournament_id: Number(input.tournamentId),
@@ -855,6 +855,10 @@ export const cabinetRepository: CabinetRepository = {
         label: input.label ?? '',
       }),
     }).catch(() => undefined)
+    if (payload?.id || payload?.tie_id) {
+      return { id: String(payload.id ?? payload.tie_id) }
+    }
+    return undefined
   },
   async getBracketEditorLayout(tournamentId) {
     try {

@@ -86,7 +86,6 @@ export const BracketEditor = ({
 
   const onCanvasPointerDown = (event: ReactPointerEvent) => {
     if (event.target !== event.currentTarget) return
-    if (!editable) return
     panRef.current = { pointerStartX: event.clientX, pointerStartY: event.clientY, x: viewport.x, y: viewport.y }
     setSelectedEdgeId(null)
     setSelectedHandle(null)
