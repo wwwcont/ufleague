@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { Activity, Disc3, Info, Pencil, Plus, Radio, Timer } from 'lucide-react'
+import { Activity, Disc3, Info, Plus, Radio, Timer } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useMatchDetails } from '../../hooks/data/useMatchDetails'
 import { useMatches } from '../../hooks/data/useMatches'
@@ -8,16 +8,17 @@ import { useTeams } from '../../hooks/data/useTeams'
 import { usePlayers } from '../../hooks/data/usePlayers'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { TeamAvatar } from '../../components/ui/TeamAvatar'
-import { tournament } from '../../mocks/data/tournament'
 import { CommentsSection } from '../../components/comments'
 import { EntityReactions } from '../../components/ui/EntityReactions'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { ApiError } from '../../infrastructure/api/repositories'
-import { canManageMatch } from '../../domain/services/accessControl'
+import { canManageMatch, canManageMatchScore } from '../../domain/services/accessControl'
 import { formatMatchMetaMsk, getTimeToKickoff } from '../../lib/date-time'
 import type { Match } from '../../domain/entities/types'
 import { EditableSectionHeader, SectionActionBar } from '../../components/ui/editable'
+
+const tournamentFallbackLogo = '/assets/logos/tournament.svg'
 
 const statusLabel: Record<string, string> = {
   scheduled: 'По расписанию',
@@ -106,6 +107,8 @@ export const MatchDetailsPage = () => {
   const [goalScorerId, setGoalScorerId] = useState('')
   const [goalAssistId, setGoalAssistId] = useState('')
   const [goalStatus, setGoalStatus] = useState<string | null>(null)
+  const [goalDelta, setGoalDelta] = useState<1 | -1>(1)
+  const [goalConfirmOpen, setGoalConfirmOpen] = useState(false)
   const [activeTournamentId, setActiveTournamentId] = useState('1')
   const normalizedTournamentId = /^\d+$/.test(activeTournamentId) ? activeTournamentId : '1'
   const [playoffModalOpen, setPlayoffModalOpen] = useState(false)
@@ -156,6 +159,7 @@ export const MatchDetailsPage = () => {
   }
 
   const isAdmin = canManageMatch(session)
+  const canEditScore = canManageMatchScore(session)
   const actionError = (error: unknown) => {
     if (error instanceof ApiError) {
       if (error.status === 403) return 'Недостаточно прав (403).'
@@ -204,7 +208,12 @@ export const MatchDetailsPage = () => {
 
   return (
     <PageContainer>
-      <section className="relative overflow-hidden rounded-2xl border border-borderStrong bg-panelBg px-5 py-6 shadow-matte sm:px-7 sm:py-7">
+      <section className="relative rounded-2xl border border-borderStrong bg-panelBg px-5 py-6 shadow-matte sm:px-7 sm:py-7">
+        {canEditScore && (
+          <button type="button" onClick={() => setGoalEditorOpen(true)} className="absolute left-1/2 top-0 z-30 inline-flex -translate-x-1/2 -translate-y-1/2 items-center rounded-full bg-accentYellow px-4 py-1 text-xs font-semibold text-app shadow-soft">
+            СЧЕТ
+          </button>
+        )}
 
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-y-0 left-0 w-1/2 overflow-hidden">
@@ -229,11 +238,11 @@ export const MatchDetailsPage = () => {
           <Link to={`/teams/${home.id}`} className="flex min-w-0 flex-col items-start gap-1.5 rounded-xl p-1 transition hover:bg-panelSoft/70">
             <div className="flex items-center gap-2">
               <div className="flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-borderSubtle/60 bg-panelSoft/90 sm:h-[72px] sm:w-[72px]">
-                <TeamAvatar team={home} size="xl" fit="cover" fallbackLogoUrl={tournament.logoUrl} className="h-full w-full" />
+                <TeamAvatar team={home} size="xl" fit="cover" fallbackLogoUrl={tournamentFallbackLogo} className="h-full w-full" />
               </div>
               <div>
                 <p className="text-sm font-semibold uppercase text-textPrimary">{home.shortName}</p>
-                <p className="text-xs text-textMuted truncate max-w-[120px]">{home.name}</p>
+                <p className="hidden max-w-[120px] truncate text-xs text-textMuted sm:block">{home.name}</p>
               </div>
             </div>
             <div className="flex gap-1">
@@ -253,10 +262,10 @@ export const MatchDetailsPage = () => {
             <div className="flex items-center gap-2">
               <div>
                 <p className="text-sm font-semibold uppercase text-textPrimary">{away.shortName}</p>
-                <p className="text-xs text-textMuted truncate max-w-[120px]">{away.name}</p>
+                <p className="hidden max-w-[120px] truncate text-xs text-textMuted sm:block">{away.name}</p>
               </div>
               <div className="flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-borderSubtle/60 bg-panelSoft/90 sm:h-[72px] sm:w-[72px]">
-                <TeamAvatar team={away} size="xl" fit="cover" fallbackLogoUrl={tournament.logoUrl} className="h-full w-full" />
+                <TeamAvatar team={away} size="xl" fit="cover" fallbackLogoUrl={tournamentFallbackLogo} className="h-full w-full" />
               </div>
             </div>
             <div className="flex gap-1">
@@ -267,6 +276,10 @@ export const MatchDetailsPage = () => {
               ))}
             </div>
           </Link>
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-textMuted sm:hidden">
+          <p className="truncate">{home.name}</p>
+          <p className="truncate text-right">{away.name}</p>
         </div>
 
           <div className="mt-3 flex items-center justify-between gap-3 text-xs text-textMuted sm:text-sm">
@@ -291,18 +304,15 @@ export const MatchDetailsPage = () => {
           )}
         </div>
       </div>
-
-
-      {isAdmin && (
-        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-3 shadow-soft">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-textPrimary">СЧЕТ</p>
-            <button type="button" onClick={() => setGoalEditorOpen((prev) => !prev)} className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textMuted hover:border-accentYellow hover:text-accentYellow">
-              <Pencil size={12} /> Добавить гол
-            </button>
-          </div>
-          {goalEditorOpen && (
-            <div className="mt-2 grid gap-2">
+      {goalStatus && <p className="rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 text-xs text-textMuted">{goalStatus}</p>}
+      {goalEditorOpen && (
+        <section className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-borderSubtle bg-panelBg p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-semibold text-textPrimary">Изменение счета</p>
+              <button type="button" className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textSecondary" onClick={() => setGoalEditorOpen(false)}>Закрыть</button>
+            </div>
+            <div className="grid gap-2">
               <select value={goalTeamId} onChange={(e) => { setGoalTeamId(e.target.value); setGoalScorerId(''); setGoalAssistId('') }} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm">
                 <option value="">Выберите команду</option>
                 <option value={home.id}>{home.name}</option>
@@ -316,48 +326,47 @@ export const MatchDetailsPage = () => {
                 <option value="">Ассист (необязательно)</option>
                 {candidatePlayers.filter((player) => player.id !== goalScorerId).map((player) => <option key={player.id} value={player.id}>{player.displayName}</option>)}
               </select>
-              <button
-                type="button"
-                disabled={!goalTeamId || !goalScorerId}
-                className="w-fit rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app disabled:opacity-50"
-                onClick={async () => {
-                  const nextScore = goalTeamId === home.id
-                    ? { home: effectiveScore.home + 1, away: effectiveScore.away }
-                    : { home: effectiveScore.home, away: effectiveScore.away + 1 }
-                  const newGoalEvent: Match['events'][number] = {
-                    id: `goal_${Date.now()}`,
-                    minute: (localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0) + 1,
-                    type: 'goal',
-                    teamId: goalTeamId,
-                    playerId: goalScorerId,
-                    assistPlayerId: goalAssistId || undefined,
-                    note: goalAssistId ? `ассист: ${goalAssistId}` : undefined,
-                  }
-                  const nextEvents = [...localEvents, newGoalEvent]
-                  setScoreDraft(nextScore)
-                  setLocalEvents(nextEvents)
-                  try {
-                    await matchesRepository.updateMatch?.(match.id, { homeScore: nextScore.home, awayScore: nextScore.away, goalEvents: nextEvents })
-                    setGoalStatus('Гол и ассист сохранены. Счет обновлен.')
-                  } catch (error) {
-                    setGoalStatus(actionError(error))
-                  }
-                }}
-              >
-                Сохранить гол
-              </button>
+              <div className="flex gap-2">
+                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => { setGoalDelta(1); setGoalConfirmOpen(true) }}>+1</button>
+                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50" onClick={() => { setGoalDelta(-1); setGoalConfirmOpen(true) }}>-1</button>
+              </div>
             </div>
-          )}
-          {goalStatus && <p className="mt-2 text-xs text-textMuted">{goalStatus}</p>}
+          </div>
         </section>
       )}
-
-      {isAdmin && (
-        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-3 shadow-soft">
-          <div className="flex items-center justify-end">
-            <button type="button" onClick={() => { void openPlayoffModal() }} className="inline-flex rounded-xl bg-accentYellow px-4 py-2 text-xs font-semibold text-app shadow-soft">
-              Добавить плейофф
-            </button>
+      {goalConfirmOpen && (
+        <section className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-borderSubtle bg-panelBg p-4">
+            <p className="text-sm font-semibold text-textPrimary">Подтвердить изменение счета</p>
+            <p className="mt-1 text-xs text-textMuted">{goalDelta > 0 ? 'Добавить гол выбранной команде?' : 'Убрать гол у выбранной команды?'}</p>
+            <div className="mt-3 flex gap-2">
+              <button type="button" className="rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app" onClick={async () => {
+                const nextScore = goalTeamId === home.id
+                  ? { home: Math.max(0, effectiveScore.home + goalDelta), away: effectiveScore.away }
+                  : { home: effectiveScore.home, away: Math.max(0, effectiveScore.away + goalDelta) }
+                const nextEvents = (() => {
+                  if (goalDelta > 0) {
+                    return [...localEvents, { id: `goal_${Date.now()}`, minute: (localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0) + 1, type: 'goal', teamId: goalTeamId, playerId: goalScorerId, assistPlayerId: goalAssistId || undefined, note: goalAssistId ? `ассист: ${goalAssistId}` : undefined } satisfies Match['events'][number]]
+                  }
+                  const toRemove = [...localEvents].reverse().find((event) => event.type === 'goal' && event.teamId === goalTeamId && event.playerId === goalScorerId)
+                  if (!toRemove) return localEvents
+                  const idx = localEvents.findIndex((event) => event.id === toRemove.id)
+                  return idx >= 0 ? localEvents.filter((_, eventIdx) => eventIdx !== idx) : localEvents
+                })()
+                setScoreDraft(nextScore)
+                setLocalEvents(nextEvents)
+                try {
+                  await matchesRepository.updateMatch?.(match.id, { homeScore: nextScore.home, awayScore: nextScore.away, goalEvents: nextEvents })
+                  setGoalStatus('Счет сохранен.')
+                } catch (error) {
+                  setGoalStatus(actionError(error))
+                } finally {
+                  setGoalConfirmOpen(false)
+                  setGoalEditorOpen(false)
+                }
+              }}>Подтвердить</button>
+              <button type="button" className="rounded-lg border border-borderSubtle px-3 py-1.5 text-xs text-textSecondary" onClick={() => setGoalConfirmOpen(false)}>Отмена</button>
+            </div>
           </div>
         </section>
       )}
@@ -553,6 +562,15 @@ export const MatchDetailsPage = () => {
       )}
 
       <CommentsSection entityType="match" entityId={match.id} title="Комментарии" />
+      {isAdmin && (
+        <section className="mt-3 rounded-2xl border border-borderSubtle bg-panelBg p-3 shadow-soft">
+          <div className="flex items-center justify-end">
+            <button type="button" onClick={() => { void openPlayoffModal() }} className="inline-flex w-full justify-center rounded-xl bg-accentYellow px-4 py-2 text-xs font-semibold text-app shadow-soft">
+              Добавить плейофф
+            </button>
+          </div>
+        </section>
+      )}
 
     </PageContainer>
   )

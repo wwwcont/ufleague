@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom'
 import type { Match, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
-import { tournament } from '../../mocks/data/tournament'
 import { EntityReactions } from '../ui/EntityReactions'
 import { formatMatchMetaMsk, getTimeToKickoff } from '../../lib/date-time'
+
+const tournamentFallbackLogo = '/assets/logos/tournament.svg'
 
 const getMatchIndicator = (match: Match) => {
   if (match.status === 'live') return { label: 'LIVE', tone: 'text-statusLive' }
@@ -28,7 +29,7 @@ export const MatchCard = ({ match, home, away }: { match: Match; home: Team; awa
       <div className="relative grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-4">
         <div className="z-10 flex min-w-0 items-center gap-2">
           <div className="flex h-[58px] w-[58px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-borderSubtle/60 bg-panelSoft/90 p-0 sm:h-[66px] sm:w-[66px]">
-            <TeamAvatar team={home} size="xl" fit="cover" fallbackLogoUrl={tournament.logoUrl} className="h-full w-full" />
+            <TeamAvatar team={home} size="xl" fit="cover" fallbackLogoUrl={tournamentFallbackLogo} className="h-full w-full" />
           </div>
           <span className="truncate text-sm font-semibold uppercase tracking-[0.06em] text-textPrimary sm:text-base">{home.shortName}</span>
         </div>
@@ -64,7 +65,7 @@ export const MatchCard = ({ match, home, away }: { match: Match; home: Team; awa
         <div className="z-10 flex min-w-0 items-center justify-end gap-2 text-right">
           <span className="truncate text-sm font-semibold uppercase tracking-[0.06em] text-textPrimary sm:text-base">{away.shortName}</span>
           <div className="flex h-[58px] w-[58px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-borderSubtle/60 bg-panelSoft/90 p-0 sm:h-[66px] sm:w-[66px]">
-            <TeamAvatar team={away} size="xl" fit="cover" fallbackLogoUrl={tournament.logoUrl} className="h-full w-full" />
+            <TeamAvatar team={away} size="xl" fit="cover" fallbackLogoUrl={tournamentFallbackLogo} className="h-full w-full" />
           </div>
         </div>
       </div>

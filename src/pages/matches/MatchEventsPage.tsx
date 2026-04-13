@@ -7,7 +7,7 @@ import { useMatchDetails } from '../../hooks/data/useMatchDetails'
 import { useEvents } from '../../hooks/data/useEvents'
 import { EventFeedSection } from '../../components/events'
 import { useSession } from '../../app/providers/use-session'
-import { canManageMatch } from '../../domain/services/accessControl'
+import { canCreateEvent, canManageMatch } from '../../domain/services/accessControl'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { ApiError } from '../../infrastructure/api/repositories'
 import { EventEditor } from '../../components/events'
@@ -29,6 +29,7 @@ export const MatchEventsPage = () => {
   const [pending, setPending] = useState(false)
 
   const canManage = canManageMatch(session)
+  const canCreate = canCreateEvent(session)
 
   const actionError = (cause: unknown) => {
     if (cause instanceof ApiError) {
@@ -58,8 +59,9 @@ export const MatchEventsPage = () => {
       {canManage && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
           <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><CalendarPlus size={16} className="text-accentYellow" /> Добавить событие</h2>
+          {!canCreate && <p className="mb-2 text-xs text-rose-300">Для вашего аккаунта сейчас запрещена публикация событий.</p>}
           {!createOpen ? (
-            <button type="button" className="inline-flex items-center gap-1 rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={() => {
+            <button type="button" disabled={!canCreate} className="inline-flex items-center gap-1 rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-60" onClick={() => {
               setCreateOpen(true)
               setStatus(null)
             }}>
@@ -93,7 +95,7 @@ export const MatchEventsPage = () => {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  disabled={pending || !eventTitle.trim()}
+                  disabled={pending || !eventTitle.trim() || !canCreate}
                   className="inline-flex items-center gap-1 rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-60"
                   onClick={async () => {
                     setPending(true)

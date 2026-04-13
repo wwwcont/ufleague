@@ -3,6 +3,7 @@ package events
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"football_ui/backend/internal/domain"
 )
@@ -46,6 +47,11 @@ func (s Service) GetEvent(ctx context.Context, id int64) (domain.EventFeedItem, 
 }
 
 func (s Service) CreateEvent(ctx context.Context, actor domain.User, req domain.CreateEventRequest) (domain.EventFeedItem, error) {
+	for _, restriction := range actor.Restrictions {
+		if strings.HasPrefix(restriction, "events:banned") {
+			return domain.EventFeedItem{}, ErrForbidden
+		}
+	}
 	if req.ScopeType == domain.EventScopeGlobal && req.ScopeID != nil {
 		return domain.EventFeedItem{}, ErrInvalid
 	}

@@ -17,6 +17,7 @@ export const SessionContext = createContext<SessionContextValue>({
     isAuthenticated: false,
     user: { id: 'u_guest', displayName: 'Guest', role: 'guest' },
     permissions: [],
+    restrictions: [],
   },
   status: 'loading',
   isLoading: true,

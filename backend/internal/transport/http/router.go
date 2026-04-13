@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -183,16 +184,22 @@ func (h Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	contentType := header.Header.Get("Content-Type")
-	if !strings.HasPrefix(contentType, "image/") {
-		http.Error(w, "only image files are allowed", 400)
+	raw, err := io.ReadAll(io.LimitReader(file, 8<<20))
+	if err != nil {
+		http.Error(w, "failed to read file", 400)
+		return
+	}
+	if len(raw) == 0 {
+		http.Error(w, "empty file", 400)
+		return
+	}
+	contentType := detectImageContentType(raw, header.Header.Get("Content-Type"), header.Filename)
+	if contentType == "" {
+		http.Error(w, "unsupported image format", 400)
 		return
 	}
 
-	ext := strings.ToLower(filepath.Ext(header.Filename))
-	if ext == "" {
-		ext = ".jpg"
-	}
+	ext := extensionByContentType(contentType)
 	filename := fmt.Sprintf("%d_%06d%s", time.Now().UnixMilli(), rand.Intn(1000000), ext)
 	targetPath := filepath.Join("uploads", filename)
 
@@ -202,7 +209,7 @@ func (h Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer dst.Close()
-	if _, err = io.Copy(dst, file); err != nil {
+	if _, err = io.Copy(dst, bytes.NewReader(raw)); err != nil {
 		http.Error(w, "failed to save file", 500)
 		return
 	}
@@ -214,7 +221,56 @@ func (h Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); forwarded != "" {
 		scheme = forwarded
 	}
-	writeJSON(w, 201, map[string]string{"url": fmt.Sprintf("%s://%s/uploads/%s", scheme, r.Host, filename)})
+	host := r.Host
+	if forwardedHost := strings.TrimSpace(r.Header.Get("X-Forwarded-Host")); forwardedHost != "" {
+		host = forwardedHost
+	}
+	writeJSON(w, 201, map[string]string{"url": fmt.Sprintf("%s://%s/uploads/%s", scheme, host, filename)})
+}
+
+func detectImageContentType(raw []byte, headerContentType, filename string) string {
+	sniffed := strings.ToLower(strings.TrimSpace(http.DetectContentType(raw)))
+	if strings.HasPrefix(sniffed, "image/") {
+		return sniffed
+	}
+
+	declared := strings.ToLower(strings.TrimSpace(headerContentType))
+	if strings.HasPrefix(declared, "image/") {
+		return declared
+	}
+
+	ext := strings.ToLower(strings.TrimSpace(filepath.Ext(filename)))
+	switch ext {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	case ".svg":
+		return "image/svg+xml"
+	default:
+		return ""
+	}
+}
+
+func extensionByContentType(contentType string) string {
+	switch strings.ToLower(strings.TrimSpace(contentType)) {
+	case "image/jpeg", "image/jpg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/gif":
+		return ".gif"
+	case "image/webp":
+		return ".webp"
+	case "image/svg+xml":
+		return ".svg"
+	default:
+		return ".jpg"
+	}
 }
 func (h Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(h.session.CookieName())
@@ -556,28 +612,28 @@ func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
 		case m.HomeScore > m.AwayScore:
 			home.Won++
 			away.Lost++
-			home.Points += 3
 		case m.HomeScore < m.AwayScore:
 			away.Won++
 			home.Lost++
-			away.Points += 3
 		default:
 			home.Drawn++
 			away.Drawn++
-			home.Points++
-			away.Points++
 		}
 	}
 
 	rows := make([]domain.StandingRow, 0, len(stats))
 	for _, row := range stats {
 		row.GoalDiff = row.GoalsFor - row.GoalsAgainst
+		row.Points = row.GoalDiff + row.Won
 		rows = append(rows, *row)
 	}
 
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].Points != rows[j].Points {
 			return rows[i].Points > rows[j].Points
+		}
+		if rows[i].Won != rows[j].Won {
+			return rows[i].Won > rows[j].Won
 		}
 		if rows[i].GoalDiff != rows[j].GoalDiff {
 			return rows[i].GoalDiff > rows[j].GoalDiff

@@ -12,7 +12,6 @@ import { PlayerRow } from '../../components/data-display/PlayerRow'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { TeamAvatar } from '../../components/ui/TeamAvatar'
 import { SocialLinks } from '../../components/ui/SocialLinks'
-import { tournament } from '../../mocks/data/tournament'
 import { CommentsSection } from '../../components/comments'
 import { EventFeedSection } from '../../components/events'
 import { useSession } from '../../app/providers/use-session'
@@ -27,6 +26,7 @@ import {
 } from '../../components/ui/editable'
 
 const formLabel: Record<string, string> = { W: 'В', D: 'Н', L: 'П' }
+const tournamentFallbackLogo = '/assets/logos/tournament.svg'
 
 export const TeamDetailsPage = () => {
   const { teamId } = useParams()
@@ -165,7 +165,7 @@ export const TeamDetailsPage = () => {
               <TeamAvatar
                 team={{ ...team, logoUrl: editableLogoUrl ?? team.logoUrl }}
                 size="xl"
-                fallbackLogoUrl={tournament.logoUrl}
+                fallbackLogoUrl={tournamentFallbackLogo}
                 className="h-28 w-28 overflow-hidden rounded-full border border-borderStrong bg-panelSoft p-0 [&_img]:h-full [&_img]:w-full [&_img]:object-cover"
               />
               <p className="text-5xl font-black uppercase tracking-[0.14em] text-white">{team.shortName}</p>
@@ -338,7 +338,7 @@ export const TeamDetailsPage = () => {
               return (
                 <Link key={match.id} to={`/matches/${match.id}`} className="flex items-center justify-between rounded-xl border border-borderSubtle bg-mutedBg px-3 py-3 transition hover:border-borderStrong">
                   <div className="flex min-w-0 items-center gap-2">
-                    {opponent && <TeamAvatar team={opponent} size="md" fallbackLogoUrl={tournament.logoUrl} className="border border-borderStrong bg-panelSoft p-1" />}
+                    {opponent && <TeamAvatar team={opponent} size="md" fallbackLogoUrl={tournamentFallbackLogo} className="border border-borderStrong bg-panelSoft p-1" />}
                     <div className="min-w-0">
                       <p className="truncate text-sm text-textPrimary">vs {opponent?.name ?? 'Соперник'}</p>
                       <p className="text-xs text-textMuted">{match.round} · {match.date}</p>

@@ -637,7 +637,7 @@ export const commentsRepository: CommentsRepository = {
   },
 }
 
-const guestSession: AuthSession = { isAuthenticated: false, user: { id: '0', displayName: 'Guest', role: 'guest' }, permissions: [] }
+const guestSession: AuthSession = { isAuthenticated: false, user: { id: '0', displayName: 'Guest', role: 'guest' }, permissions: [], restrictions: [] }
 
 const rolePriority: Record<UserRole, number> = {
   guest: 0,
@@ -659,6 +659,7 @@ const mapMeToSession = (me: BackendMeDTO): AuthSession => {
   const statuses = Array.isArray(me.user.roles) ? me.user.roles.filter((item): item is UserRole => item in rolePriority) : []
   const role = pickPrimaryRole(statuses)
   const permissions = Array.isArray(me.user.permissions) ? me.user.permissions : []
+  const restrictions = Array.isArray(me.user.restrictions) ? me.user.restrictions.map((item) => String(item)) : []
 
   return {
     isAuthenticated: true,
@@ -673,6 +674,7 @@ const mapMeToSession = (me: BackendMeDTO): AuthSession => {
       telegramId: me.user.telegram_id ? String(me.user.telegram_id) : undefined,
     },
     permissions: permissions as AuthSession['permissions'],
+    restrictions,
     lastLoginAt: me.session.created_at,
   }
 }
@@ -750,6 +752,7 @@ export const sessionRepository: SessionRepository = {
         telegramId: me.user.telegram_id ? String(me.user.telegram_id) : undefined,
       },
       permissions: [],
+      restrictions: [],
       lastLoginAt: me.session?.created_at,
     }
   },

@@ -131,7 +131,7 @@ func (r *CabinetAdminRepository) SetPlayerVisible(ctx context.Context, playerID 
 	_, err := r.pool.Exec(ctx, `UPDATE players SET position=$2, updated_at=NOW() WHERE id=$1`, playerID, fmt.Sprintf("%s", prefix))
 	return err
 }
-func (r *CabinetAdminRepository) TransferCaptain(ctx context.Context, teamID, newCaptain int64) error {
+func (r *CabinetAdminRepository) TransferCaptain(ctx context.Context, teamID int64, newCaptain *int64) error {
 	_, err := r.pool.Exec(ctx, `UPDATE teams SET captain_user_id=$2, updated_at=NOW() WHERE id=$1`, teamID, newCaptain)
 	return err
 }

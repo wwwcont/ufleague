@@ -27,7 +27,7 @@ type CaptainInviteRequest struct {
 }
 
 type TransferCaptainRequest struct {
-	NewCaptainUserID int64 `json:"new_captain_user_id"`
+	NewCaptainUserID *int64 `json:"new_captain_user_id"`
 }
 
 type CommentBlockRequest struct {

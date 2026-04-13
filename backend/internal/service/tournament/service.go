@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"football_ui/backend/internal/domain"
+	"football_ui/backend/internal/domain/authz"
 )
 
 var (
@@ -213,13 +214,33 @@ func (s Service) CreateMatch(ctx context.Context, actor domain.User, req domain.
 }
 
 func (s Service) UpdateMatch(ctx context.Context, actor domain.User, id int64, req domain.UpdateMatchRequest) (domain.Match, error) {
-	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
-		return domain.Match{}, ErrForbidden
+	isAdmin := hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin)
+	if !isAdmin {
+		if !authz.NewChecker().HasPermission(actor, "match.score.manage") {
+			return domain.Match{}, ErrForbidden
+		}
+		current, err := s.repo.GetMatch(ctx, id)
+		if err != nil {
+			return domain.Match{}, err
+		}
+		if req.HomeTeamID != current.HomeTeamID || req.AwayTeamID != current.AwayTeamID || !req.StartAt.Equal(current.StartAt) || req.Status != current.Status || req.Venue != current.Venue || !samePlayoffCell(req.PlayoffCellID, current.PlayoffCellID) {
+			return domain.Match{}, ErrForbidden
+		}
 	}
 	return s.repo.UpdateMatch(ctx, id, domain.Match{
 		HomeTeamID: req.HomeTeamID, AwayTeamID: req.AwayTeamID, StartAt: req.StartAt, Status: req.Status,
 		HomeScore: req.HomeScore, AwayScore: req.AwayScore, ExtraTime: req.ExtraTime, Venue: req.Venue, PlayoffCellID: req.PlayoffCellID,
 	})
+}
+
+func samePlayoffCell(a, b *int64) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
 }
 
 func (s Service) GetPlayoffGrid(ctx context.Context, tournamentID int64) (domain.PlayoffGridResponse, error) {

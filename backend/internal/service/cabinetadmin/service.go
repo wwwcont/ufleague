@@ -19,7 +19,7 @@ type Repository interface {
 	EnsureUserRole(ctx context.Context, userID int64, role domain.Role) error
 	UpdateTeamSocials(ctx context.Context, teamID int64, socials map[string]string) error
 	SetPlayerVisible(ctx context.Context, playerID int64, visible bool) error
-	TransferCaptain(ctx context.Context, teamID, newCaptain int64) error
+	TransferCaptain(ctx context.Context, teamID int64, newCaptain *int64) error
 	ModerateDeleteComment(ctx context.Context, commentID int64) error
 	ReplaceUserRoles(ctx context.Context, userID int64, roles []domain.Role) error
 	ReplaceUserPermissions(ctx context.Context, userID int64, perms []string) error
@@ -155,15 +155,17 @@ func (s Service) AdminModerateComment(ctx context.Context, actor domain.User, co
 	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "admin.comment_delete", "comment", strconv.FormatInt(commentID, 10), nil)
 }
-func (s Service) AdminTransferCaptain(ctx context.Context, actor domain.User, teamID, newCaptain int64) error {
+func (s Service) AdminTransferCaptain(ctx context.Context, actor domain.User, teamID int64, newCaptain *int64) error {
 	if !s.policy.CanAdminModerate(actor) {
 		return fmt.Errorf("forbidden")
 	}
 	if err := s.repo.TransferCaptain(ctx, teamID, newCaptain); err != nil {
 		return err
 	}
-	if err := s.EnsureCaptainPlayerProfile(ctx, newCaptain, teamID, "Captain"); err != nil {
-		return err
+	if newCaptain != nil {
+		if err := s.EnsureCaptainPlayerProfile(ctx, *newCaptain, teamID, "Captain"); err != nil {
+			return err
+		}
 	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "admin.transfer_captain", "team", strconv.FormatInt(teamID, 10), map[string]any{"new_captain": newCaptain})
 }
