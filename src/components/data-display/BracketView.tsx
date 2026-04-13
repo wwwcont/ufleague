@@ -101,12 +101,11 @@ export const BracketView = ({
       const stageGroups = byStage.get(stage.id) ?? []
       const x = PADDING_X + stageIndex * ROUND_GAP
 
-      const blockSize = Math.pow(1.7, stageIndex)
       stageLayouts.set(stage.id, stageGroups.map((group, index) => {
         const slotIndex = Math.max(0, group.layoutSlot - 1)
         const fallbackIndex = Math.max(0, index)
         const effectiveSlot = Number.isFinite(slotIndex) ? slotIndex : fallbackIndex
-        const centerY = PADDING_Y + NODE_H / 2 + (effectiveSlot * blockSize + (blockSize - 1) / 2) * verticalStep
+        const centerY = PADDING_Y + NODE_H / 2 + effectiveSlot * verticalStep
         return { ...group, x, y: centerY - NODE_H / 2, ...(group.id.startsWith('placeholder:') ? { isPlaceholder: true as const } : {}) }
       }))
     })
