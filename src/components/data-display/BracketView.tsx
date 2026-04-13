@@ -96,16 +96,19 @@ export const BracketView = ({
     const stageLayouts = new Map<string, LayoutNode[]>()
 
     const verticalStep = NODE_H + FIRST_ROUND_GAP
+    const firstRoundCenterY = PADDING_Y + NODE_H / 2
 
     sortedStages.forEach((stage, stageIndex) => {
       const stageGroups = byStage.get(stage.id) ?? []
       const x = PADDING_X + stageIndex * ROUND_GAP
+      const stageTreeFactor = 2 ** stageIndex
 
       stageLayouts.set(stage.id, stageGroups.map((group, index) => {
         const slotIndex = Math.max(0, group.layoutSlot - 1)
         const fallbackIndex = Math.max(0, index)
         const effectiveSlot = Number.isFinite(slotIndex) ? slotIndex : fallbackIndex
-        const centerY = PADDING_Y + NODE_H / 2 + effectiveSlot * verticalStep
+        const centerIndex = stageTreeFactor * (effectiveSlot + 0.5) - 0.5
+        const centerY = firstRoundCenterY + centerIndex * verticalStep
         return { ...group, x, y: centerY - NODE_H / 2, ...(group.id.startsWith('placeholder:') ? { isPlaceholder: true as const } : {}) }
       }))
     })
@@ -122,7 +125,7 @@ export const BracketView = ({
 
   const nodesByStage = useMemo(() => {
     const map = new Map<string, LayoutNode[]>()
-    sortedStages.forEach((stage) => map.set(stage.id, positionedGroups.filter((group) => group.stageId === stage.id).sort((a, b) => a.slot - b.slot)))
+    sortedStages.forEach((stage) => map.set(stage.id, positionedGroups.filter((group) => group.stageId === stage.id).sort((a, b) => a.layoutSlot - b.layoutSlot)))
     return map
   }, [positionedGroups, sortedStages])
 
