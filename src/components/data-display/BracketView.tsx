@@ -42,9 +42,6 @@ export const BracketView = ({
   onDeleteTie?: (group: BracketMatchGroup) => void
 }) => {
   const [scale, setScale] = useState(1)
-  const [offset, setOffset] = useState({ x: 0, y: 0 })
-  const dragRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false })
-  const pinchRef = useRef<{ startDistance: number; startScale: number; worldX: number; worldY: number } | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
   const slotMemoryRef = useRef<Map<string, number>>(new Map())
 
@@ -153,27 +150,11 @@ export const BracketView = ({
     return lines
   }, [nodesByStage, sortedStages])
 
-  const clampOffset = (nextX: number, nextY: number, localScale: number) => {
-    const viewport = viewportRef.current?.getBoundingClientRect()
-    if (!viewport) return { x: nextX, y: nextY }
-
-    const EDGE = 8
-    const minX = viewport.width - width * localScale - EDGE
-    const minY = viewport.height - height * localScale - EDGE
-    return {
-      x: clamp(nextX, Math.min(minX, EDGE), EDGE),
-      y: clamp(nextY, Math.min(minY, EDGE), EDGE),
-    }
-  }
-
   const fitToViewport = () => {
     const viewport = viewportRef.current?.getBoundingClientRect()
     if (!viewport) return
     const fitScale = clamp(Math.min((viewport.width - 24) / width, (viewport.height - 24) / height), MIN_SCALE, 1)
-    const centeredX = (viewport.width - width * fitScale) / 2
-    const topAlignedY = 8
     setScale(fitScale)
-    setOffset(clampOffset(centeredX, topAlignedY, fitScale))
   }
 
   useEffect(() => {
@@ -181,32 +162,12 @@ export const BracketView = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [width, height])
 
-  useEffect(() => {
-    setOffset((prev) => clampOffset(prev.x, prev.y, scale))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [width, height, scale])
-
   const zoom = (delta: number) => {
-    setScale((prev) => {
-      const nextScale = clamp(Number((prev + delta).toFixed(2)), MIN_SCALE, MAX_SCALE)
-      setOffset((prevOffset) => clampOffset(prevOffset.x, prevOffset.y, nextScale))
-      return nextScale
-    })
-  }
-
-  const getTouchDistance = (touches: React.TouchList) => {
-    if (touches.length < 2) return 0
-    const [first, second] = [touches[0], touches[1]]
-    return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY)
-  }
-
-  const getTouchMidpoint = (touches: React.TouchList) => {
-    const [first, second] = [touches[0], touches[1]]
-    return { x: (first.clientX + second.clientX) / 2, y: (first.clientY + second.clientY) / 2 }
+    setScale((prev) => clamp(Number((prev + delta).toFixed(2)), MIN_SCALE, MAX_SCALE))
   }
 
   const nodeClass = 'absolute block rounded-xl border border-white/10 bg-panelAlt/85 px-2 py-1.5 shadow-soft backdrop-blur'
-  const viewportClass = fullScreen ? 'relative h-[calc(100vh-11.6rem)] touch-none overflow-hidden' : 'relative h-[68vh] touch-none overflow-hidden rounded-xl'
+  const viewportClass = fullScreen ? 'relative h-[calc(100vh-11.6rem)] overflow-auto' : 'relative h-[68vh] overflow-auto rounded-xl'
 
   return (
     <section className={fullScreen ? '' : 'matte-panel p-3'}>
@@ -231,52 +192,12 @@ export const BracketView = ({
         ref={viewportRef}
         className={viewportClass}
         onWheel={(event) => {
+          if (!event.ctrlKey) return
           event.preventDefault()
           zoom(event.deltaY > 0 ? -0.08 : 0.08)
         }}
-        onPointerDown={(event) => {
-          dragRef.current = { x: event.clientX - offset.x, y: event.clientY - offset.y, active: true }
-        }}
-        onPointerMove={(event) => {
-          if (!dragRef.current.active) return
-          const next = clampOffset(event.clientX - dragRef.current.x, event.clientY - dragRef.current.y, scale)
-          setOffset(next)
-        }}
-        onPointerUp={() => { dragRef.current.active = false }}
-        onPointerLeave={() => { dragRef.current.active = false }}
-        onTouchStart={(event) => {
-          if (event.touches.length < 2) return
-          const distance = getTouchDistance(event.touches)
-          if (!distance) return
-          const midpoint = getTouchMidpoint(event.touches)
-          const viewport = viewportRef.current?.getBoundingClientRect()
-          const localMidX = midpoint.x - (viewport?.left ?? 0)
-          const localMidY = midpoint.y - (viewport?.top ?? 0)
-          pinchRef.current = {
-            startDistance: distance,
-            startScale: scale,
-            worldX: (localMidX - offset.x) / scale,
-            worldY: (localMidY - offset.y) / scale,
-          }
-        }}
-        onTouchMove={(event) => {
-          if (event.touches.length < 2 || !pinchRef.current) return
-          event.preventDefault()
-          const distance = getTouchDistance(event.touches)
-          if (!distance) return
-          const midpoint = getTouchMidpoint(event.touches)
-          const viewport = viewportRef.current?.getBoundingClientRect()
-          const localMidX = midpoint.x - (viewport?.left ?? 0)
-          const localMidY = midpoint.y - (viewport?.top ?? 0)
-          const nextScale = clamp(Number((pinchRef.current.startScale * (distance / pinchRef.current.startDistance)).toFixed(2)), MIN_SCALE, MAX_SCALE)
-          const unclampedX = localMidX - pinchRef.current.worldX * nextScale
-          const unclampedY = localMidY - pinchRef.current.worldY * nextScale
-          setScale(nextScale)
-          setOffset(clampOffset(unclampedX, unclampedY, nextScale))
-        }}
-        onTouchEnd={() => { pinchRef.current = null }}
       >
-        <div className="absolute left-0 top-0 origin-top-left" style={{ width, height, transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }}>
+        <div className="relative left-0 top-0 origin-top-left" style={{ width, height, transform: `scale(${scale})` }}>
           <svg width={width} height={height} className="absolute left-0 top-0">
             {connectors.map((line, index) => {
               const midX = line.fromX + CONNECTOR_STUB
