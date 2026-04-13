@@ -317,7 +317,7 @@ func (s Service) MovePlayoffTie(ctx context.Context, actor domain.User, req doma
 	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
 		return ErrForbidden
 	}
-	if req.TieID <= 0 || req.StageID <= 0 || req.Slot <= 0 {
+	if req.TieID <= 0 {
 		return errors.New("invalid move payload")
 	}
 	if req.LegsPlanned == 0 {

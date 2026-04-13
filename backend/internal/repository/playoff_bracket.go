@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 
 	"football_ui/backend/internal/domain"
 
@@ -12,14 +11,8 @@ import (
 )
 
 func (r *TournamentRepository) CreatePlayoffBracket(ctx context.Context, req domain.CreatePlayoffBracketRequest) (domain.PlayoffBracket, error) {
-	tx, err := r.pool.Begin(ctx)
-	if err != nil {
-		return domain.PlayoffBracket{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
 	var bracket domain.PlayoffBracket
-	err = tx.QueryRow(ctx, `
+	err := r.pool.QueryRow(ctx, `
 		INSERT INTO playoff_brackets (tournament_cycle_id, team_capacity, status)
 		VALUES ($1,$2,'draft')
 		ON CONFLICT (tournament_cycle_id)
@@ -29,27 +22,11 @@ func (r *TournamentRepository) CreatePlayoffBracket(ctx context.Context, req dom
 	if err != nil {
 		return domain.PlayoffBracket{}, err
 	}
-
-	if _, err = tx.Exec(ctx, `DELETE FROM playoff_bracket_stages WHERE bracket_id=$1`, bracket.ID); err != nil {
-		return domain.PlayoffBracket{}, err
-	}
-
-	stageCount := stageCountFromCapacity(req.TeamCapacity)
-	for order := 1; order <= stageCount; order++ {
-		size := req.TeamCapacity / (1 << order)
-		label := stageLabelBySize(size)
-		code := stageCodeByOrder(order, stageCount)
-		if _, err = tx.Exec(ctx, `
-			INSERT INTO playoff_bracket_stages (bracket_id, code, label, stage_order, stage_size)
-			VALUES ($1,$2,$3,$4,$5)
-		`, bracket.ID, code, label, order, size); err != nil {
-			return domain.PlayoffBracket{}, err
-		}
-	}
-
-	if err = tx.Commit(ctx); err != nil {
-		return domain.PlayoffBracket{}, err
-	}
+	_, _ = r.pool.Exec(ctx, `
+		INSERT INTO playoff_bracket_stages (bracket_id, code, label, stage_order, stage_size)
+		VALUES ($1,'GRID','Плейофф',1,1)
+		ON CONFLICT (bracket_id, stage_order) DO NOTHING
+	`, bracket.ID)
 	return r.GetPlayoffBracketByTournament(ctx, req.TournamentID)
 }
 
@@ -59,87 +36,71 @@ func (r *TournamentRepository) GetPlayoffBracketByTournament(ctx context.Context
 	if err != nil {
 		return domain.PlayoffBracket{}, err
 	}
-	stages, err := r.listPlayoffStages(ctx, out.ID)
+	out.Stages = []domain.PlayoffStage{{ID: 1, Code: "GRID", Label: "Плейофф", Order: 1, Size: 1}}
+	ties, err := r.listGridTies(ctx, out.ID)
 	if err != nil {
 		return domain.PlayoffBracket{}, err
 	}
-	ties, err := r.listPlayoffTies(ctx, out.ID)
+	layout, err := r.listGridLayout(ctx, out.ID)
 	if err != nil {
 		return domain.PlayoffBracket{}, err
 	}
-	layout, err := r.listPlayoffLayout(ctx, out.ID)
-	if err != nil {
-		return domain.PlayoffBracket{}, err
-	}
-	out.Stages = stages
 	out.Ties = ties
 	out.Layout = layout
 	return out, nil
 }
 
 func (r *TournamentRepository) CreatePlayoffTie(ctx context.Context, req domain.CreatePlayoffTieRequest) (domain.PlayoffTie, error) {
-	legsPlanned := req.LegsPlanned
-	if legsPlanned < 1 || legsPlanned > 3 {
-		legsPlanned = 1
-	}
 	var tie domain.PlayoffTie
+	col := 1
+	row := req.Slot
+	if row <= 0 {
+		row = 1
+	}
 	err := r.pool.QueryRow(ctx, `
-		INSERT INTO playoff_bracket_ties (bracket_id,stage_id,slot,home_team_id,away_team_id,legs_planned,stage_slot_column,stage_slot_row)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-		RETURNING id,bracket_id,stage_id,slot,home_team_id,away_team_id,winner_team_id,legs_planned,stage_slot_column,stage_slot_row,admin_locked_winner
-	`, req.BracketID, req.StageID, req.Slot, req.HomeTeamID, req.AwayTeamID, legsPlanned, nil, req.Slot).Scan(
-		&tie.ID, &tie.BracketID, &tie.StageID, &tie.Slot, &tie.HomeTeamID, &tie.AwayTeamID, &tie.WinnerTeamID, &tie.LegsPlanned, &tie.StageSlotColumn, &tie.StageSlotRow, &tie.AdminLockedWinner,
-	)
+		INSERT INTO playoff_grid_ties (bracket_id, home_team_id, away_team_id, grid_col, grid_row)
+		VALUES ($1,$2,$3,$4,$5)
+		RETURNING id, bracket_id, home_team_id, away_team_id, grid_col, grid_row
+	`, req.BracketID, req.HomeTeamID, req.AwayTeamID, col, row).Scan(&tie.ID, &tie.BracketID, &tie.HomeTeamID, &tie.AwayTeamID, &tie.StageSlotColumn, &tie.StageSlotRow)
 	if err != nil {
 		return domain.PlayoffTie{}, err
 	}
+	tie.StageID = 1
+	tie.Slot = row
+	tie.LegsPlanned = 1
 	return tie, nil
 }
 
 func (r *TournamentRepository) AttachMatchToTie(ctx context.Context, req domain.AttachMatchToTieRequest) error {
-	var existingTieID int64
-	err := r.pool.QueryRow(ctx, `SELECT tie_id FROM playoff_bracket_tie_matches WHERE match_id=$1`, req.MatchID).Scan(&existingTieID)
-	if err == nil && existingTieID != req.TieID {
-		return errors.New("match already attached to another tie")
-	}
-	if err != nil && err.Error() != "no rows in result set" {
-		// ignore no rows, fail on real db error
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return err
-		}
-	}
-
-	var tiesLegCount int
-	if err = r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM playoff_bracket_tie_matches WHERE tie_id=$1`, req.TieID).Scan(&tiesLegCount); err != nil {
+	var exists int64
+	err := r.pool.QueryRow(ctx, `SELECT id FROM playoff_grid_ties WHERE id=$1`, req.TieID).Scan(&exists)
+	if err != nil {
 		return err
 	}
-	if tiesLegCount >= 3 {
-		return errors.New("tie already has maximum number of matches")
-	}
-
-	leg := req.LegNumber
-	if leg <= 0 {
-		if err := r.pool.QueryRow(ctx, `SELECT COALESCE(MAX(leg_number),0)+1 FROM playoff_bracket_tie_matches WHERE tie_id=$1`, req.TieID).Scan(&leg); err != nil {
-			return err
-		}
-	}
-	if leg > 3 {
-		return errors.New("leg number exceeds supported limit")
-	}
 	_, err = r.pool.Exec(ctx, `
-		INSERT INTO playoff_bracket_tie_matches (tie_id, match_id, leg_number)
-		VALUES ($1,$2,$3)
-		ON CONFLICT (tie_id, leg_number) DO NOTHING
-	`, req.TieID, req.MatchID, leg)
+		UPDATE playoff_grid_ties
+		SET match_id_1 = CASE WHEN match_id_1 IS NULL THEN $2 ELSE match_id_1 END,
+			match_id_2 = CASE WHEN match_id_1 IS NOT NULL AND match_id_2 IS NULL THEN $2 ELSE match_id_2 END,
+			match_id_3 = CASE WHEN match_id_1 IS NOT NULL AND match_id_2 IS NOT NULL AND match_id_3 IS NULL THEN $2 ELSE match_id_3 END,
+			updated_at = NOW()
+		WHERE id=$1
+	`, req.TieID, req.MatchID)
 	return err
 }
 
 func (r *TournamentRepository) DetachMatchFromTie(ctx context.Context, req domain.DetachMatchFromTieRequest) error {
-	_, err := r.pool.Exec(ctx, `DELETE FROM playoff_bracket_tie_matches WHERE tie_id=$1 AND match_id=$2`, req.TieID, req.MatchID)
+	_, err := r.pool.Exec(ctx, `
+		UPDATE playoff_grid_ties
+		SET match_id_1 = CASE WHEN match_id_1=$2 THEN NULL ELSE match_id_1 END,
+			match_id_2 = CASE WHEN match_id_2=$2 THEN NULL ELSE match_id_2 END,
+			match_id_3 = CASE WHEN match_id_3=$2 THEN NULL ELSE match_id_3 END,
+			updated_at = NOW()
+		WHERE id=$1
+	`, req.TieID, req.MatchID)
 	return err
 }
 
-func (r *TournamentRepository) UpdatePlayoffLayout(ctx context.Context, bracketID int64, actorID int64, req domain.UpdatePlayoffLayoutRequest) error {
+func (r *TournamentRepository) UpdatePlayoffLayout(ctx context.Context, bracketID int64, _ int64, req domain.UpdatePlayoffLayoutRequest) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -147,177 +108,153 @@ func (r *TournamentRepository) UpdatePlayoffLayout(ctx context.Context, bracketI
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	for _, node := range req.Nodes {
-		meta := node.Meta
-		if meta == nil {
-			meta = map[string]any{}
+		if node.NodeType != "tie" {
+			continue
 		}
-		rawMeta, _ := json.Marshal(meta)
-		if _, err = tx.Exec(ctx, `
-			INSERT INTO playoff_bracket_layout_nodes (bracket_id,node_type,node_id,x,y,meta,updated_by,updated_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
-			ON CONFLICT (bracket_id,node_type,node_id)
-			DO UPDATE SET x=EXCLUDED.x,y=EXCLUDED.y,meta=EXCLUDED.meta,updated_by=EXCLUDED.updated_by,updated_at=NOW()
-		`, bracketID, node.NodeType, node.NodeID, node.X, node.Y, rawMeta, actorID); err != nil {
+		col, row := 1, 1
+		if node.X != nil {
+			col = *node.X/150 + 1
+		}
+		if node.Y != nil {
+			row = *node.Y/78 + 1
+		}
+		if _, err = tx.Exec(ctx, `UPDATE playoff_grid_ties SET grid_col=$2, grid_row=$3, updated_at=NOW() WHERE bracket_id=$1 AND id=$4`, bracketID, col, row, node.NodeID); err != nil {
 			return err
+		}
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM playoff_grid_lines WHERE bracket_id=$1`, bracketID); err != nil {
+		return err
+	}
+	for _, node := range req.Nodes {
+		if node.NodeType != "tie" {
+			continue
+		}
+		ids, ok := node.Meta["to_tie_ids"]
+		if !ok {
+			continue
+		}
+		raw, _ := json.Marshal(ids)
+		var toIDs []int64
+		_ = json.Unmarshal(raw, &toIDs)
+		for _, toID := range toIDs {
+			if _, err = tx.Exec(ctx, `INSERT INTO playoff_grid_lines (bracket_id, from_tie_id, to_tie_id) VALUES ($1,$2,$3)`, bracketID, node.NodeID, toID); err != nil {
+				return err
+			}
 		}
 	}
 	return tx.Commit(ctx)
 }
 
 func (r *TournamentRepository) MovePlayoffTie(ctx context.Context, req domain.MovePlayoffTieRequest) error {
+	if req.TieID <= 0 {
+		return errors.New("invalid tie id")
+	}
+	col := req.StageSlotColumn
+	row := req.StageSlotRow
+	if col == nil {
+		v := 1
+		col = &v
+	}
+	if row == nil {
+		v := req.Slot
+		if v <= 0 {
+			v = 1
+		}
+		row = &v
+	}
 	_, err := r.pool.Exec(ctx, `
-		UPDATE playoff_bracket_ties
-		SET stage_id=$2,slot=$3,stage_slot_column=$4,stage_slot_row=$5,
-			home_team_id=$6,away_team_id=$7,winner_team_id=$8,
-			legs_planned=CASE WHEN $9 BETWEEN 1 AND 3 THEN $9 ELSE legs_planned END,
-			admin_locked_winner=COALESCE($10, admin_locked_winner),
-			updated_at=NOW()
+		UPDATE playoff_grid_ties
+		SET home_team_id=$2, away_team_id=$3, grid_col=$4, grid_row=$5, updated_at=NOW()
 		WHERE id=$1
-	`, req.TieID, req.StageID, req.Slot, req.StageSlotColumn, req.StageSlotRow, req.HomeTeamID, req.AwayTeamID, req.WinnerTeamID, req.LegsPlanned, req.AdminLockWinner)
+	`, req.TieID, req.HomeTeamID, req.AwayTeamID, *col, *row)
 	return err
 }
 
-func (r *TournamentRepository) listPlayoffStages(ctx context.Context, bracketID int64) ([]domain.PlayoffStage, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id,code,label,stage_order,stage_size FROM playoff_bracket_stages WHERE bracket_id=$1 ORDER BY stage_order ASC`, bracketID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := make([]domain.PlayoffStage, 0)
-	for rows.Next() {
-		var stage domain.PlayoffStage
-		if err = rows.Scan(&stage.ID, &stage.Code, &stage.Label, &stage.Order, &stage.Size); err != nil {
-			return nil, err
-		}
-		out = append(out, stage)
-	}
-	return out, rows.Err()
-}
-
-func (r *TournamentRepository) listPlayoffTies(ctx context.Context, bracketID int64) ([]domain.PlayoffTie, error) {
-	tieRows, err := r.pool.Query(ctx, `
-		SELECT id,bracket_id,stage_id,slot,home_team_id,away_team_id,winner_team_id,legs_planned,stage_slot_column,stage_slot_row,admin_locked_winner
-		FROM playoff_bracket_ties
-		WHERE bracket_id=$1
-		ORDER BY stage_id ASC, slot ASC
-	`, bracketID)
-	if err != nil {
-		return nil, err
-	}
-	defer tieRows.Close()
-
-	ties := make([]domain.PlayoffTie, 0)
-	tieByID := make(map[int64]int)
-	for tieRows.Next() {
-		var tie domain.PlayoffTie
-		if err = tieRows.Scan(&tie.ID, &tie.BracketID, &tie.StageID, &tie.Slot, &tie.HomeTeamID, &tie.AwayTeamID, &tie.WinnerTeamID, &tie.LegsPlanned, &tie.StageSlotColumn, &tie.StageSlotRow, &tie.AdminLockedWinner); err != nil {
-			return nil, err
-		}
-		tie.Matches = make([]domain.PlayoffTieMatch, 0)
-		tieByID[tie.ID] = len(ties)
-		ties = append(ties, tie)
-	}
-	if err = tieRows.Err(); err != nil {
-		return nil, err
-	}
-	if len(ties) == 0 {
-		return ties, nil
-	}
-
-	matchRows, err := r.pool.Query(ctx, `
-		SELECT tm.id,tm.tie_id,tm.match_id,tm.leg_number,m.status,m.home_score,m.away_score
-		FROM playoff_bracket_tie_matches tm
-		JOIN playoff_bracket_ties t ON t.id=tm.tie_id
-		JOIN matches m ON m.id=tm.match_id
+func (r *TournamentRepository) listGridTies(ctx context.Context, bracketID int64) ([]domain.PlayoffTie, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT t.id,t.bracket_id,t.home_team_id,t.away_team_id,t.grid_col,t.grid_row,
+			m1.id,m1.status,m1.home_score,m1.away_score,
+			m2.id,m2.status,m2.home_score,m2.away_score,
+			m3.id,m3.status,m3.home_score,m3.away_score
+		FROM playoff_grid_ties t
+		LEFT JOIN matches m1 ON m1.id=t.match_id_1
+		LEFT JOIN matches m2 ON m2.id=t.match_id_2
+		LEFT JOIN matches m3 ON m3.id=t.match_id_3
 		WHERE t.bracket_id=$1
-		ORDER BY tm.tie_id ASC, tm.leg_number ASC
+		ORDER BY t.grid_col, t.grid_row, t.id
 	`, bracketID)
 	if err != nil {
 		return nil, err
 	}
-	defer matchRows.Close()
-	for matchRows.Next() {
-		var leg domain.PlayoffTieMatch
-		if err = matchRows.Scan(&leg.ID, &leg.TieID, &leg.MatchID, &leg.LegNumber, &leg.Status, &leg.HomeScore, &leg.AwayScore); err != nil {
-			return nil, err
-		}
-		if index, ok := tieByID[leg.TieID]; ok {
-			ties[index].Matches = append(ties[index].Matches, leg)
-		}
-	}
-	if err = matchRows.Err(); err != nil {
-		return nil, err
-	}
-	return ties, nil
-}
-
-func (r *TournamentRepository) listPlayoffLayout(ctx context.Context, bracketID int64) ([]domain.PlayoffLayoutNode, error) {
-	rows, err := r.pool.Query(ctx, `SELECT node_type,node_id,x,y,meta FROM playoff_bracket_layout_nodes WHERE bracket_id=$1`, bracketID)
-	if err != nil {
-		return nil, err
-	}
 	defer rows.Close()
-	out := make([]domain.PlayoffLayoutNode, 0)
+	out := make([]domain.PlayoffTie, 0)
 	for rows.Next() {
-		var node domain.PlayoffLayoutNode
-		var rawMeta []byte
-		if err = rows.Scan(&node.NodeType, &node.NodeID, &node.X, &node.Y, &rawMeta); err != nil {
+		var tie domain.PlayoffTie
+		var m1id, m2id, m3id *int64
+		var s1, s2, s3 *string
+		var h1, a1, h2, a2, h3, a3 *int
+		if err = rows.Scan(&tie.ID, &tie.BracketID, &tie.HomeTeamID, &tie.AwayTeamID, &tie.StageSlotColumn, &tie.StageSlotRow, &m1id, &s1, &h1, &a1, &m2id, &s2, &h2, &a2, &m3id, &s3, &h3, &a3); err != nil {
 			return nil, err
 		}
-		node.Meta = map[string]any{}
-		if len(rawMeta) > 0 {
-			_ = json.Unmarshal(rawMeta, &node.Meta)
+		tie.StageID = 1
+		if tie.StageSlotRow != nil {
+			tie.Slot = *tie.StageSlotRow
 		}
-		out = append(out, node)
+		tie.LegsPlanned = 1
+		tie.Matches = make([]domain.PlayoffTieMatch, 0, 3)
+		appendMatch := func(id *int64, status *string, hs *int, as *int, leg int) {
+			if id == nil {
+				return
+			}
+			match := domain.PlayoffTieMatch{TieID: tie.ID, MatchID: *id, LegNumber: leg}
+			if status != nil {
+				match.Status = *status
+			}
+			if hs != nil {
+				match.HomeScore = *hs
+			}
+			if as != nil {
+				match.AwayScore = *as
+			}
+			tie.Matches = append(tie.Matches, match)
+		}
+		appendMatch(m1id, s1, h1, a1, 1)
+		appendMatch(m2id, s2, h2, a2, 2)
+		appendMatch(m3id, s3, h3, a3, 3)
+		out = append(out, tie)
 	}
 	return out, rows.Err()
 }
 
-func stageCountFromCapacity(capacity int) int {
-	switch capacity {
-	case 4:
-		return 2
-	case 8:
-		return 3
-	case 16:
-		return 4
-	case 32:
-		return 5
-	default:
-		return 4
+func (r *TournamentRepository) listGridLayout(ctx context.Context, bracketID int64) ([]domain.PlayoffLayoutNode, error) {
+	nodeRows, err := r.pool.Query(ctx, `SELECT id,grid_col,grid_row FROM playoff_grid_ties WHERE bracket_id=$1`, bracketID)
+	if err != nil {
+		return nil, err
 	}
+	defer nodeRows.Close()
+	toMap := map[int64][]int64{}
+	lineRows, err := r.pool.Query(ctx, `SELECT from_tie_id,to_tie_id FROM playoff_grid_lines WHERE bracket_id=$1`, bracketID)
+	if err == nil {
+		defer lineRows.Close()
+		for lineRows.Next() {
+			var fromID, toID int64
+			if scanErr := lineRows.Scan(&fromID, &toID); scanErr == nil {
+				toMap[fromID] = append(toMap[fromID], toID)
+			}
+		}
+	}
+	out := make([]domain.PlayoffLayoutNode, 0)
+	for nodeRows.Next() {
+		var id int64
+		var col, row int
+		if err = nodeRows.Scan(&id, &col, &row); err != nil {
+			return nil, err
+		}
+		x := (col - 1) * 150
+		y := (row - 1) * 78
+		out = append(out, domain.PlayoffLayoutNode{NodeType: "tie", NodeID: id, X: &x, Y: &y, Meta: map[string]any{"to_tie_ids": toMap[id]}})
+	}
+	return out, nodeRows.Err()
 }
 
-func stageLabelBySize(size int) string {
-	switch size {
-	case 8:
-		return "1/8 финала"
-	case 4:
-		return "1/4 финала"
-	case 2:
-		return "Полуфинал"
-	case 1:
-		return "Финал"
-	default:
-		return fmt.Sprintf("1/%d", size*2)
-	}
-}
-
-func stageCodeByOrder(order, stageCount int) string {
-	if order == stageCount {
-		return "F"
-	}
-	remaining := stageCount - order
-	switch remaining {
-	case 1:
-		return "SF"
-	case 2:
-		return "R4"
-	case 3:
-		return "R8"
-	case 4:
-		return "R16"
-	default:
-		return fmt.Sprintf("R%d", 1<<(remaining+1))
-	}
-}
+var _ = pgx.ErrNoRows

@@ -206,7 +206,7 @@ export const TablePage = () => {
   }
 
   const handleUpsertTie = async () => {
-    if (!tieHomeTeamId || !tieAwayTeamId || tieHomeTeamId === tieAwayTeamId) return
+    if (tieHomeTeamId && tieAwayTeamId && tieHomeTeamId === tieAwayTeamId) return
 
     if (selectedTieId) {
       setBracketStatus('Редактирование существующего tie через это окно отключено')
@@ -219,11 +219,7 @@ export const TablePage = () => {
     const stageId = defaultStageId
       || bracket?.stages?.[0]?.id
       || baseTieViewModels[0]?.stageId
-      || ''
-    if (!stageId) {
-      setBracketStatus('Не найден stage для создания tie')
-      return
-    }
+      || '1'
     const tieId = `draft_${Date.now()}`
     setDraftCreatedTies((prev) => [...prev, {
       id: tieId,

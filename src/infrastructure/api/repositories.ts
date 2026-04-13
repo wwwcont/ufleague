@@ -847,7 +847,9 @@ export const cabinetRepository: CabinetRepository = {
     const payload = await api<any>(`/api/admin/brackets/${input.bracketId}/ties`, {
       method: 'POST',
       body: JSON.stringify({
-        stage_id: Number(input.stageId),
+        // backend no longer requires stage_id for grid-based playoff ties
+        // keep nullable for compatibility with old payloads
+        stage_id: input.stageId ? Number(input.stageId) : null,
         slot: input.slot,
         home_team_id: input.homeTeamId ? Number(input.homeTeamId) : null,
         away_team_id: input.awayTeamId ? Number(input.awayTeamId) : null,
