@@ -36,6 +36,9 @@ export const canManagePlayer = (session: AuthSession, player: Player | null | un
 }
 
 export const canManageMatch = (session: AuthSession) => isAdmin(session)
+export const canManageMatchScore = (session: AuthSession) => isAdmin(session) || session.permissions.includes('match.score.manage')
+export const hasRestriction = (session: AuthSession, prefix: string) => (session.restrictions ?? []).some((item) => item.startsWith(prefix))
+export const canCreateEvent = (session: AuthSession) => isAtLeastRole(session, 'captain') && !hasRestriction(session, 'events:banned')
 
 export const canManageEvent = (
   session: AuthSession,

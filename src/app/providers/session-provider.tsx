@@ -8,6 +8,7 @@ const guestSession: AuthSession = {
   isAuthenticated: false,
   user: { id: 'u_guest', displayName: 'Guest', role: 'guest' },
   permissions: [],
+  restrictions: [],
 }
 
 export const SessionProvider = ({ children }: { children: ReactNode }) => {

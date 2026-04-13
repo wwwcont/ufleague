@@ -34,7 +34,7 @@ func (f *fakeRepo) CreateTeamInvite(context.Context, int64, int64, int64) error 
 func (f *fakeRepo) EnsureUserRole(context.Context, int64, domain.Role) error          { return nil }
 func (f *fakeRepo) UpdateTeamSocials(context.Context, int64, map[string]string) error { return nil }
 func (f *fakeRepo) SetPlayerVisible(context.Context, int64, bool) error               { return nil }
-func (f *fakeRepo) TransferCaptain(context.Context, int64, int64) error               { return nil }
+func (f *fakeRepo) TransferCaptain(context.Context, int64, *int64) error              { return nil }
 func (f *fakeRepo) ModerateDeleteComment(context.Context, int64) error                { return nil }
 func (f *fakeRepo) ReplaceUserRoles(context.Context, int64, []domain.Role) error      { return nil }
 func (f *fakeRepo) ReplaceUserPermissions(context.Context, int64, []string) error     { return nil }

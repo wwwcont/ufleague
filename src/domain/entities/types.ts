@@ -309,6 +309,7 @@ export type PermissionKey =
   | 'team.squad.manage'
   | 'team.invite.manage'
   | 'tournament.match.create'
+  | 'match.score.manage'
   | 'tournament.team.create'
   | 'tournament.moderate'
   | 'rbac.manage'
@@ -340,6 +341,7 @@ export interface AuthSession {
   isAuthenticated: boolean
   user: SessionUser
   permissions: PermissionKey[]
+  restrictions?: string[]
   lastLoginAt?: string
 }
 

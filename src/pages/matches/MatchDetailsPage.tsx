@@ -14,7 +14,7 @@ import { EntityReactions } from '../../components/ui/EntityReactions'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { ApiError } from '../../infrastructure/api/repositories'
-import { canManageMatch } from '../../domain/services/accessControl'
+import { canManageMatch, canManageMatchScore } from '../../domain/services/accessControl'
 import { formatMatchMetaMsk, getTimeToKickoff } from '../../lib/date-time'
 import type { Match } from '../../domain/entities/types'
 import { EditableSectionHeader, SectionActionBar } from '../../components/ui/editable'
@@ -106,6 +106,8 @@ export const MatchDetailsPage = () => {
   const [goalScorerId, setGoalScorerId] = useState('')
   const [goalAssistId, setGoalAssistId] = useState('')
   const [goalStatus, setGoalStatus] = useState<string | null>(null)
+  const [goalDelta, setGoalDelta] = useState<1 | -1>(1)
+  const [goalConfirmOpen, setGoalConfirmOpen] = useState(false)
   const [activeTournamentId, setActiveTournamentId] = useState('1')
   const normalizedTournamentId = /^\d+$/.test(activeTournamentId) ? activeTournamentId : '1'
   const [playoffModalOpen, setPlayoffModalOpen] = useState(false)
@@ -156,6 +158,7 @@ export const MatchDetailsPage = () => {
   }
 
   const isAdmin = canManageMatch(session)
+  const canEditScore = canManageMatchScore(session)
   const actionError = (error: unknown) => {
     if (error instanceof ApiError) {
       if (error.status === 403) return 'Недостаточно прав (403).'
@@ -293,8 +296,11 @@ export const MatchDetailsPage = () => {
       </div>
 
 
-      {isAdmin && (
-        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-3 shadow-soft">
+      {canEditScore && (
+        <section className="relative rounded-2xl border border-borderSubtle bg-panelBg p-3 pt-8 shadow-soft">
+          <button type="button" onClick={() => setGoalEditorOpen((prev) => !prev)} className="absolute left-1/2 top-0 inline-flex -translate-x-1/2 -translate-y-1/2 items-center rounded-full bg-accentYellow px-4 py-1 text-xs font-semibold text-app shadow-soft">
+            СЧЕТ
+          </button>
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-textPrimary">СЧЕТ</p>
             <button type="button" onClick={() => setGoalEditorOpen((prev) => !prev)} className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textMuted hover:border-accentYellow hover:text-accentYellow">
@@ -316,39 +322,49 @@ export const MatchDetailsPage = () => {
                 <option value="">Ассист (необязательно)</option>
                 {candidatePlayers.filter((player) => player.id !== goalScorerId).map((player) => <option key={player.id} value={player.id}>{player.displayName}</option>)}
               </select>
-              <button
-                type="button"
-                disabled={!goalTeamId || !goalScorerId}
-                className="w-fit rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app disabled:opacity-50"
-                onClick={async () => {
-                  const nextScore = goalTeamId === home.id
-                    ? { home: effectiveScore.home + 1, away: effectiveScore.away }
-                    : { home: effectiveScore.home, away: effectiveScore.away + 1 }
-                  const newGoalEvent: Match['events'][number] = {
-                    id: `goal_${Date.now()}`,
-                    minute: (localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0) + 1,
-                    type: 'goal',
-                    teamId: goalTeamId,
-                    playerId: goalScorerId,
-                    assistPlayerId: goalAssistId || undefined,
-                    note: goalAssistId ? `ассист: ${goalAssistId}` : undefined,
-                  }
-                  const nextEvents = [...localEvents, newGoalEvent]
-                  setScoreDraft(nextScore)
-                  setLocalEvents(nextEvents)
-                  try {
-                    await matchesRepository.updateMatch?.(match.id, { homeScore: nextScore.home, awayScore: nextScore.away, goalEvents: nextEvents })
-                    setGoalStatus('Гол и ассист сохранены. Счет обновлен.')
-                  } catch (error) {
-                    setGoalStatus(actionError(error))
-                  }
-                }}
-              >
-                Сохранить гол
-              </button>
+              <div className="flex gap-2">
+                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-fit rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app disabled:opacity-50" onClick={() => { setGoalDelta(1); setGoalConfirmOpen(true) }}>+1</button>
+                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-fit rounded-lg border border-borderSubtle px-3 py-1.5 text-xs font-semibold text-textPrimary disabled:opacity-50" onClick={() => { setGoalDelta(-1); setGoalConfirmOpen(true) }}>-1</button>
+              </div>
             </div>
           )}
           {goalStatus && <p className="mt-2 text-xs text-textMuted">{goalStatus}</p>}
+        </section>
+      )}
+      {goalConfirmOpen && (
+        <section className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-borderSubtle bg-panelBg p-4">
+            <p className="text-sm font-semibold text-textPrimary">Подтвердить изменение счета</p>
+            <p className="mt-1 text-xs text-textMuted">{goalDelta > 0 ? 'Добавить гол выбранной команде?' : 'Убрать гол у выбранной команды?'}</p>
+            <div className="mt-3 flex gap-2">
+              <button type="button" className="rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app" onClick={async () => {
+                const nextScore = goalTeamId === home.id
+                  ? { home: Math.max(0, effectiveScore.home + goalDelta), away: effectiveScore.away }
+                  : { home: effectiveScore.home, away: Math.max(0, effectiveScore.away + goalDelta) }
+                const nextEvents = (() => {
+                  if (goalDelta > 0) {
+                    return [...localEvents, { id: `goal_${Date.now()}`, minute: (localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0) + 1, type: 'goal', teamId: goalTeamId, playerId: goalScorerId, assistPlayerId: goalAssistId || undefined, note: goalAssistId ? `ассист: ${goalAssistId}` : undefined } satisfies Match['events'][number]]
+                  }
+                  const toRemove = [...localEvents].reverse().find((event) => event.type === 'goal' && event.teamId === goalTeamId && event.playerId === goalScorerId)
+                  if (!toRemove) return localEvents
+                  const idx = localEvents.findIndex((event) => event.id === toRemove.id)
+                  return idx >= 0 ? localEvents.filter((_, eventIdx) => eventIdx !== idx) : localEvents
+                })()
+                setScoreDraft(nextScore)
+                setLocalEvents(nextEvents)
+                try {
+                  await matchesRepository.updateMatch?.(match.id, { homeScore: nextScore.home, awayScore: nextScore.away, goalEvents: nextEvents })
+                  setGoalStatus('Счет сохранен.')
+                } catch (error) {
+                  setGoalStatus(actionError(error))
+                } finally {
+                  setGoalConfirmOpen(false)
+                  setGoalEditorOpen(false)
+                }
+              }}>Подтвердить</button>
+              <button type="button" className="rounded-lg border border-borderSubtle px-3 py-1.5 text-xs text-textSecondary" onClick={() => setGoalConfirmOpen(false)}>Отмена</button>
+            </div>
+          </div>
         </section>
       )}
 
