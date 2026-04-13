@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { Activity, Disc3, Info, Pencil, Plus, Radio, Timer } from 'lucide-react'
+import { Activity, Disc3, Info, Plus, Radio, Timer } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useMatchDetails } from '../../hooks/data/useMatchDetails'
 import { useMatches } from '../../hooks/data/useMatches'
@@ -208,9 +208,9 @@ export const MatchDetailsPage = () => {
 
   return (
     <PageContainer>
-      <section className="relative overflow-hidden rounded-2xl border border-borderStrong bg-panelBg px-5 py-6 shadow-matte sm:px-7 sm:py-7">
+      <section className="relative rounded-2xl border border-borderStrong bg-panelBg px-5 py-6 shadow-matte sm:px-7 sm:py-7">
         {canEditScore && (
-          <button type="button" onClick={() => setGoalEditorOpen((prev) => !prev)} className="absolute left-1/2 top-0 z-20 inline-flex -translate-x-1/2 -translate-y-1/2 items-center rounded-full bg-accentYellow px-4 py-1 text-xs font-semibold text-app shadow-soft">
+          <button type="button" onClick={() => setGoalEditorOpen(true)} className="absolute left-1/2 top-0 z-30 inline-flex -translate-x-1/2 -translate-y-1/2 items-center rounded-full bg-accentYellow px-4 py-1 text-xs font-semibold text-app shadow-soft">
             СЧЕТ
           </button>
         )}
@@ -300,18 +300,15 @@ export const MatchDetailsPage = () => {
           )}
         </div>
       </div>
-
-
-      {canEditScore && (
-        <section className="relative rounded-2xl border border-borderSubtle bg-panelBg p-3 shadow-soft">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-textPrimary">СЧЕТ</p>
-            <button type="button" onClick={() => setGoalEditorOpen((prev) => !prev)} className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textMuted hover:border-accentYellow hover:text-accentYellow">
-              <Pencil size={12} /> Добавить гол
-            </button>
-          </div>
-          {goalEditorOpen && (
-            <div className="mt-2 grid gap-2">
+      {goalStatus && <p className="rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 text-xs text-textMuted">{goalStatus}</p>}
+      {goalEditorOpen && (
+        <section className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-borderSubtle bg-panelBg p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-semibold text-textPrimary">Изменение счета</p>
+              <button type="button" className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textSecondary" onClick={() => setGoalEditorOpen(false)}>Закрыть</button>
+            </div>
+            <div className="grid gap-2">
               <select value={goalTeamId} onChange={(e) => { setGoalTeamId(e.target.value); setGoalScorerId(''); setGoalAssistId('') }} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm">
                 <option value="">Выберите команду</option>
                 <option value={home.id}>{home.name}</option>
@@ -326,16 +323,15 @@ export const MatchDetailsPage = () => {
                 {candidatePlayers.filter((player) => player.id !== goalScorerId).map((player) => <option key={player.id} value={player.id}>{player.displayName}</option>)}
               </select>
               <div className="flex gap-2">
-                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-fit rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app disabled:opacity-50" onClick={() => { setGoalDelta(1); setGoalConfirmOpen(true) }}>+1</button>
-                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-fit rounded-lg border border-borderSubtle px-3 py-1.5 text-xs font-semibold text-textPrimary disabled:opacity-50" onClick={() => { setGoalDelta(-1); setGoalConfirmOpen(true) }}>-1</button>
+                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => { setGoalDelta(1); setGoalConfirmOpen(true) }}>+1</button>
+                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50" onClick={() => { setGoalDelta(-1); setGoalConfirmOpen(true) }}>-1</button>
               </div>
             </div>
-          )}
-          {goalStatus && <p className="mt-2 text-xs text-textMuted">{goalStatus}</p>}
+          </div>
         </section>
       )}
       {goalConfirmOpen && (
-        <section className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <section className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-md rounded-2xl border border-borderSubtle bg-panelBg p-4">
             <p className="text-sm font-semibold text-textPrimary">Подтвердить изменение счета</p>
             <p className="mt-1 text-xs text-textMuted">{goalDelta > 0 ? 'Добавить гол выбранной команде?' : 'Убрать гол у выбранной команды?'}</p>
@@ -565,7 +561,7 @@ export const MatchDetailsPage = () => {
       {isAdmin && (
         <section className="mt-3 rounded-2xl border border-borderSubtle bg-panelBg p-3 shadow-soft">
           <div className="flex items-center justify-end">
-            <button type="button" onClick={() => { void openPlayoffModal() }} className="inline-flex rounded-xl bg-accentYellow px-4 py-2 text-xs font-semibold text-app shadow-soft">
+            <button type="button" onClick={() => { void openPlayoffModal() }} className="inline-flex w-full justify-center rounded-xl bg-accentYellow px-4 py-2 text-xs font-semibold text-app shadow-soft">
               Добавить плейофф
             </button>
           </div>
