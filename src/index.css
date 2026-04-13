@@ -12,6 +12,7 @@ body {
   margin: 0;
   background: #0f1114;
   color: #f5f5f5;
+  min-height: 100svh;
 }
 
 * {
@@ -215,4 +216,12 @@ body {
 
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
