@@ -2,6 +2,7 @@ package http
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -71,6 +72,9 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 			r.Post("/dev-login", h.DevLogin)
 		}
 		r.Post("/telegram/start", h.TelegramAuthStart)
+		r.Post("/telegram/bot/issue-code", h.TelegramIssueCode)
+		r.Post("/telegram/webhook", h.TelegramWebhook)
+		r.Post("/telegram/webhook/{secret}", h.TelegramWebhook)
 		r.Post("/telegram/complete-code", h.TelegramCodeLogin)
 		if cfg.Features.TelegramMockLoginEnabled {
 			r.Post("/telegram/mock-code-login", h.TelegramMockCodeLogin)
@@ -352,8 +356,164 @@ func (h Handler) TelegramCodeLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to create session", 500)
 		return
 	}
+	if user.TelegramID != nil {
+		_ = h.notifications.EnsureDefaultTelegramSubscriptions(r.Context(), user.ID, *user.TelegramID)
+	}
 	setSessionCookie(w, h.session, rawToken, sess.ExpiresAt)
 	writeJSON(w, 200, domain.MeResponse{User: user, Session: sess})
+}
+
+func (h Handler) TelegramIssueCode(w http.ResponseWriter, r *http.Request) {
+	var req domain.TelegramIssueCodeRequest
+	if err := decodeJSONStrict(r, &req); err != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	botToken := strings.TrimSpace(h.cfg.Telegram.BotToken)
+	if botToken != "" && strings.TrimSpace(r.Header.Get("X-Telegram-Bot-Token")) != botToken {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	resp, err := h.telegramAuth.IssueCode(r.Context(), req)
+	if err != nil {
+		if errors.Is(err, telegramauth.ErrSessionExpired) {
+			http.Error(w, "expired login session", 410)
+			return
+		}
+		http.Error(w, "failed to issue code", 400)
+		return
+	}
+	writeJSON(w, 200, resp)
+}
+
+func (h Handler) TelegramWebhook(w http.ResponseWriter, r *http.Request) {
+	if strings.TrimSpace(h.cfg.Telegram.BotToken) == "" {
+		http.Error(w, "telegram bot is not configured", 503)
+		return
+	}
+	webhookSecret := strings.TrimSpace(h.cfg.Telegram.WebhookSecret)
+	if webhookSecret != "" {
+		pathSecret := strings.TrimSpace(chi.URLParam(r, "secret"))
+		if pathSecret != webhookSecret {
+			http.Error(w, "unauthorized", 401)
+			return
+		}
+	}
+
+	var update telegramUpdate
+	if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	if update.Message == nil {
+		writeJSON(w, 200, map[string]string{"status": "ignored"})
+		return
+	}
+	msg := update.Message
+	payload, ok := extractTelegramStartPayload(msg.Text)
+	if !ok || !strings.HasPrefix(payload, "login_") {
+		writeJSON(w, 200, map[string]string{"status": "ignored"})
+		return
+	}
+	requestID := strings.TrimPrefix(payload, "login_")
+	if requestID == "" {
+		sendErr := h.sendTelegramMessage(r.Context(), msg.Chat.ID, "Не удалось распознать login payload. Нажмите «Войти через Telegram» на сайте и попробуйте снова.")
+		h.writeTelegramWebhookStatus(w, "bad_payload", sendErr)
+		return
+	}
+	resp, err := h.telegramAuth.IssueCode(r.Context(), domain.TelegramIssueCodeRequest{
+		RequestID:        requestID,
+		TelegramUserID:   msg.From.ID,
+		TelegramUsername: msg.From.Username,
+		FirstName:        msg.From.FirstName,
+		LastName:         msg.From.LastName,
+	})
+	if err != nil {
+		if errors.Is(err, telegramauth.ErrSessionExpired) {
+			sendErr := h.sendTelegramMessage(r.Context(), msg.Chat.ID, "Сессия входа истекла. Вернитесь на сайт и нажмите «Войти через Telegram» заново.")
+			h.writeTelegramWebhookStatus(w, "expired", sendErr)
+			return
+		}
+		sendErr := h.sendTelegramMessage(r.Context(), msg.Chat.ID, "Не удалось выдать код входа. Попробуйте еще раз через сайт.")
+		h.writeTelegramWebhookStatus(w, "issue_failed", sendErr)
+		return
+	}
+	sendErr := h.sendTelegramMessage(r.Context(), msg.Chat.ID, fmt.Sprintf("Код входа: %s\nДействует до: %s UTC", resp.Code, resp.ExpiresAt.UTC().Format("2006-01-02 15:04")))
+	h.writeTelegramWebhookStatus(w, "ok", sendErr)
+}
+
+func extractTelegramStartPayload(text string) (string, bool) {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return "", false
+	}
+	parts := strings.Fields(trimmed)
+	if len(parts) < 2 {
+		return "", false
+	}
+	command := strings.TrimSpace(parts[0])
+	if command != "/start" && !strings.HasPrefix(command, "/start@") {
+		return "", false
+	}
+	return strings.TrimSpace(parts[1]), true
+}
+
+func (h Handler) sendTelegramMessage(ctx context.Context, chatID int64, text string) error {
+	body, _ := json.Marshal(map[string]any{
+		"chat_id": chatID,
+		"text":    strings.TrimSpace(text),
+	})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", strings.TrimSpace(h.cfg.Telegram.BotToken)), bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("telegram sendMessage failed: %s", strings.TrimSpace(string(raw)))
+	}
+	return nil
+}
+
+func (h Handler) writeTelegramWebhookStatus(w http.ResponseWriter, status string, sendErr error) {
+	if sendErr == nil {
+		writeJSON(w, 200, map[string]string{"status": status})
+		return
+	}
+	fmt.Printf("telegram webhook sendMessage failed: status=%s err=%v\n", status, sendErr)
+	writeJSON(w, 200, map[string]string{
+		"status": "telegram_send_failed",
+		"stage":  status,
+		"error":  sendErr.Error(),
+	})
+}
+
+type telegramUpdate struct {
+	Message *telegramMessage `json:"message"`
+}
+
+type telegramMessage struct {
+	Text string       `json:"text"`
+	Chat telegramChat `json:"chat"`
+	From telegramUser `json:"from"`
+}
+
+type telegramChat struct {
+	ID int64 `json:"id"`
+}
+
+type telegramUser struct {
+	ID        int64  `json:"id"`
+	Username  string `json:"username"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
 }
 
 func (h Handler) TelegramMockCodeLogin(w http.ResponseWriter, r *http.Request) {

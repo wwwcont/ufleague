@@ -13,8 +13,9 @@ const devAccounts = [
 
 export const LoginPage = () => {
   const { isLoading, startTelegramLogin, completeTelegramLoginWithCode } = useSession()
-  const [step, setStep] = useState<'start' | 'code'>('start')
-  const [requestId, setRequestId] = useState('')
+  const persistedRequestId = window.sessionStorage.getItem('tg_login_request_id') ?? ''
+  const [step, setStep] = useState<'start' | 'code'>(persistedRequestId ? 'code' : 'start')
+  const [requestId, setRequestId] = useState(persistedRequestId)
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
@@ -33,7 +34,10 @@ export const LoginPage = () => {
               try {
                 const login = await startTelegramLogin()
                 setRequestId(login.requestId)
+                window.sessionStorage.setItem('tg_login_request_id', login.requestId)
+                window.sessionStorage.setItem('tg_login_expires_at', login.expiresAt)
                 setStep('code')
+                window.location.assign(login.authUrl)
               } catch (err) {
                 const msg = err instanceof Error ? err.message : 'unknown error'
                 setError(`Не удалось инициировать Telegram login: ${msg}`)
@@ -52,7 +56,7 @@ export const LoginPage = () => {
             <input
               value={code}
               onChange={(event) => setCode(event.target.value)}
-              placeholder="UFL-SUPERADMIN-2026"
+              placeholder="0000 или UFL-SUPERADMIN-2026"
               className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary outline-none"
             />
             <div className="flex flex-wrap gap-2">
@@ -74,6 +78,8 @@ export const LoginPage = () => {
                 setError(null)
                 try {
                   await completeTelegramLoginWithCode(requestId, code)
+                  window.sessionStorage.removeItem('tg_login_request_id')
+                  window.sessionStorage.removeItem('tg_login_expires_at')
                   navigate('/profile')
                 } catch (err) {
                   const msg = err instanceof Error ? err.message : 'unknown error'
@@ -92,7 +98,7 @@ export const LoginPage = () => {
       </section>
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary shadow-soft">
-        <p className="flex items-center gap-2"><MessageCircle size={14} className="text-accentYellow" /> UX повторяет Telegram code flow, но работает без реального бота.</p>
+        <p className="flex items-center gap-2"><MessageCircle size={14} className="text-accentYellow" /> После старта login пользователь сразу редиректится в Telegram бота и получает одноразовый 4-значный код (TTL 30 минут).</p>
         <p className="mt-1 flex items-center gap-2"><ShieldCheck size={14} className="text-accentYellow" /> Логин проходит только через backend endpoint и session cookie.</p>
         <p className="mt-1 flex items-center gap-2"><Lock size={14} className="text-accentYellow" /> После reload/auth refresh источник истины — только /api/auth/me.</p>
       </section>

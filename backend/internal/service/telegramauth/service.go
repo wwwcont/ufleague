@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/big"
+	"net/url"
 	"strings"
 	"time"
 
@@ -15,8 +17,9 @@ import (
 )
 
 var (
-	ErrInvalidCode = errors.New("invalid telegram login code")
-	ErrExpiredCode = errors.New("expired telegram login code")
+	ErrInvalidCode    = errors.New("invalid telegram login code")
+	ErrExpiredCode    = errors.New("expired telegram login code")
+	ErrSessionExpired = errors.New("telegram login session expired")
 )
 
 type Service struct {
@@ -34,11 +37,46 @@ func NewService(authRepo *repository.AuthRepository, baseBotURL string, mockEnab
 		authRepo:     authRepo,
 		baseBotURL:   baseBotURL,
 		sessionTTL:   10 * time.Minute,
-		codeTTL:      3 * time.Minute,
+		codeTTL:      30 * time.Minute,
 		mockEnabled:  mockEnabled,
 		mockCode:     strings.TrimSpace(mockCode),
 		defaultRoles: []domain.Role{domain.RolePlayer, domain.RoleCaptain, domain.RoleAdmin, domain.RoleSuperadmin},
 	}
+}
+
+func (s Service) IssueCode(ctx context.Context, req domain.TelegramIssueCodeRequest) (domain.TelegramIssueCodeResponse, error) {
+	req.RequestID = strings.TrimSpace(req.RequestID)
+	if req.RequestID == "" || req.TelegramUserID == 0 {
+		return domain.TelegramIssueCodeResponse{}, ErrInvalidCode
+	}
+	active, err := s.authRepo.IsTelegramLoginSessionActive(ctx, req.RequestID)
+	if err != nil {
+		return domain.TelegramIssueCodeResponse{}, err
+	}
+	if !active {
+		return domain.TelegramIssueCodeResponse{}, ErrSessionExpired
+	}
+	role := domain.RoleGuest
+	if req.Role != nil {
+		role = *req.Role
+	}
+	code, err := randomDigits(4)
+	if err != nil {
+		return domain.TelegramIssueCodeResponse{}, err
+	}
+	expiresAt := time.Now().UTC().Add(s.codeTTL)
+	if err = s.authRepo.StoreTelegramLoginCode(ctx, domain.TelegramLoginCode{
+		SessionID:        req.RequestID,
+		CodeHash:         hashCode(code),
+		TelegramUserID:   req.TelegramUserID,
+		TelegramUsername: strings.TrimSpace(req.TelegramUsername),
+		Role:             role,
+		ExpiresAt:        expiresAt,
+		IssuedBy:         "bot_adapter",
+	}); err != nil {
+		return domain.TelegramIssueCodeResponse{}, err
+	}
+	return domain.TelegramIssueCodeResponse{Code: code, ExpiresAt: expiresAt}, nil
 }
 
 func (s Service) Start(ctx context.Context, req domain.TelegramAuthStartRequest) (domain.TelegramAuthStartResponse, error) {
@@ -77,7 +115,7 @@ func (s Service) Start(ctx context.Context, req domain.TelegramAuthStartRequest)
 
 	return domain.TelegramAuthStartResponse{
 		RequestID: requestID,
-		AuthURL:   fmt.Sprintf("%s?startapp=login_%s", s.baseBotURL, requestID),
+		AuthURL:   buildTelegramBotStartURL(s.baseBotURL, requestID),
 		ExpiresAt: expiresAt,
 	}, nil
 }
@@ -122,6 +160,40 @@ func randomHex(n int) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(b), nil
+}
+
+func randomDigits(length int) (string, error) {
+	if length <= 0 {
+		return "", errors.New("invalid code length")
+	}
+	var b strings.Builder
+	for i := 0; i < length; i++ {
+		n, err := rand.Int(rand.Reader, big.NewInt(10))
+		if err != nil {
+			return "", err
+		}
+		b.WriteByte(byte('0' + n.Int64()))
+	}
+	return b.String(), nil
+}
+
+func buildTelegramBotStartURL(baseBotURL string, requestID string) string {
+	trimmed := strings.TrimSpace(baseBotURL)
+	if trimmed == "" {
+		return fmt.Sprintf("https://t.me/ufleague_auth_bot?start=login_%s", requestID)
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		sep := "?"
+		if strings.Contains(trimmed, "?") {
+			sep = "&"
+		}
+		return fmt.Sprintf("%s%sstart=login_%s", trimmed, sep, requestID)
+	}
+	query := parsed.Query()
+	query.Set("start", fmt.Sprintf("login_%s", requestID))
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
 }
 
 func isRoleAllowed(role domain.Role) bool {
