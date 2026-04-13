@@ -14,8 +14,7 @@ export const BottomNav = () => {
 
   return (
     <nav
-      className="safe-bottom fixed inset-x-0 z-50 border-t border-borderSubtle bg-panelBg/92 backdrop-blur-md"
-      style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 6px)' }}
+      className="safe-bottom fixed inset-x-0 bottom-0 z-50 border-t border-borderSubtle bg-panelBg/92 backdrop-blur-md"
     >
       <div className="mx-auto grid h-16 max-w-5xl grid-cols-4 gap-1 px-2 py-1.5">
         {links.map(({ to, label, icon: Icon }) => (
