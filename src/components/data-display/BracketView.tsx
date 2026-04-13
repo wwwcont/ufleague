@@ -46,6 +46,7 @@ export const BracketView = ({
   const dragRef = useRef<{ x: number; y: number; active: boolean }>({ x: 0, y: 0, active: false })
   const pinchRef = useRef<{ startDistance: number; startScale: number; worldX: number; worldY: number } | null>(null)
   const viewportRef = useRef<HTMLDivElement | null>(null)
+  const slotMemoryRef = useRef<Map<string, number>>(new Map())
 
   const sortedStages = [...stages].sort((a, b) => a.order - b.order)
 
@@ -56,13 +57,25 @@ export const BracketView = ({
         .filter((group) => group.stageId === stage.id)
         .sort((a, b) => a.slot - b.slot)
 
-      const existingWithLayout: StageNode[] = existing.map((group, index) => ({ ...group, slot: group.slot, layoutSlot: index + 1 }))
+      const occupiedLayoutSlots = new Set<number>()
+      const existingWithLayout: StageNode[] = existing.map((group, index) => {
+        const memoryKey = `${stage.id}:${group.id}`
+        const remembered = slotMemoryRef.current.get(memoryKey)
+        const slotCandidate = Number.isInteger(group.slot) && group.slot >= 1 && group.slot <= stage.size ? group.slot : null
+        const preferred = (remembered && remembered >= 1 && remembered <= stage.size ? remembered : null) ?? slotCandidate
+        let layoutSlot = preferred && !occupiedLayoutSlots.has(preferred) ? preferred : null
+        if (!layoutSlot) {
+          layoutSlot = Array.from({ length: stage.size }, (_, offset) => offset + 1).find((slot) => !occupiedLayoutSlots.has(slot)) ?? Math.min(stage.size, index + 1)
+        }
+        occupiedLayoutSlots.add(layoutSlot)
+        slotMemoryRef.current.set(memoryKey, layoutSlot)
+        return { ...group, slot: group.slot, layoutSlot }
+      })
+
       if (!editable) {
         byStage.set(stage.id, existingWithLayout)
         return
       }
-
-      const occupiedLayoutSlots = new Set<number>(existingWithLayout.map((item) => item.layoutSlot))
 
       const placeholders: StageNode[] = []
       for (let slot = 1; slot <= stage.size; slot += 1) {
