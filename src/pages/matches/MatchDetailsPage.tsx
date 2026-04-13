@@ -8,7 +8,6 @@ import { useTeams } from '../../hooks/data/useTeams'
 import { usePlayers } from '../../hooks/data/usePlayers'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { TeamAvatar } from '../../components/ui/TeamAvatar'
-import { tournament } from '../../mocks/data/tournament'
 import { CommentsSection } from '../../components/comments'
 import { EntityReactions } from '../../components/ui/EntityReactions'
 import { useSession } from '../../app/providers/use-session'
@@ -18,6 +17,8 @@ import { canManageMatch, canManageMatchScore } from '../../domain/services/acces
 import { formatMatchMetaMsk, getTimeToKickoff } from '../../lib/date-time'
 import type { Match } from '../../domain/entities/types'
 import { EditableSectionHeader, SectionActionBar } from '../../components/ui/editable'
+
+const tournamentFallbackLogo = '/assets/logos/tournament.svg'
 
 const statusLabel: Record<string, string> = {
   scheduled: 'По расписанию',
@@ -208,6 +209,11 @@ export const MatchDetailsPage = () => {
   return (
     <PageContainer>
       <section className="relative overflow-hidden rounded-2xl border border-borderStrong bg-panelBg px-5 py-6 shadow-matte sm:px-7 sm:py-7">
+        {canEditScore && (
+          <button type="button" onClick={() => setGoalEditorOpen((prev) => !prev)} className="absolute left-1/2 top-0 z-20 inline-flex -translate-x-1/2 -translate-y-1/2 items-center rounded-full bg-accentYellow px-4 py-1 text-xs font-semibold text-app shadow-soft">
+            СЧЕТ
+          </button>
+        )}
 
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-y-0 left-0 w-1/2 overflow-hidden">
@@ -232,7 +238,7 @@ export const MatchDetailsPage = () => {
           <Link to={`/teams/${home.id}`} className="flex min-w-0 flex-col items-start gap-1.5 rounded-xl p-1 transition hover:bg-panelSoft/70">
             <div className="flex items-center gap-2">
               <div className="flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-borderSubtle/60 bg-panelSoft/90 sm:h-[72px] sm:w-[72px]">
-                <TeamAvatar team={home} size="xl" fit="cover" fallbackLogoUrl={tournament.logoUrl} className="h-full w-full" />
+                <TeamAvatar team={home} size="xl" fit="cover" fallbackLogoUrl={tournamentFallbackLogo} className="h-full w-full" />
               </div>
               <div>
                 <p className="text-sm font-semibold uppercase text-textPrimary">{home.shortName}</p>
@@ -259,7 +265,7 @@ export const MatchDetailsPage = () => {
                 <p className="text-xs text-textMuted truncate max-w-[120px]">{away.name}</p>
               </div>
               <div className="flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-borderSubtle/60 bg-panelSoft/90 sm:h-[72px] sm:w-[72px]">
-                <TeamAvatar team={away} size="xl" fit="cover" fallbackLogoUrl={tournament.logoUrl} className="h-full w-full" />
+                <TeamAvatar team={away} size="xl" fit="cover" fallbackLogoUrl={tournamentFallbackLogo} className="h-full w-full" />
               </div>
             </div>
             <div className="flex gap-1">
@@ -297,10 +303,7 @@ export const MatchDetailsPage = () => {
 
 
       {canEditScore && (
-        <section className="relative rounded-2xl border border-borderSubtle bg-panelBg p-3 pt-8 shadow-soft">
-          <button type="button" onClick={() => setGoalEditorOpen((prev) => !prev)} className="absolute left-1/2 top-0 inline-flex -translate-x-1/2 -translate-y-1/2 items-center rounded-full bg-accentYellow px-4 py-1 text-xs font-semibold text-app shadow-soft">
-            СЧЕТ
-          </button>
+        <section className="relative rounded-2xl border border-borderSubtle bg-panelBg p-3 shadow-soft">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-textPrimary">СЧЕТ</p>
             <button type="button" onClick={() => setGoalEditorOpen((prev) => !prev)} className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textMuted hover:border-accentYellow hover:text-accentYellow">
@@ -364,16 +367,6 @@ export const MatchDetailsPage = () => {
               }}>Подтвердить</button>
               <button type="button" className="rounded-lg border border-borderSubtle px-3 py-1.5 text-xs text-textSecondary" onClick={() => setGoalConfirmOpen(false)}>Отмена</button>
             </div>
-          </div>
-        </section>
-      )}
-
-      {isAdmin && (
-        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-3 shadow-soft">
-          <div className="flex items-center justify-end">
-            <button type="button" onClick={() => { void openPlayoffModal() }} className="inline-flex rounded-xl bg-accentYellow px-4 py-2 text-xs font-semibold text-app shadow-soft">
-              Добавить плейофф
-            </button>
           </div>
         </section>
       )}
@@ -569,6 +562,15 @@ export const MatchDetailsPage = () => {
       )}
 
       <CommentsSection entityType="match" entityId={match.id} title="Комментарии" />
+      {isAdmin && (
+        <section className="mt-3 rounded-2xl border border-borderSubtle bg-panelBg p-3 shadow-soft">
+          <div className="flex items-center justify-end">
+            <button type="button" onClick={() => { void openPlayoffModal() }} className="inline-flex rounded-xl bg-accentYellow px-4 py-2 text-xs font-semibold text-app shadow-soft">
+              Добавить плейофф
+            </button>
+          </div>
+        </section>
+      )}
 
     </PageContainer>
   )
