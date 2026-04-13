@@ -72,28 +72,7 @@ export const BracketView = ({
         return { ...group, slot: group.slot, layoutSlot }
       })
 
-      if (!editable) {
-        byStage.set(stage.id, existingWithLayout)
-        return
-      }
-
-      const placeholders: StageNode[] = []
-      for (let slot = 1; slot <= stage.size; slot += 1) {
-        if (occupiedLayoutSlots.has(slot)) continue
-        placeholders.push({
-          id: `placeholder:${stage.id}:${slot}`,
-          stageId: stage.id,
-          slot,
-          layoutSlot: slot,
-          homeTeamId: null,
-          awayTeamId: null,
-          tieFormat: 1,
-          firstLeg: { matchId: null, status: 'scheduled' },
-          winnerTeamId: null,
-          isPlaceholder: true,
-        })
-      }
-      byStage.set(stage.id, [...existingWithLayout, ...placeholders].sort((a, b) => a.layoutSlot - b.layoutSlot))
+      byStage.set(stage.id, existingWithLayout.sort((a, b) => a.layoutSlot - b.layoutSlot))
     })
 
     const stageLayouts = new Map<string, LayoutNode[]>()
