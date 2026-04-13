@@ -849,8 +849,8 @@ export const cabinetRepository: CabinetRepository = {
       body: JSON.stringify({
         stage_id: Number(input.stageId),
         slot: input.slot,
-        home_team_id: Number(input.homeTeamId),
-        away_team_id: Number(input.awayTeamId),
+        home_team_id: input.homeTeamId ? Number(input.homeTeamId) : null,
+        away_team_id: input.awayTeamId ? Number(input.awayTeamId) : null,
         legs_planned: 1,
       }),
     })
@@ -859,8 +859,9 @@ export const cabinetRepository: CabinetRepository = {
     return { id: String(tieID) }
   },
   async getBracketEditorLayout(tournamentId) {
+    const fetchBracket = async () => api<any>(`/api/admin/brackets/${tournamentId}`)
     try {
-      const payload = await api<any>(`/api/admin/brackets/${tournamentId}`)
+      const payload = await fetchBracket()
       const bracketId = String(payload?.id ?? payload?.bracket_id ?? '')
       const defaultStageId = String(payload?.stages?.[0]?.id ?? '')
       const nodes = Array.isArray(payload?.layout) ? payload.layout
@@ -893,7 +894,16 @@ export const cabinetRepository: CabinetRepository = {
       if (!bracketId) return null
       return { bracketId, defaultStageId, nodes, edges }
     } catch {
-      return null
+      try {
+        await api('/api/admin/brackets', { method: 'POST', body: JSON.stringify({ tournament_id: Number(tournamentId), team_capacity: 16 }) })
+        const payload = await fetchBracket()
+        const bracketId = String(payload?.id ?? payload?.bracket_id ?? '')
+        const defaultStageId = String(payload?.stages?.[0]?.id ?? '')
+        if (!bracketId) return null
+        return { bracketId, defaultStageId, nodes: [], edges: [] }
+      } catch {
+        return null
+      }
     }
   },
   async saveBracketEditorLayout(input) {
