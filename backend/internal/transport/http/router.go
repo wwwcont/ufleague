@@ -556,28 +556,28 @@ func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
 		case m.HomeScore > m.AwayScore:
 			home.Won++
 			away.Lost++
-			home.Points += 3
 		case m.HomeScore < m.AwayScore:
 			away.Won++
 			home.Lost++
-			away.Points += 3
 		default:
 			home.Drawn++
 			away.Drawn++
-			home.Points++
-			away.Points++
 		}
 	}
 
 	rows := make([]domain.StandingRow, 0, len(stats))
 	for _, row := range stats {
 		row.GoalDiff = row.GoalsFor - row.GoalsAgainst
+		row.Points = row.GoalDiff + row.Won
 		rows = append(rows, *row)
 	}
 
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].Points != rows[j].Points {
 			return rows[i].Points > rows[j].Points
+		}
+		if rows[i].Won != rows[j].Won {
+			return rows[i].Won > rows[j].Won
 		}
 		if rows[i].GoalDiff != rows[j].GoalDiff {
 			return rows[i].GoalDiff > rows[j].GoalDiff
