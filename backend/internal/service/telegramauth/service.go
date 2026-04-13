@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net/url"
 	"strings"
 	"time"
 
@@ -114,7 +115,7 @@ func (s Service) Start(ctx context.Context, req domain.TelegramAuthStartRequest)
 
 	return domain.TelegramAuthStartResponse{
 		RequestID: requestID,
-		AuthURL:   fmt.Sprintf("%s?startapp=login_%s", s.baseBotURL, requestID),
+		AuthURL:   buildTelegramBotStartURL(s.baseBotURL, requestID),
 		ExpiresAt: expiresAt,
 	}, nil
 }
@@ -174,6 +175,25 @@ func randomDigits(length int) (string, error) {
 		b.WriteByte(byte('0' + n.Int64()))
 	}
 	return b.String(), nil
+}
+
+func buildTelegramBotStartURL(baseBotURL string, requestID string) string {
+	trimmed := strings.TrimSpace(baseBotURL)
+	if trimmed == "" {
+		return fmt.Sprintf("https://t.me/ufleague_auth_bot?start=login_%s", requestID)
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		sep := "?"
+		if strings.Contains(trimmed, "?") {
+			sep = "&"
+		}
+		return fmt.Sprintf("%s%sstart=login_%s", trimmed, sep, requestID)
+	}
+	query := parsed.Query()
+	query.Set("start", fmt.Sprintf("login_%s", requestID))
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
 }
 
 func isRoleAllowed(role domain.Role) bool {
