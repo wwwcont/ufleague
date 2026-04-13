@@ -7,8 +7,8 @@ import { TeamAvatar } from '../ui/TeamAvatar'
 type EditorMode = 'pan' | 'move' | 'connect'
 type HandleSide = 'left' | 'right'
 
-const GRID_COLS = 50
-const GRID_ROWS = 50
+const GRID_COLS = 35
+const GRID_ROWS = 35
 const NODE_W = 150
 const NODE_H = 78
 const CANVAS_W = GRID_COLS * NODE_W
@@ -78,14 +78,28 @@ export const BracketEditor = ({
       const scale = clampScale(nextScale)
       const canvasX = (clientX - prev.x) / prev.scale
       const canvasY = (clientY - prev.y) / prev.scale
-      return { scale, x: clientX - canvasX * scale, y: clientY - canvasY * scale }
+      const clamped = clampViewport({ scale, x: clientX - canvasX * scale, y: clientY - canvasY * scale })
+      return clamped
     })
   }
 
-  const zoomByStep = (delta: number) => setViewport((prev) => ({ ...prev, scale: clampScale(prev.scale + delta) }))
+  const clampViewport = (state: { scale: number; x: number; y: number }) => {
+    const boundX = NODE_W * 2
+    const boundY = NODE_H * 2
+    const minX = Math.min(boundX, window.innerWidth - CANVAS_W * state.scale - boundX)
+    const minY = Math.min(boundY, window.innerHeight - CANVAS_H * state.scale - boundY)
+    return {
+      ...state,
+      x: Math.max(minX, Math.min(boundX, state.x)),
+      y: Math.max(minY, Math.min(boundY, state.y)),
+    }
+  }
+
+  const zoomByStep = (delta: number) => setViewport((prev) => clampViewport({ ...prev, scale: clampScale(prev.scale + delta) }))
 
   const onCanvasPointerDown = (event: ReactPointerEvent) => {
-    if (event.target !== event.currentTarget) return
+    const target = event.target as HTMLElement
+    if (target.closest('article,button,path,foreignObject')) return
     panRef.current = { pointerStartX: event.clientX, pointerStartY: event.clientY, x: viewport.x, y: viewport.y }
     setSelectedEdgeId(null)
     setSelectedHandle(null)
@@ -122,7 +136,7 @@ export const BracketEditor = ({
 
     const pan = panRef.current
     if (pan) {
-      setViewport((prev) => ({ ...prev, x: pan.x + (event.clientX - pan.pointerStartX), y: pan.y + (event.clientY - pan.pointerStartY) }))
+      setViewport((prev) => clampViewport({ ...prev, x: pan.x + (event.clientX - pan.pointerStartX), y: pan.y + (event.clientY - pan.pointerStartY) }))
     }
   }
 

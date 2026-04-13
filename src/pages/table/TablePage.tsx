@@ -26,7 +26,7 @@ export const TablePage = () => {
   const { data: bracket, refetch: refetchBracket } = useBracket()
   const { data: teams } = useTeams()
   const { session } = useSession()
-  const { cabinetRepository } = useRepositories()
+  const { cabinetRepository, bracketRepository } = useRepositories()
 
   const teamMap = useMemo(() => Object.fromEntries((teams ?? []).map((team) => [team.id, team])), [teams])
   const canEditBracket = canManageMatch(session)
@@ -178,7 +178,14 @@ export const TablePage = () => {
           homeTeamId: tieHomeTeamId,
           awayTeamId: tieAwayTeamId,
         })
-        const tieId = created?.id
+        let tieId = created?.id
+        if (!tieId) {
+          const fresh = await bracketRepository.getBracket()
+          const candidate = [...fresh.groups]
+            .reverse()
+            .find((group) => group.stageId === stageId && group.homeTeamId === tieHomeTeamId && group.awayTeamId === tieAwayTeamId)
+          tieId = candidate?.id
+        }
         if (tieId) {
           setEditorNodes((prev) => [...prev, {
             id: `node_${tieId}`,
@@ -191,6 +198,7 @@ export const TablePage = () => {
           }])
         }
         await refetchBracket()
+        await loadLayoutFromBackend()
       } catch {
         setBracketStatus('Не удалось создать tie на сервере')
         return
