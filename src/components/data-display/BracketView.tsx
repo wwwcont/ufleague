@@ -104,7 +104,7 @@ export const BracketView = ({
       const stageGroups = byStage.get(stage.id) ?? []
       const x = PADDING_X + stageIndex * ROUND_GAP
 
-      const blockSize = 2 ** stageIndex
+      const blockSize = Math.pow(1.7, stageIndex)
       stageLayouts.set(stage.id, stageGroups.map((group, index) => {
         const slotIndex = Math.max(0, group.layoutSlot - 1)
         const fallbackIndex = Math.max(0, index)
