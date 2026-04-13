@@ -242,7 +242,7 @@ export const MatchDetailsPage = () => {
               </div>
               <div>
                 <p className="text-sm font-semibold uppercase text-textPrimary">{home.shortName}</p>
-                <p className="text-xs text-textMuted truncate max-w-[120px]">{home.name}</p>
+                <p className="hidden max-w-[120px] truncate text-xs text-textMuted sm:block">{home.name}</p>
               </div>
             </div>
             <div className="flex gap-1">
@@ -262,7 +262,7 @@ export const MatchDetailsPage = () => {
             <div className="flex items-center gap-2">
               <div>
                 <p className="text-sm font-semibold uppercase text-textPrimary">{away.shortName}</p>
-                <p className="text-xs text-textMuted truncate max-w-[120px]">{away.name}</p>
+                <p className="hidden max-w-[120px] truncate text-xs text-textMuted sm:block">{away.name}</p>
               </div>
               <div className="flex h-[64px] w-[64px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-borderSubtle/60 bg-panelSoft/90 sm:h-[72px] sm:w-[72px]">
                 <TeamAvatar team={away} size="xl" fit="cover" fallbackLogoUrl={tournamentFallbackLogo} className="h-full w-full" />
@@ -276,6 +276,10 @@ export const MatchDetailsPage = () => {
               ))}
             </div>
           </Link>
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-textMuted sm:hidden">
+          <p className="truncate">{home.name}</p>
+          <p className="truncate text-right">{away.name}</p>
         </div>
 
           <div className="mt-3 flex items-center justify-between gap-3 text-xs text-textMuted sm:text-sm">
