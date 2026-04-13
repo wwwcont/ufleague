@@ -179,7 +179,7 @@ export const BracketView = ({
   useEffect(() => {
     fitToViewport()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [width, height, editable])
+  }, [width, height])
 
   useEffect(() => {
     setOffset((prev) => clampOffset(prev.x, prev.y, scale))
