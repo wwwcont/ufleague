@@ -17,8 +17,8 @@ const MAX_SCALE = 1.7
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
-type PlaceholderNode = { id: string; stageId: string; slot: number; x: number; y: number; isPlaceholder: true }
-type LayoutNode = (BracketMatchGroup & { x: number; y: number; isPlaceholder?: false }) | PlaceholderNode
+type StageNode = BracketMatchGroup & { layoutSlot: number; isPlaceholder?: boolean }
+type LayoutNode = StageNode & { x: number; y: number }
 
 const isFinished = (status: string) => status === 'finished'
 
@@ -50,30 +50,44 @@ export const BracketView = ({
   const sortedStages = [...stages].sort((a, b) => a.order - b.order)
 
   const { positionedGroups, width, height, stageCenters } = useMemo(() => {
-    const byStage = new Map<string, BracketMatchGroup[]>()
+    const byStage = new Map<string, StageNode[]>()
     sortedStages.forEach((stage) => {
-      const existing = groups.filter((group) => group.stageId === stage.id).sort((a, b) => a.slot - b.slot)
+      const existing = groups
+        .filter((group) => group.stageId === stage.id)
+        .sort((a, b) => a.slot - b.slot)
+
+      const occupiedLayoutSlots = new Set<number>()
+      const existingWithLayout: StageNode[] = existing.map((group) => {
+        const slotCandidate = Number.isInteger(group.slot) && group.slot >= 1 && group.slot <= stage.size ? group.slot : null
+        const normalizedSlot = slotCandidate && !occupiedLayoutSlots.has(slotCandidate)
+          ? slotCandidate
+          : Array.from({ length: stage.size }, (_, index) => index + 1).find((slot) => !occupiedLayoutSlots.has(slot)) ?? 1
+        occupiedLayoutSlots.add(normalizedSlot)
+        return { ...group, slot: group.slot, layoutSlot: normalizedSlot }
+      })
+
       if (!editable) {
-        byStage.set(stage.id, existing)
+        byStage.set(stage.id, existingWithLayout)
         return
       }
 
-      const existingSlots = new Set(existing.map((group) => group.slot))
-      const placeholders: BracketMatchGroup[] = []
+      const placeholders: StageNode[] = []
       for (let slot = 1; slot <= stage.size; slot += 1) {
-        if (existingSlots.has(slot)) continue
+        if (occupiedLayoutSlots.has(slot)) continue
         placeholders.push({
           id: `placeholder:${stage.id}:${slot}`,
           stageId: stage.id,
           slot,
+          layoutSlot: slot,
           homeTeamId: null,
           awayTeamId: null,
           tieFormat: 1,
           firstLeg: { matchId: null, status: 'scheduled' },
           winnerTeamId: null,
+          isPlaceholder: true,
         })
       }
-      byStage.set(stage.id, [...existing, ...placeholders].sort((a, b) => a.slot - b.slot))
+      byStage.set(stage.id, [...existingWithLayout, ...placeholders].sort((a, b) => a.layoutSlot - b.layoutSlot))
     })
 
     const stageLayouts = new Map<string, LayoutNode[]>()
@@ -86,7 +100,7 @@ export const BracketView = ({
 
       const blockSize = 2 ** stageIndex
       stageLayouts.set(stage.id, stageGroups.map((group, index) => {
-        const slotIndex = Math.max(0, group.slot - 1)
+        const slotIndex = Math.max(0, group.layoutSlot - 1)
         const fallbackIndex = Math.max(0, index)
         const effectiveSlot = Number.isFinite(slotIndex) ? slotIndex : fallbackIndex
         const centerY = PADDING_Y + NODE_H / 2 + (effectiveSlot * blockSize + (blockSize - 1) / 2) * verticalStep
@@ -117,15 +131,15 @@ export const BracketView = ({
       const nextStage = sortedStages[stageIndex + 1]
       if (!nextStage) return
 
-      const current = (nodesByStage.get(stage.id) ?? []).slice().sort((a, b) => a.slot - b.slot)
-      const next = (nodesByStage.get(nextStage.id) ?? []).slice().sort((a, b) => a.slot - b.slot)
+      const current = (nodesByStage.get(stage.id) ?? []).slice().sort((a, b) => a.layoutSlot - b.layoutSlot)
+      const next = (nodesByStage.get(nextStage.id) ?? []).slice().sort((a, b) => a.layoutSlot - b.layoutSlot)
       if (!current.length || !next.length) return
 
       next.forEach((nextNode) => {
-        const firstSourceSlot = nextNode.slot * 2 - 1
-        const lastSourceSlot = nextNode.slot * 2
+        const firstSourceSlot = nextNode.layoutSlot * 2 - 1
+        const lastSourceSlot = nextNode.layoutSlot * 2
         current
-          .filter((fromNode) => fromNode.slot >= firstSourceSlot && fromNode.slot <= lastSourceSlot)
+          .filter((fromNode) => fromNode.layoutSlot >= firstSourceSlot && fromNode.layoutSlot <= lastSourceSlot)
           .forEach((fromNode) => lines.push({ fromX: fromNode.x + NODE_W, fromY: fromNode.y + NODE_H / 2, toX: nextNode.x, toY: nextNode.y + NODE_H / 2 }))
       })
     })
