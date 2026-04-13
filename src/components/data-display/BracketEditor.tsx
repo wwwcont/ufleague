@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, TouchEvent as ReactTouchEvent } from 'react'
-import { GitBranch, Hand, Move, Plus, Save, Trash2 } from 'lucide-react'
+import { GitBranch, Hand, Minus, Move, Plus, Save, Trash2 } from 'lucide-react'
 import type { BracketEditorEdge, BracketEditorNode, PlayoffTieViewModel, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
 
@@ -81,10 +81,17 @@ export const BracketEditor = ({
     })
   }
 
-  const onNodePointerDown = (event: ReactPointerEvent, node: BracketEditorNode) => {
-    event.stopPropagation()
+  const zoomByStep = (delta: number) => {
+    setViewport((prev) => ({ ...prev, scale: clampScale(prev.scale + delta) }))
+  }
 
-    if (!editable) return
+  const onNodePointerDown = (event: ReactPointerEvent, node: BracketEditorNode) => {
+    if (!editable || mode === 'pan') {
+      panRef.current = { pointerStartX: event.clientX, pointerStartY: event.clientY, x: viewport.x, y: viewport.y }
+      return
+    }
+
+    event.stopPropagation()
 
     if (mode === 'move') {
       dragRef.current = {
@@ -120,7 +127,6 @@ export const BracketEditor = ({
   }
 
   const onCanvasPointerDown = (event: ReactPointerEvent) => {
-    if (event.target !== event.currentTarget) return
     panRef.current = { pointerStartX: event.clientX, pointerStartY: event.clientY, x: viewport.x, y: viewport.y }
     setSelectedEdgeId(null)
     setConnectingFrom(null)
@@ -174,9 +180,18 @@ export const BracketEditor = ({
   }
 
   return (
-    <section className="relative h-[calc(100dvh-13.5rem)] overflow-hidden rounded-2xl border border-borderSubtle bg-panelBg">
+    <section className="relative h-[calc(100dvh-16.5rem)] min-h-[26rem] overflow-hidden rounded-2xl border border-borderSubtle bg-panelBg">
+      <div className="absolute right-3 top-3 z-30 flex items-center gap-1 rounded-xl border border-borderStrong bg-app/90 p-1.5 backdrop-blur">
+        <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-borderSubtle text-textMuted" onClick={() => zoomByStep(-0.1)} aria-label="Уменьшить">
+          <Minus size={14} />
+        </button>
+        <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-borderSubtle text-textMuted" onClick={() => zoomByStep(0.1)} aria-label="Увеличить">
+          <Plus size={14} />
+        </button>
+      </div>
+
       {editable && (
-        <div className="absolute inset-x-3 bottom-3 z-30 flex items-center justify-between gap-2 rounded-xl border border-borderStrong bg-app/90 p-2 backdrop-blur">
+        <div className="absolute inset-x-3 bottom-3 z-30 flex items-center justify-between gap-2 rounded-xl border border-borderStrong bg-app/90 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur">
           <div className="flex gap-1">
             <button type="button" className={`rounded-lg px-3 py-2 text-xs ${mode === 'pan' ? 'bg-accentYellow text-app' : 'text-textMuted'}`} onClick={() => setMode('pan')}><Hand size={14} className="inline" /> Навигация</button>
             <button type="button" className={`rounded-lg px-3 py-2 text-xs ${mode === 'move' ? 'bg-accentYellow text-app' : 'text-textMuted'}`} onClick={() => setMode('move')}><Move size={14} className="inline" /> Позиция</button>
@@ -199,7 +214,7 @@ export const BracketEditor = ({
       )}
 
       <div
-        className="relative h-full w-full touch-none"
+        className="relative h-full w-full touch-none pb-24"
         onPointerDown={onCanvasPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={() => { dragRef.current = null; panRef.current = null }}
@@ -208,7 +223,6 @@ export const BracketEditor = ({
         onTouchMove={onTouchMove}
         onTouchEnd={() => { pinchRef.current = null }}
         onWheel={(event) => {
-          if (!event.ctrlKey && !event.metaKey) return
           event.preventDefault()
           const delta = event.deltaY > 0 ? -0.07 : 0.07
           applyZoomAtClientPoint(event.clientX, event.clientY, viewport.scale + delta)
