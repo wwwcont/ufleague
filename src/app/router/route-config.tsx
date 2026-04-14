@@ -20,6 +20,7 @@ import { TeamRosterPage } from '../../pages/teams/TeamRosterPage'
 import { TeamsPage } from '../../pages/teams/TeamsPage'
 import { UserDetailsPage } from '../../pages/users/UserDetailsPage'
 import { AppRouteError } from './AppRouteError'
+import { RequireAuth } from './RequireAuth'
 
 export const router = createBrowserRouter([
   {
@@ -43,8 +44,13 @@ export const router = createBrowserRouter([
       { path: 'events/:eventId', element: <EventDetailsPage /> },
       { path: 'comments/:entityType/:entityId', element: <CommentsPage /> },
       { path: 'login', element: <LoginPage /> },
-      { path: 'profile', element: <ProfilePage /> },
-      { path: 'profile/:section', element: <CabinetSectionPage /> },
+      {
+        element: <RequireAuth />,
+        children: [
+          { path: 'profile', element: <ProfilePage /> },
+          { path: 'profile/:section', element: <CabinetSectionPage /> },
+        ],
+      },
       { path: 'users/:userId', element: <UserDetailsPage /> },
     ],
   },
