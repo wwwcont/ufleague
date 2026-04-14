@@ -655,6 +655,14 @@ export const CabinetSectionPage = () => {
                       setStatus(`error: ${(error as Error).message}`)
                     }
                   }}>Сделать капитаном</button>
+                  <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary" onClick={async () => {
+                    try {
+                      await cabinetRepository.adminAssignCaptainRole?.(selectedUser.id)
+                      setStatus('ok: captain role assigned without team')
+                    } catch (error) {
+                      setStatus(`error: ${(error as Error).message}`)
+                    }
+                  }}>Сделать капитаном без команды</button>
                 </div>
               )}
 
@@ -706,6 +714,15 @@ export const CabinetSectionPage = () => {
                       setStatus(`error: ${(error as Error).message}`)
                     }
                   }}>Снять captain/admin права</button>
+                  <button type="button" disabled={section === 'grant-access'} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
+                    if (!window.confirm('Удалить player профиль у пользователя и снять role player?')) return
+                    try {
+                      await cabinetRepository.adminRemovePlayerFromUser?.(selectedUser.id)
+                      setStatus('ok: player profile detached from user')
+                    } catch (error) {
+                      setStatus(`error: ${(error as Error).message}`)
+                    }
+                  }}>Удалить player у юзера</button>
                 </div>
               </div>
             </div>

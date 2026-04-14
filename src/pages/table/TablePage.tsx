@@ -21,7 +21,7 @@ export const TablePage = () => {
   const [transitionName, setTransitionName] = useState<'swipe-left' | 'swipe-right'>('swipe-left')
   const [activeTournamentId, setActiveTournamentId] = useState('1')
   const normalizedTournamentId = /^\d+$/.test(activeTournamentId) ? activeTournamentId : '1'
-  const { data: rows } = useStandings()
+  const { data: rows } = useStandings(normalizedTournamentId)
   const { data: teams } = useTeams()
   const { data: playoffGrid, isLoading: playoffLoading, error, refetch } = usePlayoffGrid(normalizedTournamentId)
   const { session } = useSession()

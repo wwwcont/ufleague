@@ -61,6 +61,9 @@ func (f *fakeRepo) ReassignPlayerTeam(_ context.Context, playerID, teamID int64)
 	f.reassignedTeamID = teamID
 	return nil
 }
+func (f *fakeRepo) RevokeUserRole(context.Context, int64, domain.Role) error { return nil }
+func (f *fakeRepo) DetachPlayerFromUser(context.Context, int64) error        { return nil }
+func (f *fakeRepo) CountTeamsByCaptain(context.Context, int64) (int, error)  { return 0, nil }
 func (f *fakeRepo) ListAuditActionsByActor(context.Context, int64, int) ([]domain.UserActionItem, error) {
 	return nil, nil
 }

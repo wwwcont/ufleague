@@ -31,6 +31,7 @@ type Player struct {
 
 type Match struct {
 	ID            int64          `json:"id"`
+	TournamentID  int64          `json:"tournament_cycle_id"`
 	HomeTeamID    int64          `json:"home_team_id"`
 	AwayTeamID    int64          `json:"away_team_id"`
 	StartAt       time.Time      `json:"start_at"`
@@ -48,7 +49,7 @@ type Match struct {
 type TournamentCycle struct {
 	ID              int64  `json:"id"`
 	Name            string `json:"name"`
-	BracketCapacity int    `json:"bracket_capacity"`
+	BracketCapacity int    `json:"bracket_team_capacity"`
 	IsActive        bool   `json:"is_active"`
 }
 
@@ -86,6 +87,7 @@ type CreatePlayerRequest struct {
 type UpdatePlayerRequest = CreatePlayerRequest
 
 type CreateMatchRequest struct {
+	TournamentID  *int64         `json:"tournament_cycle_id"`
 	HomeTeamID    int64          `json:"home_team_id"`
 	AwayTeamID    int64          `json:"away_team_id"`
 	StartAt       time.Time      `json:"start_at"`
@@ -98,3 +100,13 @@ type CreateMatchRequest struct {
 }
 
 type UpdateMatchRequest = CreateMatchRequest
+
+type CreateTournamentCycleRequest struct {
+	Name                string `json:"name"`
+	BracketTeamCapacity int    `json:"bracket_team_capacity"`
+	IsActive            bool   `json:"is_active"`
+}
+
+type UpdateTournamentBracketSettingsRequest struct {
+	BracketTeamCapacity int `json:"bracket_team_capacity"`
+}

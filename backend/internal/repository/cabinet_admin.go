@@ -118,6 +118,14 @@ func (r *CabinetAdminRepository) EnsureUserRole(ctx context.Context, userID int6
 	`, userID, role)
 	return err
 }
+func (r *CabinetAdminRepository) RevokeUserRole(ctx context.Context, userID int64, role domain.Role) error {
+	_, err := r.pool.Exec(ctx, `
+		DELETE FROM user_roles ur
+		USING roles r
+		WHERE ur.user_id=$1 AND ur.role_id=r.id AND r.code=$2
+	`, userID, role)
+	return err
+}
 func (r *CabinetAdminRepository) UpdateTeamSocials(ctx context.Context, teamID int64, socials map[string]string) error {
 	data, _ := json.Marshal(socials)
 	_, err := r.pool.Exec(ctx, `UPDATE teams SET socials=$2, updated_at=NOW() WHERE id=$1`, teamID, data)
@@ -195,6 +203,15 @@ func (r *CabinetAdminRepository) CreateCaptainPlayerProfile(ctx context.Context,
 func (r *CabinetAdminRepository) ReassignPlayerTeam(ctx context.Context, playerID, teamID int64) error {
 	_, err := r.pool.Exec(ctx, `UPDATE players SET team_id=$2, updated_at=NOW() WHERE id=$1`, playerID, teamID)
 	return err
+}
+func (r *CabinetAdminRepository) DetachPlayerFromUser(ctx context.Context, userID int64) error {
+	_, err := r.pool.Exec(ctx, `UPDATE players SET user_id=NULL, updated_at=NOW() WHERE user_id=$1`, userID)
+	return err
+}
+func (r *CabinetAdminRepository) CountTeamsByCaptain(ctx context.Context, userID int64) (int, error) {
+	var total int
+	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM teams WHERE captain_user_id=$1`, userID).Scan(&total)
+	return total, err
 }
 func (r *CabinetAdminRepository) ListAuditActionsByActor(ctx context.Context, userID int64, limit int) ([]domain.UserActionItem, error) {
 	type actionRecord struct {

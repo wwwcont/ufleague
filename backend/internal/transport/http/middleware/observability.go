@@ -51,13 +51,25 @@ func (m *ObservabilityMiddleware) RequestLogger(next http.Handler) http.Handler 
 			atomic.AddUint64(&m.err5xx, 1)
 		}
 
-		slog.Info("http_request",
+		attrs := []any{
 			"method", r.Method,
 			"path", r.URL.Path,
+			"query", r.URL.RawQuery,
 			"status", rec.statusCode,
 			"duration_ms", time.Since(start).Milliseconds(),
 			"request_id", rec.Header().Get(requestIDHeader),
-		)
+			"remote_addr", r.RemoteAddr,
+			"user_agent", r.UserAgent(),
+			"referer", r.Referer(),
+		}
+		switch {
+		case rec.statusCode >= 500:
+			slog.Error("http_request", attrs...)
+		case rec.statusCode >= 400:
+			slog.Warn("http_request", attrs...)
+		default:
+			slog.Info("http_request", attrs...)
+		}
 	})
 }
 
