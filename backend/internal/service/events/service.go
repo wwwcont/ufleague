@@ -66,6 +66,10 @@ func (s Service) CreateEvent(ctx context.Context, actor domain.User, req domain.
 		if req.ScopeType != domain.EventScopeGlobal && req.ScopeType != domain.EventScopeTeam && req.ScopeType != domain.EventScopePlayer && req.ScopeType != domain.EventScopeMatch {
 			return domain.EventFeedItem{}, ErrForbidden
 		}
+	case has(actor, domain.RolePlayer):
+		if req.ScopeType != domain.EventScopePlayer || req.ScopeID == nil || actor.PlayerID == nil || *req.ScopeID != *actor.PlayerID {
+			return domain.EventFeedItem{}, ErrForbidden
+		}
 	case has(actor, domain.RoleCaptain):
 		if req.ScopeType != domain.EventScopeTeam || req.ScopeID == nil {
 			return domain.EventFeedItem{}, ErrForbidden
