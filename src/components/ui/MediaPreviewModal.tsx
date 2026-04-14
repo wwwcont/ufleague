@@ -22,6 +22,7 @@ export const MediaPreviewModal = ({ isOpen, imageUrl, alt = 'preview', onClose }
 
   return (
     <div
+      data-allow-zoom="true"
       className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 px-3 py-6 sm:px-6"
       role="dialog"
       aria-modal="true"

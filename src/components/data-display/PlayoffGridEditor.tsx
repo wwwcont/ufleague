@@ -311,7 +311,7 @@ export const PlayoffGridEditor = ({
   }
 
   return (
-    <section className="relative h-[calc(100vh-13.5rem)] overflow-hidden rounded-2xl border border-borderSubtle bg-panelBg">
+    <section data-allow-zoom="true" className="relative mb-[calc(74px+env(safe-area-inset-bottom,0px))] h-[calc(100svh-14.25rem)] overflow-hidden rounded-2xl border border-borderSubtle bg-panelBg md:mb-0 md:h-[calc(100vh-13.5rem)]">
       <div
         ref={wrapperRef}
         className="relative h-full w-full touch-none"
@@ -485,7 +485,7 @@ export const PlayoffGridEditor = ({
       )}
 
       {editable && isEditing && (
-        <div className="absolute inset-x-0 bottom-0 border-t border-borderSubtle bg-app/95 p-2">
+        <div className="absolute inset-x-0 bottom-[calc(68px+env(safe-area-inset-bottom,0px))] border-t border-borderSubtle bg-app/95 p-2 md:bottom-0">
         <div className="grid grid-cols-4 gap-2 text-xs">
           <button type="button" onClick={() => setEditorMode('navigation')} className={`rounded-lg px-2 py-2 ${editorMode === 'navigation' ? 'bg-accentYellow text-app font-semibold' : 'bg-panelAlt text-textSecondary'}`}>Навигация</button>
           <button type="button" onClick={() => setEditorMode('move')} className={`rounded-lg px-2 py-2 ${editorMode === 'move' ? 'bg-accentYellow text-app font-semibold' : 'bg-panelAlt text-textSecondary'}`}>Движение</button>

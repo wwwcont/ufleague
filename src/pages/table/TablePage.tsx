@@ -56,7 +56,7 @@ export const TablePage = () => {
   }, [cabinetRepository, canEditBracket])
 
   return (
-    <div className="px-4 pb-20 pt-6 md:px-6">
+    <div className="px-4 pb-[calc(92px+env(safe-area-inset-bottom,0px))] pt-6 md:px-6 md:pb-20">
       <ModeSwitch mode={mode} setMode={changeMode} />
       <div key={mode} className={transitionName === 'swipe-left' ? 'mode-swipe-left' : 'mode-swipe-right'}>
         {mode === 'bracket'
