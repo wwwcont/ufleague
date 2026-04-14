@@ -20,6 +20,20 @@ export const LoginPage = () => {
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
 
+  const openTelegramAuth = (authUrl: string) => {
+    const standaloneNavigator = window.navigator as Navigator & { standalone?: boolean }
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      standaloneNavigator.standalone === true
+
+    if (isStandalone) {
+      const popup = window.open(authUrl, '_blank', 'noopener,noreferrer')
+      if (popup) return
+    }
+
+    window.location.assign(authUrl)
+  }
+
   return (
     <PageContainer>
       <section className="rounded-2xl border border-borderStrong bg-panelBg p-4 shadow-matte">
@@ -37,7 +51,7 @@ export const LoginPage = () => {
                 window.sessionStorage.setItem('tg_login_request_id', login.requestId)
                 window.sessionStorage.setItem('tg_login_expires_at', login.expiresAt)
                 setStep('code')
-                window.location.assign(login.authUrl)
+                openTelegramAuth(login.authUrl)
               } catch (err) {
                 const msg = err instanceof Error ? err.message : 'unknown error'
                 setError(`Не удалось инициировать Telegram login: ${msg}`)

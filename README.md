@@ -17,6 +17,15 @@ cp backend/.env.example backend/.env
 docker compose up --build -d
 ```
 
+Если в логах Postgres появляется `password authentication failed for user "postgres"`:
+- чаще всего это старый `postgres_data` volume с предыдущим паролем;
+- остановите контейнеры и пересоздайте volume:
+```bash
+docker compose down -v
+docker compose up --build -d
+```
+- либо выставьте одинаковые `POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB` в корневом `.env` перед `docker compose up`.
+
 ### Прогнать миграции (включая seed c тестовыми данными)
 ```bash
 cd backend
