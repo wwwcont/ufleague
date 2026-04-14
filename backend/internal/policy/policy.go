@@ -11,6 +11,9 @@ func (Engine) IsAdmin(user domain.User) bool      { return hasRole(user, domain.
 func (Engine) IsSuperadmin(user domain.User) bool { return hasRole(user, domain.RoleSuperadmin) }
 
 func (e Engine) CanCaptainManageTeam(user domain.User, teamCaptainID *int64) bool {
+	if e.IsAdmin(user) || e.IsSuperadmin(user) {
+		return true
+	}
 	if !e.IsCaptain(user) || teamCaptainID == nil {
 		return false
 	}

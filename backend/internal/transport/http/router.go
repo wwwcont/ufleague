@@ -89,6 +89,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.Get("/matches", h.ListMatches)
 		r.Get("/matches/{id}", h.GetMatch)
 		r.Get("/standings", h.GetStandings)
+		r.Get("/tournament/cycles", h.GetTournamentCycles)
 		r.Get("/playoff-grid/{tournamentId}", h.GetPlayoffGrid)
 		r.Get("/search", h.Search)
 		r.Get("/events", h.ListEvents)
@@ -125,6 +126,8 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Get("/admin/users/{id}/profile", h.AdminGetUserProfile)
 		r.With(sessionMW.RequireSession).Patch("/admin/users/{id}/profile", h.AdminUpdateUserProfile)
 		r.With(sessionMW.RequireSession).Post("/admin/users/{id}/comment-block", h.AdminBlockComments)
+		r.With(sessionMW.RequireSession).Post("/admin/users/{id}/captain-role", h.AdminAssignCaptainRole)
+		r.With(sessionMW.RequireSession).Delete("/admin/users/{id}/player", h.AdminRemovePlayerFromUser)
 		r.With(sessionMW.RequireSession).Post("/superadmin/users/{id}/roles", h.SuperadminAssignRoles)
 		r.With(sessionMW.RequireSession).Post("/superadmin/users/{id}/permissions", h.SuperadminAssignPermissions)
 		r.With(sessionMW.RequireSession).Post("/superadmin/users/{id}/restrictions", h.SuperadminAssignRestrictions)
@@ -135,6 +138,9 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Get("/admin/playoff-grid/{tournamentId}/match-candidates", h.GetPlayoffMatchCandidates)
 		r.With(sessionMW.RequireSession).Post("/admin/playoff-grid/attach-match", h.AttachPlayoffMatch)
 		r.With(sessionMW.RequireSession).Post("/admin/playoff-grid/detach-match", h.DetachPlayoffMatch)
+		r.With(sessionMW.RequireSession).Post("/admin/tournament/cycles", h.CreateTournamentCycle)
+		r.With(sessionMW.RequireSession).Post("/admin/tournament/cycles/{id}/activate", h.ActivateTournamentCycle)
+		r.With(sessionMW.RequireSession).Patch("/admin/tournament/cycles/{id}/settings", h.UpdateTournamentBracketSettings)
 	})
 
 	return r
@@ -765,6 +771,21 @@ func (h Handler) GetMatch(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
+	targetCycleID := int64(0)
+	if rawCycle := strings.TrimSpace(r.URL.Query().Get("tournamentId")); rawCycle != "" {
+		parsed, err := strconv.ParseInt(rawCycle, 10, 64)
+		if err != nil || parsed <= 0 {
+			http.Error(w, "bad tournamentId", 400)
+			return
+		}
+		targetCycleID = parsed
+	} else {
+		active, err := h.tournament.GetActiveTournamentCycle(r.Context())
+		if err == nil {
+			targetCycleID = active.ID
+		}
+	}
+
 	teams, err := h.tournament.ListTeams(r.Context())
 	if err != nil {
 		http.Error(w, "failed", 500)
@@ -782,6 +803,9 @@ func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, m := range matches {
+		if targetCycleID > 0 && m.TournamentID != targetCycleID {
+			continue
+		}
 		if m.Status == "scheduled" {
 			continue
 		}
@@ -838,6 +862,75 @@ func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
 		rows[i].Position = i + 1
 	}
 	writeJSON(w, 200, rows)
+}
+
+func (h Handler) GetTournamentCycles(w http.ResponseWriter, r *http.Request) {
+	items, err := h.tournament.ListTournamentCycles(r.Context())
+	if err != nil {
+		http.Error(w, "failed", 500)
+		return
+	}
+	writeJSON(w, 200, items)
+}
+
+func (h Handler) CreateTournamentCycle(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	var req domain.CreateTournamentCycleRequest
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	item, err := h.tournament.CreateTournamentCycle(r.Context(), current.User, req)
+	if err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 201, item)
+}
+
+func (h Handler) ActivateTournamentCycle(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	id, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	if err = h.tournament.ActivateTournamentCycle(r.Context(), current.User, id); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+
+func (h Handler) UpdateTournamentBracketSettings(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	id, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	var req domain.UpdateTournamentBracketSettingsRequest
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	if err = h.tournament.UpdateTournamentBracketSettings(r.Context(), current.User, id, req); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ok"})
 }
 
 func (h Handler) GetPlayoffGrid(w http.ResponseWriter, r *http.Request) {
@@ -1505,6 +1598,40 @@ func (h Handler) AdminBlockComments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err = h.cabinet.AdminBlockComments(r.Context(), current.User, userID, req); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+func (h Handler) AdminAssignCaptainRole(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	userID, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	if err = h.cabinet.AdminAssignCaptainRole(r.Context(), current.User, userID); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+func (h Handler) AdminRemovePlayerFromUser(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	userID, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	if err = h.cabinet.AdminRemovePlayerFromUser(r.Context(), current.User, userID); err != nil {
 		handleDomainErr(w, err)
 		return
 	}

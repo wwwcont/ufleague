@@ -120,7 +120,7 @@ func (r *TournamentRepository) UpdatePlayer(ctx context.Context, id int64, p dom
 }
 
 func (r *TournamentRepository) ListMatches(ctx context.Context) ([]domain.Match, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),playoff_cell_id,created_at,updated_at FROM matches ORDER BY start_at DESC`)
+	rows, err := r.pool.Query(ctx, `SELECT id,tournament_cycle_id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),playoff_cell_id,created_at,updated_at FROM matches ORDER BY start_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -136,26 +136,108 @@ func (r *TournamentRepository) ListMatches(ctx context.Context) ([]domain.Match,
 	return out, rows.Err()
 }
 func (r *TournamentRepository) GetMatch(ctx context.Context, id int64) (domain.Match, error) {
-	row := r.pool.QueryRow(ctx, `SELECT id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),playoff_cell_id,created_at,updated_at FROM matches WHERE id=$1`, id)
+	row := r.pool.QueryRow(ctx, `SELECT id,tournament_cycle_id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),playoff_cell_id,created_at,updated_at FROM matches WHERE id=$1`, id)
 	return scanMatch(row)
 }
 func (r *TournamentRepository) CreateMatch(ctx context.Context, m domain.Match) (domain.Match, error) {
 	extra, _ := json.Marshal(m.ExtraTime)
 	row := r.pool.QueryRow(ctx, `
-	INSERT INTO matches (home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,venue,playoff_cell_id)
-	VALUES ($1,$2,$3,$4,$5,$6,$7,NULLIF($8,''),$9)
-	RETURNING id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),playoff_cell_id,created_at,updated_at`,
-		m.HomeTeamID, m.AwayTeamID, m.StartAt, m.Status, m.HomeScore, m.AwayScore, extra, m.Venue, m.PlayoffCellID)
+	INSERT INTO matches (tournament_cycle_id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,venue,playoff_cell_id)
+	VALUES (COALESCE($1, (SELECT id FROM tournament_cycles WHERE is_active=TRUE ORDER BY id DESC LIMIT 1), 1),$2,$3,$4,$5,$6,$7,$8,NULLIF($9,''),$10)
+	RETURNING id,tournament_cycle_id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),playoff_cell_id,created_at,updated_at`,
+		nullableInt64(m.TournamentID), m.HomeTeamID, m.AwayTeamID, m.StartAt, m.Status, m.HomeScore, m.AwayScore, extra, m.Venue, m.PlayoffCellID)
 	return scanMatch(row)
 }
 func (r *TournamentRepository) UpdateMatch(ctx context.Context, id int64, m domain.Match) (domain.Match, error) {
 	extra, _ := json.Marshal(m.ExtraTime)
 	row := r.pool.QueryRow(ctx, `
-	UPDATE matches SET home_team_id=$2,away_team_id=$3,start_at=$4,status=$5,home_score=$6,away_score=$7,extra_time=$8,venue=NULLIF($9,''),playoff_cell_id=$10,updated_at=NOW()
+	UPDATE matches SET tournament_cycle_id=COALESCE($2,tournament_cycle_id),home_team_id=$3,away_team_id=$4,start_at=$5,status=$6,home_score=$7,away_score=$8,extra_time=$9,venue=NULLIF($10,''),playoff_cell_id=$11,updated_at=NOW()
 	WHERE id=$1
-	RETURNING id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),playoff_cell_id,created_at,updated_at`,
-		id, m.HomeTeamID, m.AwayTeamID, m.StartAt, m.Status, m.HomeScore, m.AwayScore, extra, m.Venue, m.PlayoffCellID)
+	RETURNING id,tournament_cycle_id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),playoff_cell_id,created_at,updated_at`,
+		id, nullableInt64(m.TournamentID), m.HomeTeamID, m.AwayTeamID, m.StartAt, m.Status, m.HomeScore, m.AwayScore, extra, m.Venue, m.PlayoffCellID)
 	return scanMatch(row)
+}
+
+func (r *TournamentRepository) ListTournamentCycles(ctx context.Context) ([]domain.TournamentCycle, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id,name,bracket_team_capacity,is_active FROM tournament_cycles ORDER BY id DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]domain.TournamentCycle, 0)
+	for rows.Next() {
+		var item domain.TournamentCycle
+		if err = rows.Scan(&item.ID, &item.Name, &item.BracketCapacity, &item.IsActive); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+func (r *TournamentRepository) CreateTournamentCycle(ctx context.Context, req domain.CreateTournamentCycleRequest) (domain.TournamentCycle, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return domain.TournamentCycle{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if req.IsActive {
+		if _, err = tx.Exec(ctx, `UPDATE tournament_cycles SET is_active=FALSE, updated_at=NOW() WHERE is_active=TRUE`); err != nil {
+			return domain.TournamentCycle{}, err
+		}
+	}
+
+	var out domain.TournamentCycle
+	if err = tx.QueryRow(ctx, `
+		INSERT INTO tournament_cycles (name, bracket_team_capacity, is_active)
+		VALUES ($1,$2,$3)
+		RETURNING id,name,bracket_team_capacity,is_active
+	`, req.Name, req.BracketTeamCapacity, req.IsActive).Scan(&out.ID, &out.Name, &out.BracketCapacity, &out.IsActive); err != nil {
+		return domain.TournamentCycle{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return domain.TournamentCycle{}, err
+	}
+	return out, nil
+}
+
+func (r *TournamentRepository) ActivateTournamentCycle(ctx context.Context, cycleID int64) error {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err = tx.Exec(ctx, `UPDATE tournament_cycles SET is_active=FALSE, updated_at=NOW() WHERE is_active=TRUE`); err != nil {
+		return err
+	}
+	tag, err := tx.Exec(ctx, `UPDATE tournament_cycles SET is_active=TRUE, updated_at=NOW() WHERE id=$1`, cycleID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return tx.Commit(ctx)
+}
+
+func (r *TournamentRepository) UpdateTournamentCycleBracketSettings(ctx context.Context, cycleID int64, teamCapacity int) error {
+	tag, err := r.pool.Exec(ctx, `UPDATE tournament_cycles SET bracket_team_capacity=$2, updated_at=NOW() WHERE id=$1`, cycleID, teamCapacity)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
+func (r *TournamentRepository) GetActiveTournamentCycle(ctx context.Context) (domain.TournamentCycle, error) {
+	var out domain.TournamentCycle
+	err := r.pool.QueryRow(ctx, `SELECT id,name,bracket_team_capacity,is_active FROM tournament_cycles WHERE is_active=TRUE ORDER BY id DESC LIMIT 1`).Scan(
+		&out.ID, &out.Name, &out.BracketCapacity, &out.IsActive,
+	)
+	return out, err
 }
 
 func (r *TournamentRepository) ListPlayoffGrid(ctx context.Context, tournamentID int64) (domain.PlayoffGridResponse, error) {
@@ -492,13 +574,20 @@ func scanPlayer(row scanner) (domain.Player, error) {
 func scanMatch(row scanner) (domain.Match, error) {
 	var m domain.Match
 	var extra []byte
-	err := row.Scan(&m.ID, &m.HomeTeamID, &m.AwayTeamID, &m.StartAt, &m.Status, &m.HomeScore, &m.AwayScore, &extra, &m.Venue, &m.PlayoffCellID, &m.CreatedAt, &m.UpdatedAt)
+	err := row.Scan(&m.ID, &m.TournamentID, &m.HomeTeamID, &m.AwayTeamID, &m.StartAt, &m.Status, &m.HomeScore, &m.AwayScore, &extra, &m.Venue, &m.PlayoffCellID, &m.CreatedAt, &m.UpdatedAt)
 	if err != nil {
 		return m, err
 	}
 	m.ExtraTime = map[string]any{}
 	_ = json.Unmarshal(extra, &m.ExtraTime)
 	return m, nil
+}
+
+func nullableInt64(v int64) *int64 {
+	if v == 0 {
+		return nil
+	}
+	return &v
 }
 
 func (r *TournamentRepository) syncUserProfileFromPlayer(ctx context.Context, player domain.Player) error {

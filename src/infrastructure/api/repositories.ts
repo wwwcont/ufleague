@@ -114,6 +114,7 @@ const mapGoalEvents = (raw: unknown): Match['events'] => {
 
 const mapMatch = (m: any): Match => ({
   id: String(m.id),
+  tournamentId: m.tournament_cycle_id ? String(m.tournament_cycle_id) : (m.extra_time?.tournament_id ? String(m.extra_time.tournament_id) : undefined),
   round: `Round ${new Date(m.start_at).toISOString().slice(0, 10)}`,
   date: new Date(m.start_at).toISOString().slice(0, 10),
   time: new Date(m.start_at).toISOString().slice(11, 16),
@@ -320,6 +321,7 @@ export const matchesRepository: MatchesRepository = {
     const created = await api<any>('/api/matches', {
       method: 'POST',
       body: JSON.stringify({
+        ...(input.tournamentId ? { tournament_cycle_id: Number(input.tournamentId) } : {}),
         home_team_id: Number(input.homeTeamId),
         away_team_id: Number(input.awayTeamId),
         start_at: input.startAt,
@@ -353,6 +355,7 @@ export const matchesRepository: MatchesRepository = {
     await api(`/api/matches/${matchId}`, {
       method: 'PATCH',
       body: JSON.stringify({
+        ...(current.tournament_cycle_id ? { tournament_cycle_id: Number(current.tournament_cycle_id) } : {}),
         home_team_id: current.home_team_id,
         away_team_id: current.away_team_id,
         start_at: current.start_at,
@@ -366,8 +369,9 @@ export const matchesRepository: MatchesRepository = {
   },
 }
 export const standingsRepository: StandingsRepository = {
-  async getStandings() {
-    const rows = await api<any[]>('/api/standings')
+  async getStandings(tournamentId) {
+    const query = tournamentId ? `?tournamentId=${encodeURIComponent(tournamentId)}` : ''
+    const rows = await api<any[]>(`/api/standings${query}`)
     return rows.map((row): StandingRow => ({
       position: row.position,
       teamId: String(row.team_id),
@@ -706,28 +710,7 @@ export const sessionRepository: SessionRepository = {
     }).catch(async () => api<BackendMeDTO>('/api/auth/telegram/complete-code', {
       method: 'POST',
       body: JSON.stringify({ request_id: requestId, code }),
-    })).catch(async () => {
-      const fallbackRoleByCode: Record<string, UserRole> = {
-        'UFL-SUPERADMIN-2026': 'superadmin',
-        'UFL-ADMIN-2026': 'admin',
-        'UFL-CAPTAIN-2026': 'captain',
-        'UFL-PLAYER-2026': 'player',
-      }
-
-      const fallbackRole = fallbackRoleByCode[code.trim().toUpperCase()]
-      if (!fallbackRole) {
-        throw new Error('invalid code')
-      }
-
-      return api<BackendMeDTO>('/api/auth/dev-login', {
-        method: 'POST',
-        body: JSON.stringify({
-          username: `seed_${fallbackRole}`,
-          display_name: `Seed ${fallbackRole}`,
-          roles: [fallbackRole],
-        }),
-      })
-    })
+    }))
     return mapMeToSession(me)
   },
   async loginAsDevRole(role) {
@@ -737,7 +720,10 @@ export const sessionRepository: SessionRepository = {
       admin: { username: 'admin_test', displayName: 'Admin Test' },
       superadmin: { username: 'superadmin', displayName: 'Super Admin' },
     }
-    const seed = seeds[role] ?? { username: `dev_${role}`, displayName: `Dev ${role}` }
+    const seed = seeds[role]
+    if (!seed) {
+      throw new Error(`unsupported dev role: ${role}`)
+    }
     const me = await api<any>('/api/auth/dev-login', { method: 'POST', body: JSON.stringify({ username: seed.username, display_name: seed.displayName, roles: [role] }) })
     return {
       isAuthenticated: true,
@@ -817,6 +803,12 @@ export const cabinetRepository: CabinetRepository = {
         reason: input.reason,
       }),
     })
+  },
+  async adminAssignCaptainRole(userId) {
+    await api(`/api/admin/users/${userId}/captain-role`, { method: 'POST' })
+  },
+  async adminRemovePlayerFromUser(userId) {
+    await api(`/api/admin/users/${userId}/player`, { method: 'DELETE' })
   },
   async superadminAssignRoles(input) {
     await api(`/api/superadmin/users/${input.userId}/roles`, { method: 'POST', body: JSON.stringify({ roles: input.roles }) })

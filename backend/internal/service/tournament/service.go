@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"football_ui/backend/internal/domain"
@@ -34,6 +36,11 @@ type Repository interface {
 	GetMatch(ctx context.Context, id int64) (domain.Match, error)
 	CreateMatch(ctx context.Context, match domain.Match) (domain.Match, error)
 	UpdateMatch(ctx context.Context, id int64, match domain.Match) (domain.Match, error)
+	ListTournamentCycles(ctx context.Context) ([]domain.TournamentCycle, error)
+	CreateTournamentCycle(ctx context.Context, req domain.CreateTournamentCycleRequest) (domain.TournamentCycle, error)
+	ActivateTournamentCycle(ctx context.Context, cycleID int64) error
+	UpdateTournamentCycleBracketSettings(ctx context.Context, cycleID int64, teamCapacity int) error
+	GetActiveTournamentCycle(ctx context.Context) (domain.TournamentCycle, error)
 	ListPlayoffGrid(ctx context.Context, tournamentID int64) (domain.PlayoffGridResponse, error)
 	SavePlayoffGrid(ctx context.Context, tournamentID int64, payload domain.SavePlayoffGridRequest) error
 	FindPlayoffMatchCandidates(ctx context.Context, tournamentID, matchID int64) ([]domain.PlayoffGridCell, error)
@@ -157,14 +164,39 @@ func (s Service) GetPlayer(ctx context.Context, id int64) (domain.Player, error)
 
 func (s Service) CreatePlayer(ctx context.Context, actor domain.User, req domain.CreatePlayerRequest) (domain.Player, error) {
 	if !hasRole(actor, domain.RoleCaptain, domain.RoleAdmin, domain.RoleSuperadmin) {
+		slog.Warn("tournament.create_player.forbidden.missing_role",
+			"actor_id", actor.ID,
+			"actor_roles", actor.Roles,
+		)
 		return domain.Player{}, ErrForbidden
 	}
 	if req.TeamID == nil || req.UserID == nil {
+		slog.Warn("tournament.create_player.forbidden.missing_required_fields",
+			"actor_id", actor.ID,
+			"actor_roles", actor.Roles,
+			"team_id_nil", req.TeamID == nil,
+			"user_id_nil", req.UserID == nil,
+		)
 		return domain.Player{}, ErrForbidden
 	}
 	if hasRole(actor, domain.RoleCaptain) && !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
 		team, err := s.repo.GetTeam(ctx, *req.TeamID)
-		if err != nil || team.CaptainUserID == nil || *team.CaptainUserID != actor.ID {
+		if err != nil {
+			slog.Error("tournament.create_player.team_lookup_failed",
+				"actor_id", actor.ID,
+				"actor_roles", actor.Roles,
+				"team_id", *req.TeamID,
+				"error", err,
+			)
+			return domain.Player{}, ErrForbidden
+		}
+		if team.CaptainUserID == nil || *team.CaptainUserID != actor.ID {
+			slog.Warn("tournament.create_player.forbidden.team_not_owned_by_captain",
+				"actor_id", actor.ID,
+				"actor_roles", actor.Roles,
+				"team_id", *req.TeamID,
+				"team_captain_user_id", team.CaptainUserID,
+			)
 			return domain.Player{}, ErrForbidden
 		}
 	}
@@ -176,18 +208,61 @@ func (s Service) CreatePlayer(ctx context.Context, actor domain.User, req domain
 
 func (s Service) UpdatePlayer(ctx context.Context, actor domain.User, id int64, req domain.UpdatePlayerRequest) (domain.Player, error) {
 	if req.TeamID == nil || req.UserID == nil {
+		slog.Warn("tournament.update_player.forbidden.missing_required_fields",
+			"actor_id", actor.ID,
+			"actor_roles", actor.Roles,
+			"player_id", id,
+			"team_id_nil", req.TeamID == nil,
+			"user_id_nil", req.UserID == nil,
+		)
 		return domain.Player{}, ErrForbidden
 	}
 	if hasRole(actor, domain.RoleCaptain) && !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
 		player, err := s.repo.GetPlayer(ctx, id)
-		if err != nil || player.TeamID == nil {
+		if err != nil {
+			slog.Error("tournament.update_player.player_lookup_failed",
+				"actor_id", actor.ID,
+				"actor_roles", actor.Roles,
+				"player_id", id,
+				"error", err,
+			)
+			return domain.Player{}, ErrForbidden
+		}
+		if player.TeamID == nil {
+			slog.Warn("tournament.update_player.forbidden.player_without_team",
+				"actor_id", actor.ID,
+				"actor_roles", actor.Roles,
+				"player_id", id,
+			)
 			return domain.Player{}, ErrForbidden
 		}
 		team, err := s.repo.GetTeam(ctx, *player.TeamID)
-		if err != nil || team.CaptainUserID == nil || *team.CaptainUserID != actor.ID {
+		if err != nil {
+			slog.Error("tournament.update_player.team_lookup_failed",
+				"actor_id", actor.ID,
+				"actor_roles", actor.Roles,
+				"player_id", id,
+				"team_id", *player.TeamID,
+				"error", err,
+			)
+			return domain.Player{}, ErrForbidden
+		}
+		if team.CaptainUserID == nil || *team.CaptainUserID != actor.ID {
+			slog.Warn("tournament.update_player.forbidden.team_not_owned_by_captain",
+				"actor_id", actor.ID,
+				"actor_roles", actor.Roles,
+				"player_id", id,
+				"team_id", *player.TeamID,
+				"team_captain_user_id", team.CaptainUserID,
+			)
 			return domain.Player{}, ErrForbidden
 		}
 	} else if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+		slog.Warn("tournament.update_player.forbidden.missing_role",
+			"actor_id", actor.ID,
+			"actor_roles", actor.Roles,
+			"player_id", id,
+		)
 		return domain.Player{}, ErrForbidden
 	}
 	return s.repo.UpdatePlayer(ctx, id, domain.Player{
@@ -207,8 +282,13 @@ func (s Service) CreateMatch(ctx context.Context, actor domain.User, req domain.
 	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
 		return domain.Match{}, ErrForbidden
 	}
+	cycleID := int64(0)
+	if req.TournamentID != nil {
+		cycleID = *req.TournamentID
+	}
 	return s.repo.CreateMatch(ctx, domain.Match{
-		HomeTeamID: req.HomeTeamID, AwayTeamID: req.AwayTeamID, StartAt: req.StartAt, Status: req.Status,
+		TournamentID: cycleID,
+		HomeTeamID:   req.HomeTeamID, AwayTeamID: req.AwayTeamID, StartAt: req.StartAt, Status: req.Status,
 		HomeScore: req.HomeScore, AwayScore: req.AwayScore, ExtraTime: req.ExtraTime, Venue: req.Venue, PlayoffCellID: req.PlayoffCellID,
 	})
 }
@@ -228,9 +308,54 @@ func (s Service) UpdateMatch(ctx context.Context, actor domain.User, id int64, r
 		}
 	}
 	return s.repo.UpdateMatch(ctx, id, domain.Match{
+		TournamentID: func() int64 {
+			if req.TournamentID == nil {
+				return 0
+			}
+			return *req.TournamentID
+		}(),
 		HomeTeamID: req.HomeTeamID, AwayTeamID: req.AwayTeamID, StartAt: req.StartAt, Status: req.Status,
 		HomeScore: req.HomeScore, AwayScore: req.AwayScore, ExtraTime: req.ExtraTime, Venue: req.Venue, PlayoffCellID: req.PlayoffCellID,
 	})
+}
+
+func (s Service) ListTournamentCycles(ctx context.Context) ([]domain.TournamentCycle, error) {
+	return s.repo.ListTournamentCycles(ctx)
+}
+
+func (s Service) CreateTournamentCycle(ctx context.Context, actor domain.User, req domain.CreateTournamentCycleRequest) (domain.TournamentCycle, error) {
+	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+		return domain.TournamentCycle{}, ErrForbidden
+	}
+	if req.BracketTeamCapacity != 4 && req.BracketTeamCapacity != 8 && req.BracketTeamCapacity != 16 && req.BracketTeamCapacity != 32 {
+		return domain.TournamentCycle{}, fmt.Errorf("invalid bracket_team_capacity")
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
+		req.Name = "Tournament " + strconv.FormatInt(time.Now().UTC().Unix(), 10)
+	}
+	return s.repo.CreateTournamentCycle(ctx, req)
+}
+
+func (s Service) ActivateTournamentCycle(ctx context.Context, actor domain.User, cycleID int64) error {
+	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+		return ErrForbidden
+	}
+	return s.repo.ActivateTournamentCycle(ctx, cycleID)
+}
+
+func (s Service) UpdateTournamentBracketSettings(ctx context.Context, actor domain.User, cycleID int64, req domain.UpdateTournamentBracketSettingsRequest) error {
+	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+		return ErrForbidden
+	}
+	if req.BracketTeamCapacity != 4 && req.BracketTeamCapacity != 8 && req.BracketTeamCapacity != 16 && req.BracketTeamCapacity != 32 {
+		return fmt.Errorf("invalid bracket_team_capacity")
+	}
+	return s.repo.UpdateTournamentCycleBracketSettings(ctx, cycleID, req.BracketTeamCapacity)
+}
+
+func (s Service) GetActiveTournamentCycle(ctx context.Context) (domain.TournamentCycle, error) {
+	return s.repo.GetActiveTournamentCycle(ctx)
 }
 
 func samePlayoffCell(a, b *int64) bool {
