@@ -23,11 +23,18 @@ const sameLine = (a: { fromCellId: string; toCellId: string }, b: { fromCellId: 
 )
 
 const buildLinePath = (fromX: number, fromY: number, toX: number, toY: number) => {
-  const direction = toX >= fromX ? 1 : -1
-  const horizontalSpan = Math.max(26, Math.abs(toX - fromX) * 0.32)
-  const elbowX = fromX + direction * horizontalSpan
-  const settleX = toX - direction * Math.max(16, horizontalSpan * 0.42)
-  return `M ${fromX} ${fromY} L ${elbowX} ${fromY} L ${elbowX} ${toY} L ${settleX} ${toY} L ${toX} ${toY}`
+  const dx = toX - fromX
+  const direction = dx >= 0 ? 1 : -1
+  const distance = Math.abs(dx)
+  const verticalDistance = Math.abs(toY - fromY)
+  const bendX = Math.max(44, distance * 0.46)
+  const verticalInfluence = Math.min(36, Math.max(8, verticalDistance * 0.18))
+  const startInsetX = fromX + direction * 6
+  const endInsetX = toX - direction * 6
+  const helperCurve = `M ${fromX} ${fromY} C ${fromX + direction * 14} ${fromY}, ${fromX + direction * 22} ${fromY + (toY >= fromY ? verticalInfluence : -verticalInfluence)}, ${startInsetX} ${fromY}`
+  const mainCurve = `M ${startInsetX} ${fromY} C ${fromX + direction * bendX} ${fromY}, ${toX - direction * bendX} ${toY}, ${endInsetX} ${toY}`
+  const exitCurve = `M ${endInsetX} ${toY} C ${toX - direction * 22} ${toY + (toY >= fromY ? -verticalInfluence : verticalInfluence)}, ${toX - direction * 14} ${toY}, ${toX} ${toY}`
+  return { helperCurve, mainCurve, exitCurve, midX: (fromX + toX) / 2, midY: (fromY + toY) / 2 }
 }
 
 export const PlayoffGridEditor = ({
@@ -86,6 +93,14 @@ export const PlayoffGridEditor = ({
     setCellDialogAwayTeamId(null)
     setSaveError(null)
   }, [grid])
+
+  useEffect(() => {
+    if (!isEditing) setEditorMode('navigation')
+    activePointers.current.clear()
+    panStart.current = null
+    pinchStart.current = null
+    movingCell.current = null
+  }, [isEditing])
 
   const cellsById = useMemo(() => Object.fromEntries(cellsDraft.map((cell) => [cell.id, cell])), [cellsDraft])
 
@@ -312,6 +327,26 @@ export const PlayoffGridEditor = ({
     setDirty(true)
   }
 
+  const focusOnActiveArea = () => {
+    if (!cellsDraft.length) return
+    const minCol = Math.min(...cellsDraft.map((cell) => cell.col))
+    const maxCol = Math.max(...cellsDraft.map((cell) => cell.col))
+    const minRow = Math.min(...cellsDraft.map((cell) => cell.row))
+    const maxRow = Math.max(...cellsDraft.map((cell) => cell.row))
+    const wrap = wrapperRef.current?.getBoundingClientRect()
+    if (!wrap) return
+    const contentW = (maxCol - minCol + 1) * CELL_W
+    const contentH = (maxRow - minRow + 1) * CELL_H
+    const targetScale = clamp(Math.min((wrap.width * 0.86) / contentW, (wrap.height * 0.82) / contentH), 0.65, 1.55)
+    const centerX = ((minCol + maxCol) / 2 - 0.5) * CELL_W
+    const centerY = ((minRow + maxRow) / 2 - 0.5) * CELL_H
+    setViewport(() => clampViewport({
+      x: wrap.width / 2 - centerX * targetScale,
+      y: wrap.height / 2 - centerY * targetScale,
+      scale: targetScale,
+    }))
+  }
+
   return (
     <section data-allow-zoom="true" className="relative mb-[calc(74px+env(safe-area-inset-bottom,0px))] h-[calc(100svh-14.25rem)] overflow-hidden rounded-2xl border border-borderSubtle bg-panelBg md:mb-0 md:h-[calc(100vh-13.5rem)]">
       <div
@@ -329,6 +364,26 @@ export const PlayoffGridEditor = ({
           style={{ width: boardW, height: boardH, transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})` }}
         >
           <svg width={boardW} height={boardH} className="absolute left-0 top-0">
+            <defs>
+              {linesDraft.map((line) => {
+                const from = cellsById[line.fromCellId]
+                const to = cellsById[line.toCellId]
+                if (!from || !to) return null
+                const fromX = (from.col - 1) * CELL_W + (to.col >= from.col ? CELL_W : 0)
+                const fromY = (from.row - 1) * CELL_H + CELL_H / 2
+                const toX = (to.col - 1) * CELL_W + (to.col >= from.col ? 0 : CELL_W)
+                const toY = (to.row - 1) * CELL_H + CELL_H / 2
+                const gradientId = `line-glow-${line.clientKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`
+                return (
+                  <linearGradient key={gradientId} id={gradientId} x1={fromX} y1={fromY} x2={toX} y2={toY} gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#f4cf49" stopOpacity="0" />
+                    <stop offset="12%" stopColor="#f4cf49" stopOpacity="0.8" />
+                    <stop offset="88%" stopColor="#f4cf49" stopOpacity="0.8" />
+                    <stop offset="100%" stopColor="#f4cf49" stopOpacity="0" />
+                  </linearGradient>
+                )
+              })}
+            </defs>
             {showEditorOverlays && Array.from({ length: GRID_COLS + 1 }, (_, col) => <line key={`col:${col}`} x1={col * CELL_W} x2={col * CELL_W} y1={0} y2={boardH} stroke="rgba(255,255,255,0.08)" />)}
             {showEditorOverlays && Array.from({ length: GRID_ROWS + 1 }, (_, row) => <line key={`row:${row}`} x1={0} x2={boardW} y1={row * CELL_H} y2={row * CELL_H} stroke="rgba(255,255,255,0.08)" />)}
             {linesDraft.map((line) => {
@@ -340,12 +395,11 @@ export const PlayoffGridEditor = ({
               const toX = (to.col - 1) * CELL_W + (to.col >= from.col ? 0 : CELL_W)
               const toY = (to.row - 1) * CELL_H + CELL_H / 2
               const path = buildLinePath(fromX, fromY, toX, toY)
-              const midX = (fromX + toX) / 2
-              const midY = (fromY + toY) / 2
+              const gradientId = `line-glow-${line.clientKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`
               return (
                 <g key={line.clientKey}>
                   <path
-                    d={path}
+                    d={`${path.helperCurve} ${path.mainCurve} ${path.exitCurve}`}
                     fill="none"
                     stroke="transparent"
                     strokeWidth={14}
@@ -356,14 +410,17 @@ export const PlayoffGridEditor = ({
                     }}
                   />
                   <path
-                    d={path}
+                    d={path.mainCurve}
                     fill="none"
-                    stroke={selectedLineId === line.id ? 'rgba(244,207,73,1)' : 'rgba(244,207,73,0.7)'}
-                    strokeWidth={selectedLineId === line.id ? 4 : 2}
+                    stroke={selectedLineId === line.id ? '#f4cf49' : `url(#${gradientId})`}
+                    strokeWidth={selectedLineId === line.id ? 4.4 : 3.1}
+                    strokeLinecap="round"
                     pointerEvents="none"
                   />
+                  <path d={path.helperCurve} fill="none" stroke={`url(#${gradientId})`} strokeWidth={2.1} strokeLinecap="round" pointerEvents="none" />
+                  <path d={path.exitCurve} fill="none" stroke={`url(#${gradientId})`} strokeWidth={2.1} strokeLinecap="round" pointerEvents="none" />
                   {editable && isEditing && editorMode === 'lines' && (
-                    <g transform={`translate(${midX}, ${midY})`}>
+                    <g transform={`translate(${path.midX}, ${path.midY})`}>
                       <circle r="9" fill="rgba(18, 23, 39, 0.95)" stroke="rgba(255,255,255,0.2)" />
                       <text
                         x="0"
@@ -422,10 +479,10 @@ export const PlayoffGridEditor = ({
                 }}
               >
                 {showEditorOverlays && (
-                  <div className="mb-1 flex items-center justify-end gap-1">
+                  <div className="absolute right-1.5 top-1.5 z-10 flex items-center gap-1">
                     <button
                       type="button"
-                      className="rounded bg-panelBg px-1.5 py-0.5 text-[10px] text-textSecondary"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded bg-panelBg/95 text-[10px] text-textSecondary"
                       onClick={(event) => {
                         event.stopPropagation()
                         openEditCellDialog(cell.id)
@@ -435,7 +492,7 @@ export const PlayoffGridEditor = ({
                     </button>
                     <button
                       type="button"
-                      className="rounded bg-panelBg px-1.5 py-0.5 text-[10px] text-red-400"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded bg-panelBg/95 text-[10px] text-red-400"
                       onClick={(event) => {
                         event.stopPropagation()
                         deleteCell(cell.id)
@@ -445,7 +502,7 @@ export const PlayoffGridEditor = ({
                     </button>
                   </div>
                 )}
-                <div className="h-full rounded-xl border border-accentYellow/45 bg-panelAlt/95 px-2 py-1 shadow-soft">
+                <div className="h-full rounded-xl border border-accentYellow/45 bg-panelAlt/95 px-2 py-1 shadow-soft" style={{ boxShadow: 'inset 0 0 18px rgba(244,207,73,0.26), inset 0 0 4px rgba(244,207,73,0.24)' }}>
                   <div className="grid h-full grid-rows-2 gap-y-1">
                     <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-1">
                       {home ? <TeamAvatar team={home} size="sm" className="h-[18px] w-[18px] rounded-md border border-white/15 bg-white/10 p-[1px]" /> : <span className="h-[18px] w-[18px] rounded-md border border-dashed border-borderSubtle/70" />}
@@ -490,7 +547,14 @@ export const PlayoffGridEditor = ({
       </div>
 
       {editable && !isEditing && (
-        <div className="absolute right-3 top-3">
+        <div className="absolute right-3 top-3 flex gap-2">
+          <button
+            type="button"
+            onClick={focusOnActiveArea}
+            className="rounded-lg border border-borderSubtle bg-panelAlt px-3 py-2 text-xs font-semibold text-textSecondary"
+          >
+            Фокус
+          </button>
           <button
             type="button"
             onClick={() => setIsEditing(true)}
@@ -510,7 +574,7 @@ export const PlayoffGridEditor = ({
           <button type="button" onClick={openAddCellDialog} className="rounded-lg border border-borderSubtle px-2 py-2 text-textSecondary">Добавить</button>
         </div>
         <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-          <button type="button" onClick={() => setShowCancelConfirm(true)} className="rounded-lg border border-borderSubtle px-2 py-2 text-textSecondary">Отмена</button>
+          <button type="button" onClick={() => (dirty ? setShowCancelConfirm(true) : cancelDraft())} className="rounded-lg border border-borderSubtle px-2 py-2 text-textSecondary">Отмена</button>
           <button type="button" disabled={!selectedLineId} onClick={deleteSelectedLine} className="rounded-lg border border-borderSubtle px-2 py-2 text-textSecondary disabled:opacity-40">Удалить линию</button>
           <button type="button" disabled={!dirty || saving} onClick={() => { void saveDraft() }} className="rounded-lg bg-accentYellow px-2 py-2 font-semibold text-app disabled:opacity-50">Сохранить</button>
         </div>
@@ -561,5 +625,3 @@ export const PlayoffGridEditor = ({
     </section>
   )
 }
-
-export const playoffGridConstants = { GRID_COLS, GRID_ROWS, CELL_W, CELL_H }
