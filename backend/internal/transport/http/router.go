@@ -33,8 +33,6 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-const errorFlowTelegramChatID int64 = 373717705
-
 type Handler struct {
 	healthRepo    repository.Pinger
 	authRepo      *repository.AuthRepository
@@ -131,6 +129,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Patch("/admin/users/{id}/profile", h.AdminUpdateUserProfile)
 		r.With(sessionMW.RequireSession).Post("/admin/users/{id}/comment-block", h.AdminBlockComments)
 		r.With(sessionMW.RequireSession).Post("/admin/users/{id}/captain-role", h.AdminAssignCaptainRole)
+		r.With(sessionMW.RequireSession).Delete("/admin/users/{id}/captain-role", h.AdminRevokeCaptainRole)
 		r.With(sessionMW.RequireSession).Delete("/admin/users/{id}/player", h.AdminRemovePlayerFromUser)
 		r.With(sessionMW.RequireSession).Post("/superadmin/users/{id}/roles", h.SuperadminAssignRoles)
 		r.With(sessionMW.RequireSession).Post("/superadmin/users/{id}/permissions", h.SuperadminAssignPermissions)
@@ -182,11 +181,16 @@ func (h Handler) reportHTTPErrorFlow(ctx context.Context, report middleware.Erro
 		slog.Warn("error_flow_report_telegram_skipped", "reason", "empty_bot_token", "request_id", report.RequestID)
 		return
 	}
-	if err := h.sendTelegramDocument(ctx, errorFlowTelegramChatID, filename, "error_flow.log", fmt.Sprintf("🚨 HTTP 5xx\ncase=%s\nrequest_id=%s\nstatus=%d", report.BusinessCase, report.RequestID, report.Status)); err != nil {
-		slog.Error("error_flow_report_telegram_failed", "err", err, "request_id", report.RequestID, "chat_id", errorFlowTelegramChatID)
+	chatID := h.cfg.Telegram.ErrorFlowChatID
+	if chatID == 0 {
+		slog.Warn("error_flow_report_telegram_skipped", "reason", "empty_chat_id", "request_id", report.RequestID)
 		return
 	}
-	slog.Info("error_flow_report_telegram_sent", "request_id", report.RequestID, "chat_id", errorFlowTelegramChatID)
+	if err := h.sendTelegramDocument(ctx, chatID, filename, "error_flow.log", fmt.Sprintf("🚨 HTTP 5xx\ncase=%s\nrequest_id=%s\nstatus=%d", report.BusinessCase, report.RequestID, report.Status)); err != nil {
+		slog.Error("error_flow_report_telegram_failed", "err", err, "request_id", report.RequestID, "chat_id", chatID)
+		return
+	}
+	slog.Info("error_flow_report_telegram_sent", "request_id", report.RequestID, "chat_id", chatID)
 }
 
 func (h Handler) Healthcheck(w http.ResponseWriter, r *http.Request) {
@@ -249,6 +253,7 @@ func (h Handler) SearchUsersByTelegramUsername(w http.ResponseWriter, r *http.Re
 	}
 	items, err := h.authRepo.SearchPublicUserCardsByTelegramUsername(r.Context(), username, 20)
 	if err != nil {
+		slog.Error("search_users_failed", "err", err, "username", username)
 		http.Error(w, "failed", 500)
 		return
 	}
@@ -772,6 +777,7 @@ func (h Handler) TelegramAuthStart(w http.ResponseWriter, r *http.Request) {
 func (h Handler) ListTeams(w http.ResponseWriter, r *http.Request) {
 	items, err := h.tournament.ListTeams(r.Context())
 	if err != nil {
+		slog.Error("list_teams_failed", "err", err)
 		http.Error(w, "failed", 500)
 		return
 	}
@@ -837,6 +843,7 @@ func (h Handler) UpdateTeam(w http.ResponseWriter, r *http.Request) {
 func (h Handler) ListPlayers(w http.ResponseWriter, r *http.Request) {
 	items, err := h.tournament.ListPlayers(r.Context())
 	if err != nil {
+		slog.Error("list_players_failed", "err", err)
 		http.Error(w, "failed", 500)
 		return
 	}
@@ -899,6 +906,7 @@ func (h Handler) UpdatePlayer(w http.ResponseWriter, r *http.Request) {
 func (h Handler) ListMatches(w http.ResponseWriter, r *http.Request) {
 	items, err := h.tournament.ListMatches(r.Context())
 	if err != nil {
+		slog.Error("list_matches_failed", "err", err)
 		http.Error(w, "failed", 500)
 		return
 	}
@@ -936,11 +944,13 @@ func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
 
 	teams, err := h.tournament.ListTeams(r.Context())
 	if err != nil {
+		slog.Error("standings_list_teams_failed", "err", err, "tournament_id", targetCycleID)
 		http.Error(w, "failed", 500)
 		return
 	}
 	matches, err := h.tournament.ListMatches(r.Context())
 	if err != nil {
+		slog.Error("standings_list_matches_failed", "err", err, "tournament_id", targetCycleID)
 		http.Error(w, "failed", 500)
 		return
 	}
@@ -1331,6 +1341,7 @@ func (h Handler) UpdateMatch(w http.ResponseWriter, r *http.Request) {
 func (h Handler) ListEvents(w http.ResponseWriter, r *http.Request) {
 	items, err := h.events.ListEvents(r.Context())
 	if err != nil {
+		slog.Error("list_events_failed", "err", err)
 		http.Error(w, "failed", 500)
 		return
 	}
@@ -1763,6 +1774,23 @@ func (h Handler) AdminAssignCaptainRole(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err = h.cabinet.AdminAssignCaptainRole(r.Context(), current.User, userID); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+func (h Handler) AdminRevokeCaptainRole(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	userID, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	if err = h.cabinet.AdminRevokeCaptainRole(r.Context(), current.User, userID); err != nil {
 		handleDomainErr(w, err)
 		return
 	}

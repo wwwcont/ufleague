@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"football_ui/backend/internal/app/session"
@@ -36,6 +37,7 @@ func (m SessionMiddleware) RequireSession(next http.Handler) http.Handler {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
+			slog.Error("session_middleware_load_failed", "err", err, "path", r.URL.Path, "method", r.Method)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}

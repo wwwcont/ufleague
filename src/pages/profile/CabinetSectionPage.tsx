@@ -705,15 +705,15 @@ export const CabinetSectionPage = () => {
                       setStatus(`error: ${(error as Error).message}`)
                     }
                   }}>Снять admin права</button>
-                  <button type="button" disabled={section === 'grant-access' || !currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
-                    if (!window.confirm('Снять captain/admin права у пользователя?')) return
+                  <button type="button" disabled={section === 'grant-access'} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
+                    if (!window.confirm('Снять captain права у пользователя?')) return
                     try {
-                      await cabinetRepository.superadminAssignRoles({ userId: selectedUser.id, roles: ['player'] })
-                      setStatus('ok: elevated rights revoked')
+                      await cabinetRepository.adminRevokeCaptainRole?.(selectedUser.id)
+                      setStatus('ok: captain rights revoked')
                     } catch (error) {
                       setStatus(`error: ${(error as Error).message}`)
                     }
-                  }}>Снять captain/admin права</button>
+                  }}>Снять captain права</button>
                   <button type="button" disabled={section === 'grant-access'} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
                     if (!window.confirm('Удалить player профиль у пользователя и снять role player?')) return
                     try {

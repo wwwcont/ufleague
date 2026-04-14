@@ -1,6 +1,6 @@
 APP_NAME=football-backend
 MIGRATE_RUN=go run ./tools/migrate
-MIGRATE_DATABASE_URL?=postgres://postgres:postgres@localhost:5432/football_ui?sslmode=disable
+MIGRATE_DATABASE_URL?=postgres://postgres:postgres@localhost:5433/football_ui?sslmode=disable
 .RECIPEPREFIX := >
 
 .PHONY: deps run build test fmt migrate-up migrate-down
