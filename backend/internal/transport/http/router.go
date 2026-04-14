@@ -291,6 +291,12 @@ func detectImageContentType(raw []byte, headerContentType, filename string) stri
 		return "image/webp"
 	case ".svg":
 		return "image/svg+xml"
+	case ".heic":
+		return "image/heic"
+	case ".heif":
+		return "image/heif"
+	case ".avif":
+		return "image/avif"
 	default:
 		return ""
 	}
@@ -308,6 +314,12 @@ func extensionByContentType(contentType string) string {
 		return ".webp"
 	case "image/svg+xml":
 		return ".svg"
+	case "image/heic":
+		return ".heic"
+	case "image/heif":
+		return ".heif"
+	case "image/avif":
+		return ".avif"
 	default:
 		return ".jpg"
 	}
