@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/rand"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -31,6 +33,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+const errorFlowTelegramChatID int64 = 373717705
+
 type Handler struct {
 	healthRepo    repository.Pinger
 	authRepo      *repository.AuthRepository
@@ -47,7 +51,7 @@ type Handler struct {
 func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *repository.AuthRepository, tournamentSvc tournament.Service, eventsSvc eventsservice.Service, commentsSvc commentservice.Service, notificationsSvc notifservice.Service, telegramAuthSvc telegramauth.Service, cabinetSvc cabinetadmin.Service, sessionManager session.Manager) http.Handler {
 	h := Handler{healthRepo: healthRepo, authRepo: authRepo, tournament: tournamentSvc, events: eventsSvc, comments: commentsSvc, notifications: notificationsSvc, telegramAuth: telegramAuthSvc, cabinet: cabinetSvc, session: sessionManager, cfg: cfg}
 	r := chi.NewRouter()
-	obs := middleware.NewObservabilityMiddleware()
+	obs := middleware.NewObservabilityMiddleware(h.reportHTTPErrorFlow)
 	sec := middleware.NewSecurityMiddleware(cfg)
 	r.Use(obs.RequestID)
 	r.Use(obs.RequestLogger)
@@ -144,6 +148,45 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 	})
 
 	return r
+}
+
+func (h Handler) reportHTTPErrorFlow(ctx context.Context, report middleware.ErrorFlowReport) {
+	flowLine := strings.Join([]string{
+		fmt.Sprintf("time=%s", report.OccurredAt.Format(time.RFC3339)),
+		fmt.Sprintf("request_id=%s", report.RequestID),
+		fmt.Sprintf("business_case=%s", report.BusinessCase),
+		fmt.Sprintf("method=%s", report.Method),
+		fmt.Sprintf("path=%s", report.Path),
+		fmt.Sprintf("query=%s", report.Query),
+		fmt.Sprintf("status=%d", report.Status),
+		fmt.Sprintf("duration_ms=%d", report.DurationMS),
+		fmt.Sprintf("remote_addr=%s", report.RemoteAddr),
+		fmt.Sprintf("user_agent=%q", report.UserAgent),
+		fmt.Sprintf("referer=%q", report.Referer),
+		fmt.Sprintf("request_content_type=%q", report.RequestContentTy),
+		fmt.Sprintf("response_preview=%q", report.ResponsePreview),
+	}, "\n")
+
+	if err := os.MkdirAll("error_flows", 0o755); err != nil {
+		slog.Error("error_flow_report_mkdir_failed", "err", err)
+		return
+	}
+	filename := fmt.Sprintf("error_flows/%s_%d.log", strings.ReplaceAll(report.RequestID, "/", "_"), report.OccurredAt.Unix())
+	if err := os.WriteFile(filename, []byte(flowLine+"\n"), 0o644); err != nil {
+		slog.Error("error_flow_report_write_failed", "err", err, "request_id", report.RequestID)
+		return
+	}
+	slog.Info("error_flow_report_saved", "request_id", report.RequestID, "path", filename, "business_case", report.BusinessCase)
+
+	if strings.TrimSpace(h.cfg.Telegram.BotToken) == "" {
+		slog.Warn("error_flow_report_telegram_skipped", "reason", "empty_bot_token", "request_id", report.RequestID)
+		return
+	}
+	if err := h.sendTelegramDocument(ctx, errorFlowTelegramChatID, filename, "error_flow.log", fmt.Sprintf("🚨 HTTP 5xx\ncase=%s\nrequest_id=%s\nstatus=%d", report.BusinessCase, report.RequestID, report.Status)); err != nil {
+		slog.Error("error_flow_report_telegram_failed", "err", err, "request_id", report.RequestID, "chat_id", errorFlowTelegramChatID)
+		return
+	}
+	slog.Info("error_flow_report_telegram_sent", "request_id", report.RequestID, "chat_id", errorFlowTelegramChatID)
 }
 
 func (h Handler) Healthcheck(w http.ResponseWriter, r *http.Request) {
@@ -568,6 +611,47 @@ func (h Handler) sendTelegramMessage(ctx context.Context, chatID int64, text str
 	if resp.StatusCode >= 300 {
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return fmt.Errorf("telegram sendMessage failed: %s", strings.TrimSpace(string(raw)))
+	}
+	return nil
+}
+
+func (h Handler) sendTelegramDocument(ctx context.Context, chatID int64, filePath, fileName, caption string) error {
+	raw, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	_ = writer.WriteField("chat_id", strconv.FormatInt(chatID, 10))
+	if strings.TrimSpace(caption) != "" {
+		_ = writer.WriteField("caption", strings.TrimSpace(caption))
+	}
+	part, err := writer.CreateFormFile("document", fileName)
+	if err != nil {
+		return err
+	}
+	if _, err = part.Write(raw); err != nil {
+		return err
+	}
+	if err = writer.Close(); err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("https://api.telegram.org/bot%s/sendDocument", strings.TrimSpace(h.cfg.Telegram.BotToken)), &body)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		rawErr, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return fmt.Errorf("telegram sendDocument failed: %s", strings.TrimSpace(string(rawErr)))
 	}
 	return nil
 }
