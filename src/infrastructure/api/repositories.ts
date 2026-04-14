@@ -17,6 +17,37 @@ import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 
+const getApiOrigin = (): string | null => {
+  try {
+    return new URL(API_BASE, window.location.origin).origin
+  } catch {
+    return null
+  }
+}
+
+const normalizeMediaUrl = (rawUrl?: string | null): string | null => {
+  if (!rawUrl) return null
+  const value = String(rawUrl).trim()
+  if (!value) return null
+
+  const apiOrigin = getApiOrigin()
+  if (value.startsWith('/uploads/')) {
+    return apiOrigin ? `${apiOrigin}${value}` : value
+  }
+  if (!/^https?:\/\//i.test(value)) {
+    return value
+  }
+  try {
+    const parsed = new URL(value)
+    if (parsed.pathname.startsWith('/uploads/') && apiOrigin) {
+      return `${apiOrigin}${parsed.pathname}`
+    }
+  } catch {
+    return value
+  }
+  return value
+}
+
 export class ApiError extends Error {
   status: number
 
@@ -46,7 +77,7 @@ const mapTeam = (t: any): Team => ({
   id: String(t.id),
   name: t.name,
   shortName: (t.short_name ? String(t.short_name) : t.name?.slice(0, 3)?.toUpperCase()) ?? 'TBD',
-  logoUrl: t.logo_url || null,
+  logoUrl: normalizeMediaUrl(t.logo_url),
   captainUserId: t.captain_user_id ? String(t.captain_user_id) : null,
   city: t.socials?.city || 'UFL Development',
   slogan: t.socials?.slogan ?? undefined,
@@ -79,7 +110,7 @@ const mapPlayer = (p: any): Player | null => {
     number: p.shirt_number ?? 0,
     position: (p.position || 'MF') as Player['position'],
     age: Number(p.socials?.age ?? 21),
-    avatar: p.avatar_url || null,
+    avatar: normalizeMediaUrl(p.avatar_url),
     bio: p.socials?.bio ?? undefined,
     socials: {
       telegram: p.socials?.telegram,
@@ -147,7 +178,7 @@ const mapEvent = (e: any): PublicEvent => {
     category: 'news',
     entityType: e.scope_type,
     entityId: e.scope_id ? String(e.scope_id) : undefined,
-    imageUrl: e.metadata?.image_url ? String(e.metadata.image_url) : undefined,
+    imageUrl: normalizeMediaUrl(e.metadata?.image_url ? String(e.metadata.image_url) : undefined) ?? undefined,
   }
 }
 
@@ -756,7 +787,7 @@ const mapProfile = (payload: any) => ({
   firstName: String(payload.first_name ?? ''),
   lastName: String(payload.last_name ?? ''),
   bio: String(payload.bio ?? ''),
-  avatarUrl: String(payload.avatar_url ?? ''),
+  avatarUrl: normalizeMediaUrl(String(payload.avatar_url ?? '')) ?? '',
   socials: (payload.socials ?? {}) as Record<string, string>,
 })
 
@@ -806,6 +837,9 @@ export const cabinetRepository: CabinetRepository = {
   },
   async adminAssignCaptainRole(userId) {
     await api(`/api/admin/users/${userId}/captain-role`, { method: 'POST' })
+  },
+  async adminRevokeCaptainRole(userId) {
+    await api(`/api/admin/users/${userId}/captain-role`, { method: 'DELETE' })
   },
   async adminRemovePlayerFromUser(userId) {
     await api(`/api/admin/users/${userId}/player`, { method: 'DELETE' })
@@ -917,7 +951,8 @@ export const uploadsRepository: UploadsRepository = {
     if (!res.ok) {
       throw new ApiError(res.status, (await res.text()).trim() || `API ${res.status}`)
     }
-    return res.json() as Promise<{ url: string }>
+    const payload = (await res.json()) as { url?: string }
+    return { url: normalizeMediaUrl(payload.url) ?? '' }
   },
 }
 

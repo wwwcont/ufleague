@@ -226,6 +226,23 @@ func (s Service) AdminAssignCaptainRole(ctx context.Context, actor domain.User, 
 	return s.repo.AddAuditLog(ctx, actor.ID, "admin.assign_captain_role", "user", strconv.FormatInt(userID, 10), map[string]any{"without_team": true})
 }
 
+func (s Service) AdminRevokeCaptainRole(ctx context.Context, actor domain.User, userID int64) error {
+	if !s.policy.CanAdminModerate(actor) {
+		return fmt.Errorf("forbidden")
+	}
+	teams, err := s.repo.CountTeamsByCaptain(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if teams > 0 {
+		return fmt.Errorf("forbidden")
+	}
+	if err = s.repo.RevokeUserRole(ctx, userID, domain.RoleCaptain); err != nil {
+		return err
+	}
+	return s.repo.AddAuditLog(ctx, actor.ID, "admin.revoke_captain_role", "user", strconv.FormatInt(userID, 10), nil)
+}
+
 func (s Service) AdminRemovePlayerFromUser(ctx context.Context, actor domain.User, userID int64) error {
 	if !s.policy.CanAdminModerate(actor) {
 		return fmt.Errorf("forbidden")
