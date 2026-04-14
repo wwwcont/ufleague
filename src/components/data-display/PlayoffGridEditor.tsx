@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from 'react'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
+import { TeamAvatar } from '../ui/TeamAvatar'
 import type { PlayoffGrid, Team } from '../../domain/entities/types'
 
 const GRID_COLS = 35
 const GRID_ROWS = 35
-const CELL_W = 168
-const CELL_H = 124
+const CELL_W = 132
+const CELL_H = 66
 const PAN_MARGIN_CELLS = 3
 
 type EditorMode = 'navigation' | 'move' | 'lines'
@@ -22,11 +23,11 @@ const sameLine = (a: { fromCellId: string; toCellId: string }, b: { fromCellId: 
 )
 
 const buildLinePath = (fromX: number, fromY: number, toX: number, toY: number) => {
-  if (Math.abs(fromY - toY) < 1) return `M ${fromX} ${fromY} L ${toX} ${toY}`
-  const dx = Math.max(48, Math.abs(toX - fromX) * 0.35)
-  const c1x = fromX + (toX >= fromX ? dx : -dx)
-  const c2x = toX - (toX >= fromX ? dx : -dx)
-  return `M ${fromX} ${fromY} C ${c1x} ${fromY}, ${c2x} ${toY}, ${toX} ${toY}`
+  const direction = toX >= fromX ? 1 : -1
+  const horizontalSpan = Math.max(26, Math.abs(toX - fromX) * 0.32)
+  const elbowX = fromX + direction * horizontalSpan
+  const settleX = toX - direction * Math.max(16, horizontalSpan * 0.42)
+  return `M ${fromX} ${fromY} L ${elbowX} ${fromY} L ${elbowX} ${toY} L ${settleX} ${toY} L ${toX} ${toY}`
 }
 
 export const PlayoffGridEditor = ({
@@ -105,6 +106,7 @@ export const PlayoffGridEditor = ({
   }
 
   const occupied = useMemo(() => new Map(cellsDraft.map((cell) => [`${cell.col}:${cell.row}`, cell.id])), [cellsDraft])
+  const showEditorOverlays = editable && isEditing
 
   const moveCellToPoint = (cellId: string, clientX: number, clientY: number) => {
     const wrap = wrapperRef.current?.getBoundingClientRect()
@@ -327,8 +329,8 @@ export const PlayoffGridEditor = ({
           style={{ width: boardW, height: boardH, transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})` }}
         >
           <svg width={boardW} height={boardH} className="absolute left-0 top-0">
-            {Array.from({ length: GRID_COLS + 1 }, (_, col) => <line key={`col:${col}`} x1={col * CELL_W} x2={col * CELL_W} y1={0} y2={boardH} stroke="rgba(255,255,255,0.08)" />)}
-            {Array.from({ length: GRID_ROWS + 1 }, (_, row) => <line key={`row:${row}`} x1={0} x2={boardW} y1={row * CELL_H} y2={row * CELL_H} stroke="rgba(255,255,255,0.08)" />)}
+            {showEditorOverlays && Array.from({ length: GRID_COLS + 1 }, (_, col) => <line key={`col:${col}`} x1={col * CELL_W} x2={col * CELL_W} y1={0} y2={boardH} stroke="rgba(255,255,255,0.08)" />)}
+            {showEditorOverlays && Array.from({ length: GRID_ROWS + 1 }, (_, row) => <line key={`row:${row}`} x1={0} x2={boardW} y1={row * CELL_H} y2={row * CELL_H} stroke="rgba(255,255,255,0.08)" />)}
             {linesDraft.map((line) => {
               const from = cellsById[line.fromCellId]
               const to = cellsById[line.toCellId]
@@ -393,11 +395,23 @@ export const PlayoffGridEditor = ({
             const totalHome = cell.aggregateHomeScore ?? null
             const totalAway = cell.aggregateAwayScore ?? null
             const showWinner = Boolean(cell.allMatchesFinished && cell.winnerTeamId)
+            const hasSingleMatch = cell.attachedMatches.length === 1
+            const hasSeries = cell.attachedMatches.length > 1
+            const homeScoreLabel = hasSingleMatch
+              ? `${cell.attachedMatches[0].homeScore}`
+              : hasSeries
+                ? `${totalHome ?? '-'}`
+                : '-'
+            const awayScoreLabel = hasSingleMatch
+              ? `${cell.attachedMatches[0].awayScore}`
+              : hasSeries
+                ? `${totalAway ?? '-'}`
+                : '-'
 
             return (
               <div
                 key={cell.clientKey}
-                className={`absolute rounded-lg border bg-panelAlt/95 px-2 py-1 text-left text-[11px] shadow-soft ${isSelected ? 'border-accentYellow' : 'border-white/15'}`}
+                className={`absolute bg-transparent px-1 py-1 text-left ${showEditorOverlays && isSelected ? 'outline outline-2 outline-accentYellow/80' : ''}`}
                 style={{ left: (cell.col - 1) * CELL_W, top: (cell.row - 1) * CELL_H, width: CELL_W, height: CELL_H }}
                 onPointerDown={() => {
                   if (editable && isEditing && editorMode === 'move') movingCell.current = { id: cell.id }
@@ -407,7 +421,7 @@ export const PlayoffGridEditor = ({
                   setSelectedLineId(null)
                 }}
               >
-                {editable && isEditing && (
+                {showEditorOverlays && (
                   <div className="mb-1 flex items-center justify-end gap-1">
                     <button
                       type="button"
@@ -431,17 +445,20 @@ export const PlayoffGridEditor = ({
                     </button>
                   </div>
                 )}
-                <div className={`truncate ${showWinner && cell.winnerTeamId === cell.homeTeamId ? 'text-accentYellow font-semibold' : 'text-textPrimary'}`}>{home?.shortName ?? 'TBD'}</div>
-                <div className={`truncate ${showWinner && cell.winnerTeamId === cell.awayTeamId ? 'text-accentYellow font-semibold' : 'text-textPrimary'}`}>{away?.shortName ?? 'TBD'}</div>
-                {cell.attachedMatches.length === 1 && (
-                  <div className="mt-1 text-[10px] text-textSecondary tabular-nums">{cell.attachedMatches[0].homeScore}:{cell.attachedMatches[0].awayScore}</div>
-                )}
-                {cell.attachedMatches.length > 1 && (
-                  <div className="mt-1 space-y-0.5 text-[10px] text-textSecondary tabular-nums">
-                    {cell.attachedMatches.slice(0, 3).map((match) => <div key={match.id}>{match.homeScore}:{match.awayScore}</div>)}
-                    <div className="border-t border-white/15 pt-0.5 text-textPrimary">Σ {totalHome ?? '-'}:{totalAway ?? '-'}</div>
+                <div className="h-full rounded-xl border border-accentYellow/45 bg-panelAlt/95 px-2 py-1 shadow-soft">
+                  <div className="grid h-full grid-rows-2 gap-y-1">
+                    <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-1">
+                      {home ? <TeamAvatar team={home} size="sm" className="h-[18px] w-[18px] rounded-md border border-white/15 bg-white/10 p-[1px]" /> : <span className="h-[18px] w-[18px] rounded-md border border-dashed border-borderSubtle/70" />}
+                      <span className={`truncate text-[11px] font-semibold ${showWinner && cell.winnerTeamId === cell.homeTeamId ? 'text-accentYellow' : 'text-textPrimary'}`}>{home?.shortName ?? 'TBD'}</span>
+                      <span className="text-[11px] font-semibold text-textSecondary tabular-nums">{homeScoreLabel}</span>
+                    </div>
+                    <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-1">
+                      {away ? <TeamAvatar team={away} size="sm" className="h-[18px] w-[18px] rounded-md border border-white/15 bg-white/10 p-[1px]" /> : <span className="h-[18px] w-[18px] rounded-md border border-dashed border-borderSubtle/70" />}
+                      <span className={`truncate text-[11px] font-semibold ${showWinner && cell.winnerTeamId === cell.awayTeamId ? 'text-accentYellow' : 'text-textPrimary'}`}>{away?.shortName ?? 'TBD'}</span>
+                      <span className="text-[11px] font-semibold text-textSecondary tabular-nums">{awayScoreLabel}</span>
+                    </div>
                   </div>
-                )}
+                </div>
               </div>
             )
           })}
