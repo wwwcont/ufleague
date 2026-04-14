@@ -363,12 +363,24 @@ func (h Handler) TelegramCodeLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", 400)
 		return
 	}
-	if strings.TrimSpace(req.Code) == "" || strings.TrimSpace(req.RequestID) == "" {
+	req.Code = strings.TrimSpace(req.Code)
+	req.RequestID = strings.TrimSpace(req.RequestID)
+	if req.Code == "" || req.RequestID == "" {
+		if h.cfg.Features.TelegramMockLoginEnabled && !h.cfg.IsProduction() && req.Code != "" {
+			if h.loginAsTelegramMockCodeUser(w, r, req.Code) {
+				return
+			}
+		}
 		http.Error(w, "request_id and code are required", 400)
 		return
 	}
 	user, err := h.telegramAuth.CompleteCode(r.Context(), req)
 	if err != nil {
+		if h.cfg.Features.TelegramMockLoginEnabled && !h.cfg.IsProduction() {
+			if h.loginAsTelegramMockCodeUser(w, r, req.Code) {
+				return
+			}
+		}
 		if errors.Is(err, telegramauth.ErrExpiredCode) {
 			http.Error(w, "expired code", 410)
 			return
@@ -397,6 +409,36 @@ func (h Handler) TelegramCodeLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	setSessionCookie(w, h.session, rawToken, sess.ExpiresAt)
 	writeJSON(w, 200, domain.MeResponse{User: user, Session: sess})
+}
+
+func (h Handler) loginAsTelegramMockCodeUser(w http.ResponseWriter, r *http.Request, code string) bool {
+	username, ok := telegramMockSeedUsersByCode(h.cfg.Features.TelegramMockCode)[strings.TrimSpace(code)]
+	if !ok {
+		return false
+	}
+	user, err := h.authRepo.GetUserByUsername(r.Context(), username)
+	if err != nil {
+		return false
+	}
+	rawToken, tokenHash, err := h.session.GenerateToken()
+	if err != nil {
+		http.Error(w, "failed to create session token", 500)
+		return true
+	}
+	sess, err := h.authRepo.CreateSession(r.Context(), repository.CreateSessionParams{
+		UserID:    user.ID,
+		TokenHash: tokenHash,
+		UserAgent: r.UserAgent(),
+		IPAddress: clientIP(r),
+		ExpiresAt: time.Now().UTC().Add(h.session.TTL()).Format(time.RFC3339),
+	})
+	if err != nil {
+		http.Error(w, "failed to create session", 500)
+		return true
+	}
+	setSessionCookie(w, h.session, rawToken, sess.ExpiresAt)
+	writeJSON(w, 200, domain.MeResponse{User: user, Session: sess})
+	return true
 }
 
 func (h Handler) TelegramIssueCode(w http.ResponseWriter, r *http.Request) {
@@ -568,15 +610,7 @@ func (h Handler) TelegramMockCodeLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	seedByCode := map[string]string{
-		"UFL-SUPERADMIN-2026": "superadmin",
-		"UFL-ADMIN-2026":      "admin_test",
-		"UFL-CAPTAIN-2026":    "captain_alpha",
-		"UFL-PLAYER-2026":     "player_test",
-	}
-	if h.cfg.Features.TelegramMockCode != "" {
-		seedByCode[h.cfg.Features.TelegramMockCode] = "superadmin"
-	}
+	seedByCode := telegramMockSeedUsersByCode(h.cfg.Features.TelegramMockCode)
 
 	username, ok := seedByCode[code]
 	if !ok {
@@ -607,6 +641,24 @@ func (h Handler) TelegramMockCodeLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	setSessionCookie(w, h.session, rawToken, sess.ExpiresAt)
 	writeJSON(w, 200, domain.MeResponse{User: user, Session: sess})
+}
+
+func telegramMockSeedUsersByCode(configuredMockCode string) map[string]string {
+	seedByCode := map[string]string{
+		"1111": "superadmin",
+		"2222": "admin_test",
+		"3333": "captain_alpha",
+		"4444": "player_test",
+
+		"UFL-SUPERADMIN-2026": "superadmin",
+		"UFL-ADMIN-2026":      "admin_test",
+		"UFL-CAPTAIN-2026":    "captain_alpha",
+		"UFL-PLAYER-2026":     "player_test",
+	}
+	if configuredMockCode = strings.TrimSpace(configuredMockCode); configuredMockCode != "" {
+		seedByCode[configuredMockCode] = "superadmin"
+	}
+	return seedByCode
 }
 
 func (h Handler) TelegramAuthStart(w http.ResponseWriter, r *http.Request) {
