@@ -4,6 +4,12 @@ export type CircleCrop = {
   zoom: number
 }
 
+type CropRect = {
+  sx: number
+  sy: number
+  side: number
+}
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
 const fileToObjectUrl = (file: File) => URL.createObjectURL(file)
@@ -27,6 +33,21 @@ const canvasToJpegFile = async (canvas: HTMLCanvasElement, name: string) => {
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9))
   if (!blob) throw new Error('Не удалось обработать изображение')
   return new File([blob], name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' })
+}
+
+const resolveSquareCrop = (width: number, height: number, crop: CircleCrop): CropRect => {
+  const safeZoom = clamp(crop.zoom, 1, 3)
+  const cropSide = Math.min(width, height) / safeZoom
+  const freeX = Math.max(0, width - cropSide)
+  const freeY = Math.max(0, height - cropSide)
+  const sx = clamp(freeX / 2 + (clamp(crop.x, -100, 100) / 100) * (freeX / 2), 0, freeX)
+  const sy = clamp(freeY / 2 + (clamp(crop.y, -100, 100) / 100) * (freeY / 2), 0, freeY)
+
+  return {
+    sx,
+    sy,
+    side: cropSide,
+  }
 }
 
 export const normalizeImageForUpload = async (input: File, maxSide = 2048): Promise<File> => {
@@ -56,12 +77,7 @@ export const buildCircularCropUploadFile = async (input: File, crop: CircleCrop,
   const height = image.naturalHeight || image.height
   if (!width || !height) throw new Error('Файл изображения поврежден')
 
-  const safeZoom = clamp(crop.zoom, 1, 3)
-  const cropSide = Math.min(width, height) / safeZoom
-  const freeX = Math.max(0, width - cropSide)
-  const freeY = Math.max(0, height - cropSide)
-  const sx = clamp(freeX / 2 + (clamp(crop.x, -100, 100) / 100) * (freeX / 2), 0, freeX)
-  const sy = clamp(freeY / 2 + (clamp(crop.y, -100, 100) / 100) * (freeY / 2), 0, freeY)
+  const { sx, sy, side } = resolveSquareCrop(width, height, crop)
 
   const canvas = document.createElement('canvas')
   canvas.width = size
@@ -70,6 +86,6 @@ export const buildCircularCropUploadFile = async (input: File, crop: CircleCrop,
   if (!ctx) throw new Error('Не удалось подготовить canvas')
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(image, sx, sy, cropSide, cropSide, 0, 0, size, size)
+  ctx.drawImage(image, sx, sy, side, side, 0, 0, size, size)
   return canvasToJpegFile(canvas, input.name || 'avatar.jpg')
 }

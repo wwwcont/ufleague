@@ -16,7 +16,7 @@ export const CircularImageCropField = ({ imageUrl, crop, onChange, label }: Circ
           src={imageUrl}
           alt="crop-preview"
           className="h-full w-full object-cover"
-          style={{ transform: `scale(${crop.zoom}) translate(${crop.x}%, ${crop.y}%)` }}
+          style={{ transform: `translate(${crop.x}%, ${crop.y}%) scale(${crop.zoom})` }}
         />
         <div className="pointer-events-none absolute inset-0 rounded-full ring-2 ring-accentYellow/70" />
       </div>
