@@ -23,6 +23,7 @@ import {
   SectionActionBar,
 } from '../../components/ui/editable'
 import { EntityPageAction } from '../../components/ui/EntityPageAction'
+import { ImageCropperDialog } from '../../components/ui/ImageCropperDialog'
 import type { EventContentBlock } from '../../domain/entities/types'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
 
@@ -68,6 +69,7 @@ export const PlayerDetailsPage = () => {
   const [instagram, setInstagram] = useState('')
   const [number, setNumber] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarCropFile, setAvatarCropFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | undefined>(undefined)
   const [position, setPosition] = useState(player?.position ?? 'MF')
   const [eventCreateOpen, setEventCreateOpen] = useState(false)
@@ -89,6 +91,7 @@ export const PlayerDetailsPage = () => {
     setPosition(player.position ?? 'MF')
     setAvatarPreview(player.avatar ?? undefined)
     setAvatarFile(null)
+    setAvatarCropFile(null)
     setHeroEditing(false)
     setProfileEditing(false)
     setSportsEditing(false)
@@ -173,12 +176,13 @@ export const PlayerDetailsPage = () => {
                   imageUrl={avatarPreview}
                   isEditing
                   onSelectFile={(file) => {
-                    setAvatarFile(file)
                     if (!file) {
+                      setAvatarFile(null)
+                      setAvatarCropFile(null)
                       setAvatarPreview(player.avatar ?? undefined)
                       return
                     }
-                    setAvatarPreview(URL.createObjectURL(file))
+                    setAvatarCropFile(file)
                   }}
                 />
               </div>
@@ -193,6 +197,7 @@ export const PlayerDetailsPage = () => {
               setDisplayName(player.displayName)
               setAvatarPreview(player.avatar ?? undefined)
               setAvatarFile(null)
+              setAvatarCropFile(null)
               setHeroStatus(null)
               setHeroTone('idle')
               setHeroEditing(false)
@@ -220,6 +225,17 @@ export const PlayerDetailsPage = () => {
           <SocialLinks compact links={{ telegram: player.socials?.telegram, vk: player.socials?.vk, instagram: player.socials?.instagram }} />
         </div>
       </EditableSection>
+      <ImageCropperDialog
+        isOpen={Boolean(avatarCropFile)}
+        file={avatarCropFile}
+        title="Миниатюра игрока"
+        onCancel={() => setAvatarCropFile(null)}
+        onApply={(file, previewUrl) => {
+          setAvatarFile(file)
+          setAvatarPreview(previewUrl)
+          setAvatarCropFile(null)
+        }}
+      />
 
       <EditableSection isEditing={profileEditing}>
         <EditableSectionHeader
