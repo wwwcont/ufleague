@@ -180,7 +180,13 @@ func randomDigits(length int) (string, error) {
 func buildTelegramBotStartURL(baseBotURL string, requestID string) string {
 	trimmed := strings.TrimSpace(baseBotURL)
 	if trimmed == "" {
-		return fmt.Sprintf("https://t.me/ufleague_auth_bot?start=login_%s", requestID)
+		return fmt.Sprintf("https://t.me/ufleague_bot?start=login_%s", requestID)
+	}
+	if !strings.Contains(trimmed, "://") && !strings.HasPrefix(trimmed, "t.me/") {
+		trimmed = fmt.Sprintf("https://t.me/%s", strings.TrimPrefix(trimmed, "@"))
+	}
+	if strings.HasPrefix(trimmed, "t.me/") {
+		trimmed = "https://" + trimmed
 	}
 	parsed, err := url.Parse(trimmed)
 	if err != nil {

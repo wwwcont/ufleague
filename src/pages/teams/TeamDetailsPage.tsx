@@ -14,6 +14,8 @@ import { TeamAvatar } from '../../components/ui/TeamAvatar'
 import { SocialLinks } from '../../components/ui/SocialLinks'
 import { CommentsSection } from '../../components/comments'
 import { EventFeedSection } from '../../components/events'
+import { EntityPageAction } from '../../components/ui/EntityPageAction'
+import { ImageCropperDialog } from '../../components/ui/ImageCropperDialog'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { canManageTeam } from '../../domain/services/accessControl'
@@ -57,6 +59,7 @@ export const TeamDetailsPage = () => {
   const [customUrl2, setCustomUrl2] = useState('')
   const [editableLogoUrl, setEditableLogoUrl] = useState<string | undefined>(undefined)
   const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoCropFile, setLogoCropFile] = useState<File | null>(null)
   const [localTeamFeed, setLocalTeamFeed] = useState(teamFeed ?? [])
 
   useEffect(() => {
@@ -74,6 +77,7 @@ export const TeamDetailsPage = () => {
     setCustomUrl2(team.socials?.custom?.[1]?.url ?? '')
     setEditableLogoUrl(team.logoUrl ?? undefined)
     setLogoFile(null)
+    setLogoCropFile(null)
     setHeroEditing(false)
   }, [team])
 
@@ -119,6 +123,7 @@ export const TeamDetailsPage = () => {
     setCustomUrl2(team.socials?.custom?.[1]?.url ?? '')
     setEditableDescription(team.description ?? '')
     setLogoFile(null)
+    setLogoCropFile(null)
   }
   return (
     <PageContainer>
@@ -159,6 +164,9 @@ export const TeamDetailsPage = () => {
             <div>
               <h1 className="text-3xl font-bold text-white">{team.name}</h1>
               {team.slogan && <p className="mt-1 text-sm text-textSecondary">{team.slogan}</p>}
+              <div className="mt-2">
+                <EntityPageAction mode="favorite" entityKey={`team:${team.id}`} />
+              </div>
             </div>
 
             <div className="flex items-center justify-between gap-4">
@@ -214,15 +222,16 @@ export const TeamDetailsPage = () => {
           {heroEditing && (
             <input
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml"
               onChange={(event) => {
                 const file = event.target.files?.[0] ?? null
-                setLogoFile(file)
                 if (!file) {
+                  setLogoFile(null)
+                  setLogoCropFile(null)
                   setEditableLogoUrl(team.logoUrl ?? undefined)
                   return
                 }
-                setEditableLogoUrl(URL.createObjectURL(file))
+                setLogoCropFile(file)
               }}
               className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-xs text-textSecondary"
             />
@@ -275,6 +284,17 @@ export const TeamDetailsPage = () => {
           />
         </div>
       </EditableSection>
+      <ImageCropperDialog
+        isOpen={Boolean(logoCropFile)}
+        file={logoCropFile}
+        title="Миниатюра логотипа команды"
+        onCancel={() => setLogoCropFile(null)}
+        onApply={(file, previewUrl) => {
+          setLogoFile(file)
+          setEditableLogoUrl(previewUrl)
+          setLogoCropFile(null)
+        }}
+      />
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
         <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Trophy size={16} className="text-accentYellow" /> ИНФОРМАЦИЯ</h2>

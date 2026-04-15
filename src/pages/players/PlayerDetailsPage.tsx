@@ -22,6 +22,8 @@ import {
   EditableTextareaField,
   SectionActionBar,
 } from '../../components/ui/editable'
+import { EntityPageAction } from '../../components/ui/EntityPageAction'
+import { ImageCropperDialog } from '../../components/ui/ImageCropperDialog'
 import type { EventContentBlock } from '../../domain/entities/types'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
 
@@ -44,7 +46,7 @@ export const PlayerDetailsPage = () => {
   const { data: playerFeed } = useEvents({ entityType: 'player', entityId: playerId, limit: 4 })
   const { data: matches } = useMatches()
   const { session } = useSession()
-  const { playersRepository, eventsRepository, uploadsRepository } = useRepositories()
+  const { playersRepository, usersRepository, eventsRepository, uploadsRepository } = useRepositories()
 
   const [heroEditing, setHeroEditing] = useState(false)
   const [profileEditing, setProfileEditing] = useState(false)
@@ -67,7 +69,9 @@ export const PlayerDetailsPage = () => {
   const [instagram, setInstagram] = useState('')
   const [number, setNumber] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarCropFile, setAvatarCropFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | undefined>(undefined)
+  const [linkedUserAvatar, setLinkedUserAvatar] = useState<string | undefined>(undefined)
   const [position, setPosition] = useState(player?.position ?? 'MF')
   const [eventCreateOpen, setEventCreateOpen] = useState(false)
   const [eventCreatePending, setEventCreatePending] = useState(false)
@@ -86,12 +90,33 @@ export const PlayerDetailsPage = () => {
     setInstagram(player.socials?.instagram ?? '')
     setNumber(String(player.number ?? ''))
     setPosition(player.position ?? 'MF')
-    setAvatarPreview(player.avatar ?? undefined)
+    setAvatarPreview(linkedUserAvatar ?? player.avatar ?? undefined)
     setAvatarFile(null)
+    setAvatarCropFile(null)
     setHeroEditing(false)
     setProfileEditing(false)
     setSportsEditing(false)
-  }, [player])
+  }, [linkedUserAvatar, player])
+
+  useEffect(() => {
+    if (!player?.userId || !usersRepository.getUserProfile) {
+      setLinkedUserAvatar(undefined)
+      return
+    }
+    let isActive = true
+    void usersRepository.getUserProfile(player.userId)
+      .then((userProfile) => {
+        if (!isActive) return
+        setLinkedUserAvatar(userProfile?.avatarUrl || undefined)
+      })
+      .catch(() => {
+        if (!isActive) return
+        setLinkedUserAvatar(undefined)
+      })
+    return () => {
+      isActive = false
+    }
+  }, [player?.userId, usersRepository])
 
   if (!player) return <PageContainer><EmptyState title="Игрок не найден" /></PageContainer>
 
@@ -111,9 +136,9 @@ export const PlayerDetailsPage = () => {
     <PageContainer>
       <EditableSection isEditing={heroEditing} className="relative overflow-hidden border-borderStrong bg-panelBg p-5 shadow-matte">
         <div className="pointer-events-none absolute inset-0">
-          {(avatarPreview || team?.logoUrl) && (
+          {(avatarPreview || linkedUserAvatar || team?.logoUrl) && (
             <img
-              src={avatarPreview || team?.logoUrl || ''}
+              src={avatarPreview || linkedUserAvatar || team?.logoUrl || ''}
               alt=""
               className="h-full w-full scale-[1.12] object-cover blur-md opacity-[0.18]"
             />
@@ -130,7 +155,7 @@ export const PlayerDetailsPage = () => {
             isEditing={heroEditing}
             onStartEdit={() => {
               setDisplayName(player.displayName)
-              setAvatarPreview(player.avatar ?? undefined)
+              setAvatarPreview(linkedUserAvatar ?? player.avatar ?? undefined)
               setAvatarFile(null)
               setHeroStatus(null)
               setHeroTone('idle')
@@ -138,7 +163,7 @@ export const PlayerDetailsPage = () => {
             }}
             onCancelEdit={() => {
               setDisplayName(player.displayName)
-              setAvatarPreview(player.avatar ?? undefined)
+              setAvatarPreview(linkedUserAvatar ?? player.avatar ?? undefined)
               setAvatarFile(null)
               setHeroStatus(null)
               setHeroTone('idle')
@@ -147,7 +172,9 @@ export const PlayerDetailsPage = () => {
           />
           <div className="mb-4 flex items-start gap-4">
             <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-borderStrong bg-panelSoft text-2xl font-bold text-textPrimary">
-              {avatarPreview ? <img src={avatarPreview} alt={displayName || player.displayName} className="h-full w-full object-cover" /> : getInitials(displayName || player.displayName)}
+              {(avatarPreview || linkedUserAvatar)
+                ? <img src={avatarPreview || linkedUserAvatar} alt={displayName || player.displayName} className="h-full w-full object-cover" />
+                : getInitials(displayName || player.displayName)}
             </div>
             <div className="flex-1">
               <h1 className="text-3xl font-bold text-textPrimary">{displayName || player.displayName}</h1>
@@ -156,6 +183,9 @@ export const PlayerDetailsPage = () => {
               <p className="text-xs text-textMuted">Голы: {goalsFromMatches} • Ассисты: {assistsFromMatches}</p>
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
                 {player.userId && <Link to={`/users/${player.userId}`} className="rounded-lg border border-borderSubtle px-2 py-1">Страница юзера</Link>}
+              </div>
+              <div className="mt-2">
+                <EntityPageAction mode="favorite" entityKey={`player:${player.id}`} />
               </div>
             </div>
           </div>
@@ -169,12 +199,13 @@ export const PlayerDetailsPage = () => {
                   imageUrl={avatarPreview}
                   isEditing
                   onSelectFile={(file) => {
-                    setAvatarFile(file)
                     if (!file) {
-                      setAvatarPreview(player.avatar ?? undefined)
+                      setAvatarFile(null)
+                      setAvatarCropFile(null)
+                      setAvatarPreview(linkedUserAvatar ?? player.avatar ?? undefined)
                       return
                     }
-                    setAvatarPreview(URL.createObjectURL(file))
+                    setAvatarCropFile(file)
                   }}
                 />
               </div>
@@ -187,8 +218,9 @@ export const PlayerDetailsPage = () => {
             statusTone={heroTone}
             onCancel={() => {
               setDisplayName(player.displayName)
-              setAvatarPreview(player.avatar ?? undefined)
+              setAvatarPreview(linkedUserAvatar ?? player.avatar ?? undefined)
               setAvatarFile(null)
+              setAvatarCropFile(null)
               setHeroStatus(null)
               setHeroTone('idle')
               setHeroEditing(false)
@@ -200,6 +232,20 @@ export const PlayerDetailsPage = () => {
               setHeroTone('idle')
               try {
                 const uploadedAvatar = avatarFile ? (await uploadsRepository.uploadImage(avatarFile)).url : player.avatar || undefined
+                if (player.userId && uploadedAvatar && usersRepository.getUserProfile && usersRepository.updateUserProfile) {
+                  const userProfile = await usersRepository.getUserProfile(player.userId)
+                  if (userProfile) {
+                    await usersRepository.updateUserProfile(player.userId, {
+                      displayName: userProfile.displayName,
+                      firstName: userProfile.firstName,
+                      lastName: userProfile.lastName,
+                      bio: userProfile.bio,
+                      avatarUrl: uploadedAvatar,
+                      socials: userProfile.socials,
+                    })
+                    setLinkedUserAvatar(uploadedAvatar)
+                  }
+                }
                 await playersRepository.updatePlayer(player.id, { displayName: displayName || player.displayName, avatar: uploadedAvatar })
                 setHeroStatus('Профиль обновлен')
                 setHeroTone('success')
@@ -216,6 +262,17 @@ export const PlayerDetailsPage = () => {
           <SocialLinks compact links={{ telegram: player.socials?.telegram, vk: player.socials?.vk, instagram: player.socials?.instagram }} />
         </div>
       </EditableSection>
+      <ImageCropperDialog
+        isOpen={Boolean(avatarCropFile)}
+        file={avatarCropFile}
+        title="Миниатюра игрока"
+        onCancel={() => setAvatarCropFile(null)}
+        onApply={(file, previewUrl) => {
+          setAvatarFile(file)
+          setAvatarPreview(previewUrl)
+          setAvatarCropFile(null)
+        }}
+      />
 
       <EditableSection isEditing={profileEditing}>
         <EditableSectionHeader
