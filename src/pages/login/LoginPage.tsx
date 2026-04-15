@@ -66,6 +66,20 @@ export const LoginPage = () => {
 
         {step === 'code' && (
           <div className="mt-4 space-y-2">
+            <button
+              type="button"
+              onClick={() => {
+                setStep('start')
+                setRequestId('')
+                setCode('')
+                setError(null)
+                window.sessionStorage.removeItem('tg_login_request_id')
+                window.sessionStorage.removeItem('tg_login_expires_at')
+              }}
+              className="inline-flex rounded-lg border border-borderSubtle px-3 py-1.5 text-xs text-textSecondary"
+            >
+              ← Назад
+            </button>
             <p className="text-xs text-textMuted">Введите mock code для seeded dev account:</p>
             <input
               value={code}

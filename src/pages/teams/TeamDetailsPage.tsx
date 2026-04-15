@@ -140,33 +140,31 @@ export const TeamDetailsPage = () => {
 
         <div className="relative z-10">
           {!heroEditing && session.isAuthenticated && (
-            <div className="absolute right-4 top-4 z-20">
-              <div className="flex items-center gap-2">
+            <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => toggleFavorite(`team:${team.id}`)}
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${isFavoriteTeam ? 'border-accentYellow/70 bg-accentYellow/10 text-accentYellow' : 'border-borderSubtle bg-black/30 text-textMuted'}`}
+                aria-label={isFavoriteTeam ? 'Убрать команду из избранного' : 'Добавить команду в избранное'}
+              >
+                <Star size={14} className={isFavoriteTeam ? 'fill-current' : ''} />
+              </button>
+              {canManageCurrentTeam && (
                 <button
                   type="button"
-                  onClick={() => toggleFavorite(`team:${team.id}`)}
-                  className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${isFavoriteTeam ? 'border-accentYellow/70 bg-accentYellow/10 text-accentYellow' : 'border-borderSubtle bg-black/30 text-textMuted'}`}
-                  aria-label={isFavoriteTeam ? 'Убрать команду из избранного' : 'Добавить команду в избранное'}
+                  onClick={() => {
+                    syncHeroDraft()
+                    setHeroStatus(null)
+                    setHeroTone('idle')
+                    setHeroEditing(true)
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle bg-black/30 px-2 py-1 text-xs text-textSecondary"
+                  aria-label="Редактировать профиль команды"
                 >
-                  <Star size={14} className={isFavoriteTeam ? 'fill-current' : ''} />
+                  <Pencil size={14} />
+                  Редактировать
                 </button>
-                {canManageCurrentTeam && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      syncHeroDraft()
-                      setHeroStatus(null)
-                      setHeroTone('idle')
-                      setHeroEditing(true)
-                    }}
-                    className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle bg-black/30 px-2 py-1 text-xs text-textSecondary"
-                    aria-label="Редактировать профиль команды"
-                  >
-                    <Pencil size={14} />
-                    Редактировать
-                  </button>
-                )}
-              </div>
+              )}
             </div>
           )}
 

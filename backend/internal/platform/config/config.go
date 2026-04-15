@@ -128,7 +128,7 @@ func splitCSV(raw string) []string {
 }
 
 type TelegramConfig struct {
-	MiniAppAuthURL  string `env:"TELEGRAM_MINIAPP_AUTH_URL" envDefault:"https://t.me/ufleague_auth_bot"`
+	MiniAppAuthURL  string `env:"TELEGRAM_MINIAPP_AUTH_URL" envDefault:"https://t.me/ufleague_bot"`
 	BotToken        string `env:"TELEGRAM_BOT_TOKEN" envDefault:""`
 	WebhookSecret   string `env:"TELEGRAM_WEBHOOK_SECRET" envDefault:""`
 	ErrorFlowChatID int64  `env:"TELEGRAM_ERROR_FLOW_CHAT_ID" envDefault:"373717705"`

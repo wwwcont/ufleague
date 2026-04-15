@@ -128,18 +128,6 @@ export const PlayerDetailsPage = () => {
         </div>
 
         <div className="relative z-10">
-          {session.isAuthenticated && (
-            <div className="absolute right-0 top-0 z-20">
-              <button
-                type="button"
-                onClick={() => toggleFavorite(`player:${player.id}`)}
-                className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${isFavoritePlayer ? 'border-accentYellow/70 bg-accentYellow/10 text-accentYellow' : 'border-borderSubtle bg-black/30 text-textMuted'}`}
-                aria-label={isFavoritePlayer ? 'Убрать игрока из избранного' : 'Добавить игрока в избранное'}
-              >
-                <Star size={14} className={isFavoritePlayer ? 'fill-current' : ''} />
-              </button>
-            </div>
-          )}
           <EditableSectionHeader
             title="Профиль игрока"
             subtitle="Аватар и имя"
@@ -162,6 +150,18 @@ export const PlayerDetailsPage = () => {
               setHeroEditing(false)
             }}
           />
+          {session.isAuthenticated && (
+            <div className="mb-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => toggleFavorite(`player:${player.id}`)}
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${isFavoritePlayer ? 'border-accentYellow/70 bg-accentYellow/10 text-accentYellow' : 'border-borderSubtle bg-black/30 text-textMuted'}`}
+                aria-label={isFavoritePlayer ? 'Убрать игрока из избранного' : 'Добавить игрока в избранное'}
+              >
+                <Star size={14} className={isFavoritePlayer ? 'fill-current' : ''} />
+              </button>
+            </div>
+          )}
           <div className="mb-4 flex items-start gap-4">
             <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-borderStrong bg-panelSoft text-2xl font-bold text-textPrimary">
               {avatarPreview ? <img src={avatarPreview} alt={displayName || player.displayName} className="h-full w-full object-cover" /> : getInitials(displayName || player.displayName)}
