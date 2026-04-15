@@ -14,6 +14,7 @@ import type {
 } from '../../domain/repositories/contracts'
 import type { AuthSession, BackendMeDTO, CommentAuthorState, CommentNode, Match, Player, PlayoffGrid, PublicEvent, PublicUserCard, SearchResult, StandingRow, Team, UserRole } from '../../domain/entities/types'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
+import { normalizeImageForUpload } from '../../lib/image-upload'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 
@@ -780,7 +781,7 @@ export const sessionRepository: SessionRepository = {
       body: JSON.stringify(role ? { role } : {}),
     })
     return {
-      authUrl: data.authUrl ?? data.auth_url ?? 'https://t.me/ufleague_auth_bot',
+      authUrl: data.authUrl ?? data.auth_url ?? 'https://t.me/ufleague_bot',
       requestId: data.requestId ?? data.request_id ?? '',
       expiresAt: data.expiresAt ?? data.expires_at ?? new Date().toISOString(),
     }
@@ -991,8 +992,9 @@ export const usersRepository: UsersRepository = {
 
 export const uploadsRepository: UploadsRepository = {
   async uploadImage(file) {
+    const normalizedFile = await normalizeImageForUpload(file)
     const formData = new FormData()
-    formData.set('file', file)
+    formData.set('file', normalizedFile)
     const res = await fetch(`${API_BASE}/api/uploads/image`, {
       method: 'POST',
       credentials: 'include',

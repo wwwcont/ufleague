@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { Activity, Disc3, Info, Pause, Play, Plus, Radio, Timer } from 'lucide-react'
+import { Activity, Bell, BellOff, Info, Pause, Play, Plus, Timer } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useMatchDetails } from '../../hooks/data/useMatchDetails'
 import { useMatches } from '../../hooks/data/useMatches'
@@ -17,6 +17,7 @@ import { canManageMatch, canManageMatchScore } from '../../domain/services/acces
 import { formatMatchMetaMsk, getTimeToKickoff } from '../../lib/date-time'
 import type { Match } from '../../domain/entities/types'
 import { EditableSectionHeader, SectionActionBar } from '../../components/ui/editable'
+import { useUserPreferences } from '../../hooks/app/useUserPreferences'
 
 const tournamentFallbackLogo = '/assets/logos/tournament.svg'
 
@@ -124,6 +125,7 @@ export const MatchDetailsPage = () => {
   const { data: teams } = useTeams()
   const { data: players } = usePlayers()
   const { session } = useSession()
+  const { isMatchMuted, toggleMatchMuted } = useUserPreferences()
   const { matchesRepository, playoffGridRepository, cabinetRepository, eventsRepository } = useRepositories()
 
   const teamMap = Object.fromEntries((teams ?? []).map((team) => [team.id, team]))
@@ -312,6 +314,7 @@ export const MatchDetailsPage = () => {
     if (match.status === 'scheduled') return getTimeToKickoff(match.date, match.time) ?? 'Скоро'
     return ''
   })()
+  const isMutedMatch = isMatchMuted(match.id)
 
   const refreshAfterPlayoffAction = async () => {
     await Promise.all([
@@ -369,6 +372,18 @@ export const MatchDetailsPage = () => {
         </div>
 
         <div className="relative z-10">
+          {session.isAuthenticated && (
+            <div className="absolute right-0 top-0 z-20">
+              <button
+                type="button"
+                aria-label={isMutedMatch ? 'Включить уведомления по матчу' : 'Выключить уведомления по матчу'}
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${isMutedMatch ? 'border-borderSubtle bg-black/30 text-textMuted' : 'border-accentYellow/60 bg-accentYellow/10 text-accentYellow'}`}
+                onClick={() => toggleMatchMuted(match.id)}
+              >
+                {isMutedMatch ? <BellOff size={15} /> : <Bell size={15} />}
+              </button>
+            </div>
+          )}
           <div className="mb-2 flex items-center justify-between gap-3 text-xs sm:text-sm">
           <p className="font-medium tracking-[0.03em] text-textSecondary">{formatMatchMetaMsk(match.date, match.time)}</p>
           <span className={`inline-flex items-center gap-2 font-semibold uppercase tracking-[0.08em] ${match.status === 'live' ? 'text-red-400' : 'text-textSecondary'}`}>
@@ -434,18 +449,6 @@ export const MatchDetailsPage = () => {
 
       <div className="flex items-center justify-between gap-3">
         <EntityReactions entityKey={`match:${match.id}`} />
-        <div className="flex items-center gap-2">
-          {match.diskUrl && (
-            <a href={match.diskUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-xl bg-accentYellow px-4 text-xs font-semibold tracking-[0.08em] text-app shadow-soft whitespace-nowrap">
-              <Disc3 size={14} /> ДИСК
-            </a>
-          )}
-          {match.broadcastUrl && (
-            <a href={match.broadcastUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-xl bg-accentYellow px-4 text-xs font-semibold tracking-[0.08em] text-app shadow-soft whitespace-nowrap">
-              <Radio size={14} /> СМОТРЕТЬ ТРАНСЛЯЦИЮ
-            </a>
-          )}
-        </div>
       </div>
       {goalStatus && <p className="rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 text-xs text-textMuted">{goalStatus}</p>}
       {cardsStatus && <p className="rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 text-xs text-textMuted">{cardsStatus}</p>}
@@ -850,8 +853,6 @@ export const MatchDetailsPage = () => {
             <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Судья:</span> <span className="text-textPrimary">{match.referee || '—'}</span></div>
             <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Стадион:</span> <span className="text-textPrimary">{match.venue || '—'}</span></div>
             <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Старт (МСК):</span> <span className="text-textPrimary">{toMskDateTimeInput(match.date, match.time).replace('T', ' ')}</span></div>
-            <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Трансляция:</span> <span className="text-textPrimary">{match.broadcastUrl || '—'}</span></div>
-            <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Диск:</span> <span className="text-textPrimary">{match.diskUrl || '—'}</span></div>
           </div>
         ) : (
           <div className="space-y-2">

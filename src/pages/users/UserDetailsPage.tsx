@@ -17,7 +17,7 @@ const roleLabel: Record<string, string> = {
 
 export const UserDetailsPage = () => {
   const { userId } = useParams()
-  const { usersRepository, uploadsRepository } = useRepositories()
+  const { usersRepository, uploadsRepository, playersRepository } = useRepositories()
   const { session } = useSession()
   const { data: user } = useQueryState(() => (userId ? usersRepository.getUserCard(userId) : Promise.resolve(null)), (value) => !value)
   const [profile, setProfile] = useState<{ userId: string; username: string; telegramId?: string; telegramUsername?: string; displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> } | null>(null)
@@ -138,6 +138,9 @@ export const UserDetailsPage = () => {
               try {
                 const uploadedAvatarUrl = avatarFile ? (await uploadsRepository.uploadImage(avatarFile)).url : avatarUrl
                 await usersRepository.updateUserProfile(userId, { displayName, firstName: firstName.trim(), lastName: lastName.trim(), bio, avatarUrl: uploadedAvatarUrl, socials: profile?.socials ?? {} })
+                if (uploadedAvatarUrl && user.playerId && playersRepository.updatePlayer) {
+                  await playersRepository.updatePlayer(user.playerId, { avatar: uploadedAvatarUrl })
+                }
                 setProfile((prev) => prev ? { ...prev, displayName, firstName: firstName.trim(), lastName: lastName.trim(), bio, avatarUrl: uploadedAvatarUrl } : prev)
                 setStatus('Профиль сохранён')
                 setIsEditing(false)

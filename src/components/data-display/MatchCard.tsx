@@ -1,11 +1,8 @@
 import { Link } from 'react-router-dom'
-import { Bell, BellOff, Star } from 'lucide-react'
 import type { Match, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
 import { EntityReactions } from '../ui/EntityReactions'
 import { formatMatchMetaMsk, getTimeToKickoff } from '../../lib/date-time'
-import { useSession } from '../../app/providers/use-session'
-import { useUserPreferences } from '../../hooks/app/useUserPreferences'
 
 const tournamentFallbackLogo = '/assets/logos/tournament.svg'
 
@@ -21,43 +18,9 @@ export const MatchCard = ({ match, home, away }: { match: Match; home: Team; awa
   const indicator = getMatchIndicator(match)
   const leftGradientId = `scoreFlowLeft-${match.id}`
   const rightGradientId = `scoreFlowRight-${match.id}`
-  const { session } = useSession()
-  const { isMatchMuted, toggleMatchMuted, isFavorite, toggleFavorite } = useUserPreferences()
-  const muted = isMatchMuted(match.id)
-  const favorite = isFavorite(`match:${match.id}`)
 
   return (
     <Link to={`/matches/${match.id}`} className="group relative block overflow-hidden rounded-2xl bg-panelBg px-4 py-4 shadow-soft transition hover:bg-panelSoft">
-      <div className="absolute right-2 top-2 z-20 flex items-center gap-1">
-        {session.isAuthenticated && (
-          <button
-            type="button"
-            aria-label={muted ? 'Включить уведомления по матчу' : 'Выключить уведомления по матчу'}
-            className={`inline-flex h-7 w-7 items-center justify-center rounded-full border ${muted ? 'border-borderSubtle text-textMuted' : 'border-accentYellow/60 text-accentYellow'} bg-panelBg/80`}
-            onClick={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              toggleMatchMuted(match.id)
-            }}
-          >
-            {muted ? <BellOff size={14} /> : <Bell size={14} />}
-          </button>
-        )}
-        {session.isAuthenticated && (
-          <button
-            type="button"
-            aria-label={favorite ? 'Убрать матч из избранного' : 'Добавить матч в избранное'}
-            className={`inline-flex h-7 w-7 items-center justify-center rounded-full border ${favorite ? 'border-accentYellow/70 text-accentYellow' : 'border-borderSubtle text-textMuted'} bg-panelBg/80`}
-            onClick={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              toggleFavorite(`match:${match.id}`)
-            }}
-          >
-            <Star size={14} className={favorite ? 'fill-current' : ''} />
-          </button>
-        )}
-      </div>
       <div className="mb-3 flex items-center justify-between gap-3 text-xs sm:text-sm">
         <p className="font-medium tracking-[0.03em] text-textSecondary">{formatMatchMetaMsk(match.date, match.time)}</p>
         <span className={`font-semibold uppercase tracking-[0.08em] ${indicator.tone}`}>{indicator.label}</span>
@@ -110,7 +73,6 @@ export const MatchCard = ({ match, home, away }: { match: Match; home: Team; awa
       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-textMuted sm:text-sm">
         <span className="truncate">{match.venue}</span>
         <div className="flex items-center gap-2">
-          <span className="text-textMuted">{match.round}</span>
           <EntityReactions entityKey={`match:${match.id}`} compact interactive={false} />
         </div>
       </div>

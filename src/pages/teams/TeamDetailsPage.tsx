@@ -25,6 +25,8 @@ import {
   EditableTextareaField,
   SectionActionBar,
 } from '../../components/ui/editable'
+import { CircularImageCropField } from '../../components/ui/CircularImageCropField'
+import { buildCircularCropUploadFile, type CircleCrop } from '../../lib/image-upload'
 
 const formLabel: Record<string, string> = { W: 'В', D: 'Н', L: 'П' }
 const tournamentFallbackLogo = '/assets/logos/tournament.svg'
@@ -59,6 +61,7 @@ export const TeamDetailsPage = () => {
   const [customUrl2, setCustomUrl2] = useState('')
   const [editableLogoUrl, setEditableLogoUrl] = useState<string | undefined>(undefined)
   const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoCrop, setLogoCrop] = useState<CircleCrop>({ x: 0, y: 0, zoom: 1 })
   const [localTeamFeed, setLocalTeamFeed] = useState(teamFeed ?? [])
 
   useEffect(() => {
@@ -76,6 +79,7 @@ export const TeamDetailsPage = () => {
     setCustomUrl2(team.socials?.custom?.[1]?.url ?? '')
     setEditableLogoUrl(team.logoUrl ?? undefined)
     setLogoFile(null)
+    setLogoCrop({ x: 0, y: 0, zoom: 1 })
     setHeroEditing(false)
   }, [team])
 
@@ -122,6 +126,7 @@ export const TeamDetailsPage = () => {
     setCustomUrl2(team.socials?.custom?.[1]?.url ?? '')
     setEditableDescription(team.description ?? '')
     setLogoFile(null)
+    setLogoCrop({ x: 0, y: 0, zoom: 1 })
   }
   return (
     <PageContainer>
@@ -140,33 +145,31 @@ export const TeamDetailsPage = () => {
 
         <div className="relative z-10">
           {!heroEditing && session.isAuthenticated && (
-            <div className="absolute right-4 top-4 z-20">
-              <div className="flex items-center gap-2">
+            <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => toggleFavorite(`team:${team.id}`)}
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${isFavoriteTeam ? 'border-accentYellow/70 bg-accentYellow/10 text-accentYellow' : 'border-borderSubtle bg-black/30 text-textMuted'}`}
+                aria-label={isFavoriteTeam ? 'Убрать команду из избранного' : 'Добавить команду в избранное'}
+              >
+                <Star size={14} className={isFavoriteTeam ? 'fill-current' : ''} />
+              </button>
+              {canManageCurrentTeam && (
                 <button
                   type="button"
-                  onClick={() => toggleFavorite(`team:${team.id}`)}
-                  className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${isFavoriteTeam ? 'border-accentYellow/70 bg-accentYellow/10 text-accentYellow' : 'border-borderSubtle bg-black/30 text-textMuted'}`}
-                  aria-label={isFavoriteTeam ? 'Убрать команду из избранного' : 'Добавить команду в избранное'}
+                  onClick={() => {
+                    syncHeroDraft()
+                    setHeroStatus(null)
+                    setHeroTone('idle')
+                    setHeroEditing(true)
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle bg-black/30 px-2 py-1 text-xs text-textSecondary"
+                  aria-label="Редактировать профиль команды"
                 >
-                  <Star size={14} className={isFavoriteTeam ? 'fill-current' : ''} />
+                  <Pencil size={14} />
+                  Редактировать
                 </button>
-                {canManageCurrentTeam && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      syncHeroDraft()
-                      setHeroStatus(null)
-                      setHeroTone('idle')
-                      setHeroEditing(true)
-                    }}
-                    className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle bg-black/30 px-2 py-1 text-xs text-textSecondary"
-                    aria-label="Редактировать профиль команды"
-                  >
-                    <Pencil size={14} />
-                    Редактировать
-                  </button>
-                )}
-              </div>
+              )}
             </div>
           )}
 
@@ -233,6 +236,7 @@ export const TeamDetailsPage = () => {
               onChange={(event) => {
                 const file = event.target.files?.[0] ?? null
                 setLogoFile(file)
+                setLogoCrop({ x: 0, y: 0, zoom: 1 })
                 if (!file) {
                   setEditableLogoUrl(team.logoUrl ?? undefined)
                   return
@@ -241,6 +245,16 @@ export const TeamDetailsPage = () => {
               }}
               className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-xs text-textSecondary"
             />
+          )}
+          {heroEditing && logoFile && editableLogoUrl && (
+            <div className="mt-3">
+              <CircularImageCropField
+                label="Миниатюра логотипа (круг)"
+                imageUrl={editableLogoUrl}
+                crop={logoCrop}
+                onChange={setLogoCrop}
+              />
+            </div>
           )}
 
           <SectionActionBar
@@ -260,7 +274,8 @@ export const TeamDetailsPage = () => {
               setHeroStatus('Сохраняем hero...')
               setHeroTone('idle')
               try {
-                const logoUrl = logoFile ? (await uploadsRepository.uploadImage(logoFile)).url : team.logoUrl ?? undefined
+                const preparedLogoFile = logoFile ? await buildCircularCropUploadFile(logoFile, logoCrop) : null
+                const logoUrl = preparedLogoFile ? (await uploadsRepository.uploadImage(preparedLogoFile)).url : team.logoUrl ?? undefined
                 await teamsRepository.updateTeam(team.id, {
                   name: editableName,
                   shortName: editableShortName,
