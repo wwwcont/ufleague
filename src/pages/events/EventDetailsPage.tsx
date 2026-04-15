@@ -5,7 +5,7 @@ import { useEventDetails } from '../../hooks/data/useEventDetails'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { ErrorState } from '../../components/ui/ErrorState'
-import { EntityReactions } from '../../components/ui/EntityReactions'
+import { EntityPageAction } from '../../components/ui/EntityPageAction'
 import { CommentsSection } from '../../components/comments'
 import { useSession } from '../../app/providers/use-session'
 import { useTeams } from '../../hooks/data/useTeams'
@@ -187,8 +187,8 @@ export const EventDetailsPage = () => {
           }}
         />
 
-        <div className="mt-4">
-          <EntityReactions entityKey={`event:${event.id}`} />
+        <div className="mt-4 flex items-center justify-end">
+          <EntityPageAction mode="notify" entityKey={`event:${event.id}`} />
         </div>
       </EditableSection>
       <CommentsSection entityType="event" entityId={event.id} title="Комментарии к событию" />

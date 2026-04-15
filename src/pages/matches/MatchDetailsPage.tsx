@@ -9,7 +9,7 @@ import { usePlayers } from '../../hooks/data/usePlayers'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { TeamAvatar } from '../../components/ui/TeamAvatar'
 import { CommentsSection } from '../../components/comments'
-import { EntityReactions } from '../../components/ui/EntityReactions'
+import { EntityPageAction } from '../../components/ui/EntityPageAction'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { ApiError } from '../../infrastructure/api/repositories'
@@ -292,10 +292,8 @@ export const MatchDetailsPage = () => {
         </div>
       </section>
 
-      <div className="flex items-center justify-between gap-3">
-        <div className="rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 shadow-soft">
-          <EntityReactions entityKey={`match:${match.id}`} />
-        </div>
+      <div className="flex items-center justify-end gap-3">
+        <EntityPageAction mode="notify" entityKey={`match:${match.id}`} />
       </div>
       {goalStatus && <p className="rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 text-xs text-textMuted">{goalStatus}</p>}
       {goalEditorOpen && (

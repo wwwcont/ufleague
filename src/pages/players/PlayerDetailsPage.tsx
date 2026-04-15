@@ -22,6 +22,7 @@ import {
   EditableTextareaField,
   SectionActionBar,
 } from '../../components/ui/editable'
+import { EntityPageAction } from '../../components/ui/EntityPageAction'
 import type { EventContentBlock } from '../../domain/entities/types'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
 
@@ -156,6 +157,9 @@ export const PlayerDetailsPage = () => {
               <p className="text-xs text-textMuted">Голы: {goalsFromMatches} • Ассисты: {assistsFromMatches}</p>
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
                 {player.userId && <Link to={`/users/${player.userId}`} className="rounded-lg border border-borderSubtle px-2 py-1">Страница юзера</Link>}
+              </div>
+              <div className="mt-2">
+                <EntityPageAction mode="favorite" entityKey={`player:${player.id}`} />
               </div>
             </div>
           </div>

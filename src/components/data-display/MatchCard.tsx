@@ -69,9 +69,8 @@ export const MatchCard = ({ match, home, away }: { match: Match; home: Team; awa
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-3 text-xs text-textMuted sm:text-sm">
+      <div className="mt-3 text-xs text-textMuted sm:text-sm">
         <span className="truncate">{match.venue}</span>
-        <span className="text-textMuted">{match.round}</span>
       </div>
     </Link>
   )

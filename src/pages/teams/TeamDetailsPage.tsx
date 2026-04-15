@@ -14,6 +14,7 @@ import { TeamAvatar } from '../../components/ui/TeamAvatar'
 import { SocialLinks } from '../../components/ui/SocialLinks'
 import { CommentsSection } from '../../components/comments'
 import { EventFeedSection } from '../../components/events'
+import { EntityPageAction } from '../../components/ui/EntityPageAction'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { canManageTeam } from '../../domain/services/accessControl'
@@ -159,6 +160,9 @@ export const TeamDetailsPage = () => {
             <div>
               <h1 className="text-3xl font-bold text-white">{team.name}</h1>
               {team.slogan && <p className="mt-1 text-sm text-textSecondary">{team.slogan}</p>}
+              <div className="mt-2">
+                <EntityPageAction mode="favorite" entityKey={`team:${team.id}`} />
+              </div>
             </div>
 
             <div className="flex items-center justify-between gap-4">
