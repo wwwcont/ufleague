@@ -729,7 +729,7 @@ export const sessionRepository: SessionRepository = {
       body: JSON.stringify(role ? { role } : {}),
     })
     return {
-      authUrl: data.authUrl ?? data.auth_url ?? 'https://t.me/ufleague_auth_bot',
+      authUrl: data.authUrl ?? data.auth_url ?? 'https://t.me/ufleague_bot',
       requestId: data.requestId ?? data.request_id ?? '',
       expiresAt: data.expiresAt ?? data.expires_at ?? new Date().toISOString(),
     }
