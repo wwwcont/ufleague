@@ -118,6 +118,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Post("/comments/{id}/reactions", h.SetCommentReaction)
 
 		r.With(sessionMW.RequireSession).Get("/me/profile", h.GetMyProfile)
+		r.With(sessionMW.RequireSession).Patch("/me/notification-preferences", h.UpdateMyNotificationPreferences)
 		r.With(sessionMW.RequireSession).Get("/me/actions", h.GetMyActions)
 		r.With(sessionMW.RequireSession).Patch("/me/profile", h.UpdateMyProfile)
 		r.With(sessionMW.RequireSession).Post("/captain/teams/{id}/invite", h.CaptainInviteByUsername)
@@ -1376,6 +1377,15 @@ func (h Handler) CreateEvent(w http.ResponseWriter, r *http.Request) {
 		handleDomainErr(w, err)
 		return
 	}
+	notificationPayload := map[string]any{
+		"title": item.Title,
+		"body":  item.Body,
+		"scope": item.ScopeType,
+		"link":  fmt.Sprintf("/events/%d", item.ID),
+	}
+	if enqueueErr := h.notifications.EnqueueEventNotifications(r.Context(), string(item.ScopeType), item.ScopeID, notificationPayload); enqueueErr != nil {
+		slog.Warn("enqueue_event_notifications_failed", "err", enqueueErr, "event_id", item.ID)
+	}
 	writeJSON(w, 201, item)
 }
 func (h Handler) UpdateEvent(w http.ResponseWriter, r *http.Request) {
@@ -1505,10 +1515,26 @@ func (h Handler) ReplyComment(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", 400)
 		return
 	}
+	parent, parentErr := h.comments.GetByID(r.Context(), id)
+	if parentErr != nil {
+		http.Error(w, "not found", 404)
+		return
+	}
 	item, err := h.comments.Reply(r.Context(), current.User, id, req)
 	if err != nil {
 		handleDomainErr(w, err)
 		return
+	}
+	if parent.AuthorUserID != current.User.ID {
+		payload := map[string]any{
+			"title": "Новый ответ на ваш комментарий",
+			"body":  item.Body,
+			"scope": "comment_reply",
+			"link":  fmt.Sprintf("/comments?entityType=%s&entityId=%d", parent.EntityType, parent.EntityID),
+		}
+		if notifyErr := h.notifications.EnqueueCommentReplyNotification(r.Context(), parent.AuthorUserID, payload); notifyErr != nil {
+			slog.Warn("enqueue_comment_reply_notification_failed", "err", notifyErr, "parent_comment_id", parent.ID, "receiver_user_id", parent.AuthorUserID)
+		}
 	}
 	writeJSON(w, 201, item)
 }
@@ -1607,6 +1633,75 @@ func (h Handler) GetMyActions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, items)
+}
+
+func (h Handler) UpdateMyNotificationPreferences(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	var req struct {
+		MutedMatchIDs      []int64  `json:"muted_match_ids"`
+		MutedFeedKeys      []string `json:"muted_feed_keys"`
+		FavoriteEntityKeys []string `json:"favorite_entity_keys"`
+	}
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	prefs := domain.NotificationPreferences{
+		MutedMatchIDs:     uniqueInt64s(req.MutedMatchIDs),
+		FavoriteTeamIDs:   []int64{},
+		FavoritePlayerIDs: []int64{},
+	}
+	for _, feedKey := range req.MutedFeedKeys {
+		key := strings.TrimSpace(strings.ToLower(feedKey))
+		if strings.HasPrefix(key, "events:global:") || strings.HasPrefix(key, "events:all:") {
+			prefs.MuteGlobalFeed = true
+		}
+	}
+	for _, key := range req.FavoriteEntityKeys {
+		parts := strings.Split(strings.TrimSpace(strings.ToLower(key)), ":")
+		if len(parts) != 2 {
+			continue
+		}
+		id, err := strconv.ParseInt(parts[1], 10, 64)
+		if err != nil || id <= 0 {
+			continue
+		}
+		switch parts[0] {
+		case "team":
+			prefs.FavoriteTeamIDs = append(prefs.FavoriteTeamIDs, id)
+		case "player":
+			prefs.FavoritePlayerIDs = append(prefs.FavoritePlayerIDs, id)
+		}
+	}
+	prefs.FavoriteTeamIDs = uniqueInt64s(prefs.FavoriteTeamIDs)
+	prefs.FavoritePlayerIDs = uniqueInt64s(prefs.FavoritePlayerIDs)
+
+	if err := h.notifications.SyncUserPreferences(r.Context(), current.User.ID, prefs); err != nil {
+		slog.Error("sync_notification_preferences_failed", "err", err, "user_id", current.User.ID)
+		http.Error(w, "failed", 500)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"ok": true})
+}
+
+func uniqueInt64s(items []int64) []int64 {
+	out := make([]int64, 0, len(items))
+	seen := map[int64]struct{}{}
+	for _, item := range items {
+		if item <= 0 {
+			continue
+		}
+		if _, exists := seen[item]; exists {
+			continue
+		}
+		seen[item] = struct{}{}
+		out = append(out, item)
+	}
+	return out
 }
 func (h Handler) UpdateMyProfile(w http.ResponseWriter, r *http.Request) {
 	current, ok := middleware.CurrentSession(r.Context())

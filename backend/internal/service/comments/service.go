@@ -41,6 +41,10 @@ func (s Service) ListByEntity(ctx context.Context, entityType domain.CommentEnti
 	return s.repo.ListByEntity(ctx, entityType, entityID)
 }
 
+func (s Service) GetByID(ctx context.Context, id int64) (domain.Comment, error) {
+	return s.repo.GetByID(ctx, id)
+}
+
 func (s Service) CreateComment(ctx context.Context, user domain.User, req domain.CreateCommentRequest) (domain.Comment, error) {
 	if err := s.checkCanWrite(user); err != nil {
 		return domain.Comment{}, err

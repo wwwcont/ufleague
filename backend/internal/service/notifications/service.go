@@ -36,6 +36,48 @@ func (s Service) EnsureDefaultTelegramSubscriptions(ctx context.Context, userID 
 	return s.repo.EnsureDefaultTelegramSubscriptions(ctx, userID, chatID)
 }
 
+func (s Service) SyncUserPreferences(ctx context.Context, userID int64, prefs domain.NotificationPreferences) error {
+	return s.repo.ReplaceUserPreferenceSubscriptions(ctx, userID, prefs)
+}
+
+func (s Service) EnqueueEventNotifications(ctx context.Context, scopeType string, scopeID *int64, payload map[string]any) error {
+	recipients, err := s.repo.ListEventRecipients(ctx, scopeType, scopeID)
+	if err != nil {
+		return err
+	}
+	var nt domain.NotificationType
+	switch scopeType {
+	case "global":
+		nt = domain.NotificationGlobalEvent
+	case "match":
+		nt = domain.NotificationMatchEvent
+	case "team":
+		nt = domain.NotificationTeamEvent
+	case "player":
+		nt = domain.NotificationPlayerEvent
+	default:
+		return nil
+	}
+	for _, userID := range recipients {
+		if err = s.repo.Enqueue(ctx, userID, nt, payload); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s Service) EnqueueCommentReplyNotification(ctx context.Context, receiverUserID int64, payload map[string]any) error {
+	enabled, err := s.repo.IsCommentReplyEnabled(ctx, receiverUserID)
+	if err != nil || !enabled {
+		return err
+	}
+	return s.repo.Enqueue(ctx, receiverUserID, domain.NotificationCommentReply, payload)
+}
+
+func (s Service) ResolveTelegramChatID(ctx context.Context, userID int64) (*int64, error) {
+	return s.repo.TelegramChatIDByUserID(ctx, userID)
+}
+
 func (s Service) ClaimPending(ctx context.Context, limit int) ([]domain.NotificationJob, error) {
 	return s.repo.ClaimPending(ctx, limit)
 }

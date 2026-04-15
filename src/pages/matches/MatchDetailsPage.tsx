@@ -88,7 +88,7 @@ export const MatchDetailsPage = () => {
   const { data: teams } = useTeams()
   const { data: players } = usePlayers()
   const { session } = useSession()
-  const { matchesRepository, playoffGridRepository, cabinetRepository } = useRepositories()
+  const { matchesRepository, playoffGridRepository, cabinetRepository, eventsRepository } = useRepositories()
 
   const teamMap = Object.fromEntries((teams ?? []).map((team) => [team.id, team]))
   const home = match ? teamMap[match.homeTeamId] : null
@@ -107,7 +107,8 @@ export const MatchDetailsPage = () => {
   const [goalScorerId, setGoalScorerId] = useState('')
   const [goalAssistId, setGoalAssistId] = useState('')
   const [goalStatus, setGoalStatus] = useState<string | null>(null)
-  const [goalDelta, setGoalDelta] = useState<1 | -1>(1)
+  const [goalAction, setGoalAction] = useState<'add' | 'remove_selected' | 'remove_last'>('add')
+  const [autoCreateGoalEvent, setAutoCreateGoalEvent] = useState(true)
   const [goalConfirmOpen, setGoalConfirmOpen] = useState(false)
   const [activeTournamentId, setActiveTournamentId] = useState('1')
   const normalizedTournamentId = /^\d+$/.test(activeTournamentId) ? activeTournamentId : '1'
@@ -179,6 +180,8 @@ export const MatchDetailsPage = () => {
 
   const liveMinute = localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : null
   const latestEvents = localEvents.slice().sort((a, b) => b.minute - a.minute).slice(0, 3)
+  const lastGoalEvent = [...localEvents].reverse().find((event) => event.type === 'goal' && event.teamId)
+  const lastGoalTeamShortName = lastGoalEvent?.teamId ? (teamMap[lastGoalEvent.teamId]?.shortName ?? '—') : '—'
   const timingNote = (() => {
     if (match.status === 'live' || match.status === 'half_time') return liveMinute ? `${liveMinute}′ минута` : 'Матч в процессе'
     if (match.status === 'scheduled') return getTimeToKickoff(match.date, match.time) ?? 'Скоро'
@@ -325,11 +328,34 @@ export const MatchDetailsPage = () => {
               </select>
               <select value={goalAssistId} onChange={(e) => setGoalAssistId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm" disabled={!goalTeamId}>
                 <option value="">Ассист (необязательно)</option>
-                {candidatePlayers.filter((player) => player.id !== goalScorerId).map((player) => <option key={player.id} value={player.id}>{player.displayName}</option>)}
+                {candidatePlayers.map((player) => <option key={player.id} value={player.id}>{player.displayName}</option>)}
               </select>
               <div className="flex gap-2">
-                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => { setGoalDelta(1); setGoalConfirmOpen(true) }}>+1</button>
-                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50" onClick={() => { setGoalDelta(-1); setGoalConfirmOpen(true) }}>-1</button>
+                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => { setGoalAction('add'); setGoalConfirmOpen(true) }}>Добавить</button>
+                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50" onClick={() => { setGoalAction('remove_selected'); setGoalConfirmOpen(true) }}>Убавить</button>
+              </div>
+              <button
+                type="button"
+                disabled={!lastGoalEvent}
+                className="w-full rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50"
+                onClick={() => { setGoalAction('remove_last'); setGoalConfirmOpen(true) }}
+              >
+                Убавить последний гол {lastGoalTeamShortName}
+              </button>
+              <div className="mt-1 flex items-center justify-between rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2">
+                <div>
+                  <p className="text-xs font-semibold text-textPrimary">Автосоздание события о голе</p>
+                  <p className="text-[11px] text-textMuted">После подтверждения счета в ленте матча</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={autoCreateGoalEvent}
+                  onClick={() => setAutoCreateGoalEvent((value) => !value)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${autoCreateGoalEvent ? 'bg-accentYellow' : 'bg-zinc-500/70'}`}
+                >
+                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${autoCreateGoalEvent ? 'translate-x-5' : 'translate-x-1'}`} />
+                </button>
               </div>
             </div>
           </div>
@@ -339,25 +365,87 @@ export const MatchDetailsPage = () => {
         <section className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-md rounded-2xl border border-borderSubtle bg-panelBg p-4">
             <p className="text-sm font-semibold text-textPrimary">Подтвердить изменение счета</p>
-            <p className="mt-1 text-xs text-textMuted">{goalDelta > 0 ? 'Добавить гол выбранной команде?' : 'Убрать гол у выбранной команды?'}</p>
+            <p className="mt-1 text-xs text-textMuted">
+              {goalAction === 'add' && 'Добавить гол выбранной команде?'}
+              {goalAction === 'remove_selected' && 'Убрать гол у выбранной команды и выбранного игрока?'}
+              {goalAction === 'remove_last' && `Убрать последний гол (${lastGoalTeamShortName})?`}
+            </p>
             <div className="mt-3 flex gap-2">
               <button type="button" className="rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app" onClick={async () => {
-                const nextScore = goalTeamId === home.id
-                  ? { home: Math.max(0, effectiveScore.home + goalDelta), away: effectiveScore.away }
-                  : { home: effectiveScore.home, away: Math.max(0, effectiveScore.away + goalDelta) }
-                const nextEvents = (() => {
-                  if (goalDelta > 0) {
-                    return [...localEvents, { id: `goal_${Date.now()}`, minute: (localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0) + 1, type: 'goal', teamId: goalTeamId, playerId: goalScorerId, assistPlayerId: goalAssistId || undefined, note: goalAssistId ? `ассист: ${goalAssistId}` : undefined } satisfies Match['events'][number]]
+                const applyScoreDelta = (baseScore: { home: number; away: number }, teamId: string, delta: 1 | -1) => (
+                  teamId === home.id
+                    ? { home: Math.max(0, baseScore.home + delta), away: baseScore.away }
+                    : { home: baseScore.home, away: Math.max(0, baseScore.away + delta) }
+                )
+
+                const result = (() => {
+                  if (goalAction === 'add') {
+                    const createdEvent = {
+                      id: `goal_${Date.now()}`,
+                      minute: (localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0) + 1,
+                      type: 'goal',
+                      teamId: goalTeamId,
+                      playerId: goalScorerId,
+                      assistPlayerId: goalAssistId || undefined,
+                      note: goalAssistId ? `ассист: ${goalAssistId}` : undefined,
+                    } satisfies Match['events'][number]
+                    return {
+                      nextEvents: [...localEvents, createdEvent],
+                      nextScore: applyScoreDelta(effectiveScore, goalTeamId, 1),
+                      notFoundMessage: null,
+                    }
                   }
-                  const toRemove = [...localEvents].reverse().find((event) => event.type === 'goal' && event.teamId === goalTeamId && event.playerId === goalScorerId)
-                  if (!toRemove) return localEvents
-                  const idx = localEvents.findIndex((event) => event.id === toRemove.id)
-                  return idx >= 0 ? localEvents.filter((_, eventIdx) => eventIdx !== idx) : localEvents
+
+                  const targetEvent = goalAction === 'remove_last'
+                    ? [...localEvents].reverse().find((event) => event.type === 'goal' && event.teamId)
+                    : [...localEvents].reverse().find((event) => event.type === 'goal' && event.teamId === goalTeamId && event.playerId === goalScorerId)
+
+                  if (!targetEvent?.teamId) {
+                    return {
+                      nextEvents: localEvents,
+                      nextScore: effectiveScore,
+                      notFoundMessage: goalAction === 'remove_last'
+                        ? 'Не найден последний гол для удаления.'
+                        : 'Не найден гол выбранного игрока для удаления.',
+                    }
+                  }
+
+                  const idx = localEvents.findIndex((event) => event.id === targetEvent.id)
+                  const trimmedEvents = idx >= 0 ? localEvents.filter((_, eventIdx) => eventIdx !== idx) : localEvents
+                  return {
+                    nextEvents: trimmedEvents,
+                    nextScore: applyScoreDelta(effectiveScore, targetEvent.teamId, -1),
+                    notFoundMessage: null,
+                  }
                 })()
+
+                if (result.notFoundMessage) {
+                  setGoalStatus(result.notFoundMessage)
+                  setGoalConfirmOpen(false)
+                  return
+                }
+
+                const nextEvents = result.nextEvents
+                const nextScore = result.nextScore
                 setScoreDraft(nextScore)
                 setLocalEvents(nextEvents)
                 try {
                   await matchesRepository.updateMatch?.(match.id, { homeScore: nextScore.home, awayScore: nextScore.away, goalEvents: nextEvents })
+                  if (goalAction === 'add' && autoCreateGoalEvent) {
+                    const scorerName = players.find((player) => player.id === goalScorerId)?.displayName ?? 'Игрок'
+                    const assistName = goalAssistId ? players.find((player) => player.id === goalAssistId)?.displayName : ''
+                    const teamName = teamMap[goalTeamId]?.name ?? 'Команда'
+                    const summary = assistName
+                      ? `${teamName}: ${scorerName} (ассист: ${assistName})`
+                      : `${teamName}: ${scorerName}`
+                    await eventsRepository.createEventForScope?.({
+                      scopeType: 'match',
+                      scopeId: match.id,
+                      title: `Гол: ${teamMap[goalTeamId]?.shortName ?? teamName}`,
+                      summary,
+                      body: summary,
+                    })
+                  }
                   setGoalStatus('Счет сохранен.')
                 } catch (error) {
                   setGoalStatus(actionError(error))

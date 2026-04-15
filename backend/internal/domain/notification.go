@@ -7,9 +7,18 @@ type NotificationType string
 const (
 	NotificationTeamEvent        NotificationType = "team_event"
 	NotificationGlobalEvent      NotificationType = "global_event"
+	NotificationMatchEvent       NotificationType = "match_event"
+	NotificationPlayerEvent      NotificationType = "player_event"
 	NotificationCommentReply     NotificationType = "comment_reply"
 	NotificationPlayerCommentNew NotificationType = "player_comment_new"
 )
+
+type NotificationPreferences struct {
+	MuteGlobalFeed    bool    `json:"mute_global_feed"`
+	MutedMatchIDs     []int64 `json:"muted_match_ids"`
+	FavoriteTeamIDs   []int64 `json:"favorite_team_ids"`
+	FavoritePlayerIDs []int64 `json:"favorite_player_ids"`
+}
 
 type NotificationSubscription struct {
 	ID               int64            `json:"id"`
