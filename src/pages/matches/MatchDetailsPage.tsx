@@ -99,6 +99,8 @@ export const MatchDetailsPage = () => {
   const [editableStage, setEditableStage] = useState(match?.stage ?? '')
   const [editableTour, setEditableTour] = useState(match?.tour ?? match?.round ?? '')
   const [editableReferee, setEditableReferee] = useState(match?.referee ?? '')
+  const [editableDiskUrl, setEditableDiskUrl] = useState(match?.diskUrl ?? '')
+  const [editableBroadcastUrl, setEditableBroadcastUrl] = useState(match?.broadcastUrl ?? '')
   const [metadataStatus, setMetadataStatus] = useState<string | null>(null)
   const [scoreDraft, setScoreDraft] = useState<{ home: number; away: number } | null>(null)
   const [localEvents, setLocalEvents] = useState(match?.events ?? [])
@@ -291,18 +293,8 @@ export const MatchDetailsPage = () => {
       </section>
 
       <div className="flex items-center justify-between gap-3">
-        <EntityReactions entityKey={`match:${match.id}`} />
-        <div className="flex items-center gap-2">
-          {match.diskUrl && (
-            <a href={match.diskUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-xl bg-accentYellow px-4 text-xs font-semibold tracking-[0.08em] text-app shadow-soft whitespace-nowrap">
-              <Disc3 size={14} /> ДИСК
-            </a>
-          )}
-          {match.broadcastUrl && (
-            <a href={match.broadcastUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-xl bg-accentYellow px-4 text-xs font-semibold tracking-[0.08em] text-app shadow-soft whitespace-nowrap">
-              <Radio size={14} /> СМОТРЕТЬ ТРАНСЛЯЦИЮ
-            </a>
-          )}
+        <div className="rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 shadow-soft">
+          <EntityReactions entityKey={`match:${match.id}`} />
         </div>
       </div>
       {goalStatus && <p className="rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 text-xs text-textMuted">{goalStatus}</p>}
@@ -383,6 +375,8 @@ export const MatchDetailsPage = () => {
             setEditableStage(match.stage ?? '')
             setEditableTour(match.tour ?? match.round ?? '')
             setEditableReferee(match.referee ?? '')
+            setEditableDiskUrl(match.diskUrl ?? '')
+            setEditableBroadcastUrl(match.broadcastUrl ?? '')
             setMetadataStatus(null)
             setIsInfoEditing(true)
           }}
@@ -420,6 +414,28 @@ export const MatchDetailsPage = () => {
               Стадион / площадка
               <input value={editableVenue} onChange={(event) => setEditableVenue(event.target.value)} placeholder="Название арены" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary" />
             </label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="space-y-1 text-xs text-textMuted">
+                Ссылка на диск
+                <input value={editableDiskUrl} onChange={(event) => setEditableDiskUrl(event.target.value)} placeholder="https://disk.yandex.ru/..." className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary" />
+              </label>
+              <label className="space-y-1 text-xs text-textMuted">
+                Ссылка на трансляцию
+                <input value={editableBroadcastUrl} onChange={(event) => setEditableBroadcastUrl(event.target.value)} placeholder="https://youtube.com/..." className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary" />
+              </label>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {editableDiskUrl.trim() && (
+                <a href={editableDiskUrl.trim()} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-xl bg-accentYellow px-4 text-xs font-semibold tracking-[0.08em] text-app shadow-soft whitespace-nowrap">
+                  <Disc3 size={14} /> ДИСК
+                </a>
+              )}
+              {editableBroadcastUrl.trim() && (
+                <a href={editableBroadcastUrl.trim()} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-2 rounded-xl bg-accentYellow px-4 text-xs font-semibold tracking-[0.08em] text-app shadow-soft whitespace-nowrap">
+                  <Radio size={14} /> СМОТРЕТЬ ТРАНСЛЯЦИЮ
+                </a>
+              )}
+            </div>
           </div>
         )}
         <SectionActionBar
@@ -436,6 +452,8 @@ export const MatchDetailsPage = () => {
                 stage: editableStage.trim(),
                 tour: editableTour.trim(),
                 referee: editableReferee.trim(),
+                diskUrl: editableDiskUrl.trim(),
+                broadcastUrl: editableBroadcastUrl.trim(),
               })
               setMetadataStatus('Информация обновлена')
               setIsInfoEditing(false)
