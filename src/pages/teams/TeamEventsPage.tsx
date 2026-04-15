@@ -130,7 +130,7 @@ export const TeamEventsPage = () => {
           {status && <p className="mt-2 text-xs text-textMuted">{status}</p>}
         </section>
       )}
-      <EventFeedSection title="События этой команды" layout="timeline" events={events} messageWhenEmpty="Событий пока нет." />
+      <EventFeedSection title="События этой команды" layout="timeline" events={events} notificationScopeKey={`events:team:${teamId}`} messageWhenEmpty="Событий пока нет." />
     </PageContainer>
   )
 }

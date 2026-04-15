@@ -145,6 +145,7 @@ export const MatchEventsPage = () => {
         title="Лента событий матча"
         layout="timeline"
         events={events ?? []}
+        notificationScopeKey={`events:match:${matchId}`}
         messageWhenEmpty={isLoading ? 'Загрузка событий...' : error ? 'Не удалось загрузить события матча.' : 'Событий для этого матча пока нет.'}
       />
     </PageContainer>

@@ -39,7 +39,7 @@ export interface MatchesRepository {
   getMatches(): Promise<Match[]>
   getMatchById(matchId: string): Promise<Match | null>
   createMatch?(input: { homeTeamId: string; awayTeamId: string; startAt: string; status: Match['status']; venue: string; referee?: string; broadcastUrl?: string; stage?: string; tieId?: string; tournamentId?: string }): Promise<{ id: string } | void>
-  updateMatch?(matchId: string, patch: Partial<{ status: Match['status']; homeScore: number; awayScore: number; venue: string; broadcastUrl: string; diskUrl: string; goalEvents: Match['events']; stage: string; tour: string; referee: string }>): Promise<void>
+  updateMatch?(matchId: string, patch: Partial<{ status: Match['status']; homeScore: number; awayScore: number; venue: string; startAt: string; broadcastUrl: string; diskUrl: string; matchEvents: Match['events']; stage: string; tour: string; referee: string; currentMinute: number; clockAnchorAt: string | null }>): Promise<void>
 }
 
 export interface StandingsRepository {
