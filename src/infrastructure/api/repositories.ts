@@ -129,7 +129,7 @@ const mapMatchEvents = (raw: unknown): Match['events'] => {
     if (!item || typeof item !== 'object') return acc
     const payload = item as Record<string, unknown>
     const minute = Number(payload.minute ?? 0)
-    if (!Number.isFinite(minute) || minute <= 0) return acc
+    if (!Number.isFinite(minute) || minute < 0) return acc
     const rawType = String(payload.type ?? 'goal')
     const normalizedType: Match['events'][number]['type'] = rawType === 'yellow_card' || rawType === 'red_card' || rawType === 'substitution' ? rawType : 'goal'
     acc.push({

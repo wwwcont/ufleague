@@ -34,6 +34,19 @@ const formTone: Record<string, string> = {
   '-': 'bg-zinc-700/85 text-white',
 }
 
+const matchHistoryIcon: Record<'goal' | 'yellow_card' | 'red_card', string> = {
+  goal: '⚽',
+  yellow_card: '🟨',
+  red_card: '🟥',
+}
+
+const getPlayerLastName = (name?: string) => {
+  const value = (name ?? '').trim()
+  if (!value) return 'Игрок'
+  const parts = value.split(/\s+/)
+  return parts[parts.length - 1]
+}
+
 const getOutcome = (targetTeamId: string, match: Match): 'W' | 'D' | 'L' | '-' => {
   if (match.status !== 'finished') return '-'
   const isHome = match.homeTeamId === targetTeamId
@@ -283,6 +296,12 @@ export const MatchDetailsPage = () => {
     return Math.min(120, baseMinute + elapsed)
   })()
   const latestEvents = localEvents.slice().sort((a, b) => b.minute - a.minute).slice(0, 3)
+  const playersById = Object.fromEntries(players.map((player) => [player.id, player]))
+  const historyEvents = localEvents
+    .filter((event) => (event.type === 'goal' || event.type === 'yellow_card' || event.type === 'red_card') && event.teamId)
+    .sort((a, b) => b.minute - a.minute)
+  const historyHome = historyEvents.filter((event) => event.teamId === home.id)
+  const historyAway = historyEvents.filter((event) => event.teamId === away.id)
   const lastGoalEvent = [...localEvents].reverse().find((event) => event.type === 'goal' && event.teamId)
   const lastGoalTeamShortName = lastGoalEvent?.teamId ? (teamMap[lastGoalEvent.teamId]?.shortName ?? '—') : '—'
   const timingNote = (() => {
@@ -453,7 +472,7 @@ export const MatchDetailsPage = () => {
                 <input type="number" min={0} max={120} value={goalMinuteDraft} onChange={(event) => setGoalMinuteDraft(event.target.value)} disabled={goalMinuteAuto} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm text-textPrimary disabled:opacity-60" />
               </label>
               <label className="flex items-center justify-between rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-xs text-textMuted">
-                Без ручного указания минуты
+                Без указания минуты
                 <input type="checkbox" checked={goalMinuteAuto} onChange={(event) => setGoalMinuteAuto(event.target.checked)} />
               </label>
               <div className="flex gap-2">
@@ -493,7 +512,7 @@ export const MatchDetailsPage = () => {
                   if (goalAction === 'add') {
                     const manualMinute = Number(goalMinuteDraft)
                     const selectedMinute = goalMinuteAuto
-                      ? (liveMinute ?? (localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 1))
+                      ? 0
                       : (Number.isFinite(manualMinute) && manualMinute >= 0 ? manualMinute : (liveMinute ?? 0))
                     const createdEvent = {
                       id: `goal_${Date.now()}`,
@@ -581,7 +600,7 @@ export const MatchDetailsPage = () => {
                 <input type="number" min={0} max={120} value={cardsMinuteDraft} onChange={(event) => setCardsMinuteDraft(event.target.value)} disabled={cardsMinuteAuto} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm text-textPrimary disabled:opacity-60" />
               </label>
               <label className="flex items-center justify-between rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-xs text-textMuted">
-                Без ручного указания минуты
+                Без указания минуты
                 <input type="checkbox" checked={cardsMinuteAuto} onChange={(event) => setCardsMinuteAuto(event.target.checked)} />
               </label>
               <div className="grid grid-cols-2 gap-2">
@@ -620,7 +639,7 @@ export const MatchDetailsPage = () => {
                 const linkedEventId = `link_${Date.now()}`
                 const manualMinute = Number(cardsMinuteDraft)
                 const selectedMinute = cardsMinuteAuto
-                  ? (liveMinute ?? minuteBase)
+                  ? 0
                   : (Number.isFinite(manualMinute) && manualMinute >= 0 ? manualMinute : (liveMinute ?? minuteBase))
 
                 const result = (() => {
@@ -827,7 +846,6 @@ export const MatchDetailsPage = () => {
             <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Тур:</span> <span className="text-textPrimary">{match.tour || match.round || '—'}</span></div>
             <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Судья:</span> <span className="text-textPrimary">{match.referee || '—'}</span></div>
             <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Стадион:</span> <span className="text-textPrimary">{match.venue || '—'}</span></div>
-            <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Текущая минута:</span> <span className="text-textPrimary">{liveMinute ?? 0}</span></div>
             <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Старт (МСК):</span> <span className="text-textPrimary">{toMskDateTimeInput(match.date, match.time).replace('T', ' ')}</span></div>
             <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Трансляция:</span> <span className="text-textPrimary">{match.broadcastUrl || '—'}</span></div>
             <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Диск:</span> <span className="text-textPrimary">{match.diskUrl || '—'}</span></div>
@@ -898,6 +916,38 @@ export const MatchDetailsPage = () => {
             }
           }}
         />
+      </section>
+
+      <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
+        <div className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary">
+          <Timer size={15} className="text-accentYellow" /> История матча
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1 rounded-xl border border-borderSubtle bg-mutedBg p-2">
+            <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-textMuted">{home.shortName}</p>
+            {historyHome.length === 0 ? (
+              <p className="px-1 text-xs text-textMuted">—</p>
+            ) : historyHome.map((event) => (
+              <div key={event.id} className="flex items-center gap-1.5 px-1 text-xs text-textPrimary">
+                <span>{matchHistoryIcon[event.type as 'goal' | 'yellow_card' | 'red_card']}</span>
+                <span>{getPlayerLastName(playersById[event.playerId ?? '']?.displayName)}</span>
+                {event.minute > 0 && <span className="text-textMuted">{event.minute}′</span>}
+              </div>
+            ))}
+          </div>
+          <div className="space-y-1 rounded-xl border border-borderSubtle bg-mutedBg p-2">
+            <p className="px-1 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-textMuted">{away.shortName}</p>
+            {historyAway.length === 0 ? (
+              <p className="px-1 text-right text-xs text-textMuted">—</p>
+            ) : historyAway.map((event) => (
+              <div key={event.id} className="flex items-center justify-end gap-1.5 px-1 text-xs text-textPrimary">
+                {event.minute > 0 && <span className="text-textMuted">{event.minute}′</span>}
+                <span>{getPlayerLastName(playersById[event.playerId ?? '']?.displayName)}</span>
+                <span>{matchHistoryIcon[event.type as 'goal' | 'yellow_card' | 'red_card']}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
