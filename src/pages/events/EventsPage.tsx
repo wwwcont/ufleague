@@ -98,7 +98,15 @@ export const EventsPage = () => {
       ) : null}
       {isLoading && <LoadingState title="Загружаем ленту событий" />}
       {error && <ErrorState title="Ошибка ленты" subtitle="Не удалось загрузить события" />}
-      {!isLoading && !error && <EventFeedSection title={teamId ? 'Лента событий команды' : scope === 'all' ? 'Общая лента событий' : 'Лента главных событий'} layout="timeline" events={events} messageWhenEmpty="Событий пока нет." />}
+      {!isLoading && !error && (
+        <EventFeedSection
+          title={teamId ? 'Лента событий команды' : scope === 'all' ? 'Общая лента событий' : 'Лента главных событий'}
+          layout="timeline"
+          events={events}
+          notificationScopeKey={`events:${scope}:${scopeId ?? 'all'}`}
+          messageWhenEmpty="Событий пока нет."
+        />
+      )}
     </PageContainer>
   )
 }

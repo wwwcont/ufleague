@@ -1,6 +1,6 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { Activity, Disc3, Info, Plus, Radio, Timer } from 'lucide-react'
+import { Activity, Disc3, Info, Pause, Play, Plus, Radio, Timer } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useMatchDetails } from '../../hooks/data/useMatchDetails'
 import { useMatches } from '../../hooks/data/useMatches'
@@ -32,6 +32,19 @@ const formTone: Record<string, string> = {
   D: 'bg-zinc-500/80 text-white',
   L: 'bg-rose-500/85 text-white',
   '-': 'bg-zinc-700/85 text-white',
+}
+
+const matchHistoryIcon: Record<'goal' | 'yellow_card' | 'red_card', string> = {
+  goal: '⚽',
+  yellow_card: '🟨',
+  red_card: '🟥',
+}
+
+const getPlayerLastName = (name?: string) => {
+  const value = (name ?? '').trim()
+  if (!value) return 'Игрок'
+  const parts = value.split(/\s+/)
+  return parts[parts.length - 1]
 }
 
 const getOutcome = (targetTeamId: string, match: Match): 'W' | 'D' | 'L' | '-' => {
@@ -81,14 +94,37 @@ const getTeamStats = (teamId: string, allMatches: Match[]) => {
   return { goals, conceded, goalDiff: goals - conceded, wins }
 }
 
+const toMskDateTimeInput = (date: string, time: string) => {
+  const iso = `${date}T${time}:00Z`
+  const parsed = new Date(iso)
+  if (Number.isNaN(parsed.getTime())) return ''
+  const shifted = new Date(parsed.getTime() + 3 * 60 * 60 * 1000)
+  const yyyy = shifted.getUTCFullYear()
+  const mm = String(shifted.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(shifted.getUTCDate()).padStart(2, '0')
+  const hh = String(shifted.getUTCHours()).padStart(2, '0')
+  const mi = String(shifted.getUTCMinutes()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`
+}
+
+const fromMskDateTimeInput = (input: string) => {
+  const [datePart, timePart] = input.split('T')
+  if (!datePart || !timePart) return null
+  const [year, month, day] = datePart.split('-').map(Number)
+  const [hour, minute] = timePart.split(':').map(Number)
+  if (![year, month, day, hour, minute].every(Number.isFinite)) return null
+  return new Date(Date.UTC(year, month - 1, day, hour - 3, minute, 0)).toISOString()
+}
+
 export const MatchDetailsPage = () => {
   const { matchId } = useParams()
+  const navigate = useNavigate()
   const { data: match, refetch: refetchMatch } = useMatchDetails(matchId)
   const { data: allMatches } = useMatches()
   const { data: teams } = useTeams()
   const { data: players } = usePlayers()
   const { session } = useSession()
-  const { matchesRepository, playoffGridRepository, cabinetRepository } = useRepositories()
+  const { matchesRepository, playoffGridRepository, cabinetRepository, eventsRepository } = useRepositories()
 
   const teamMap = Object.fromEntries((teams ?? []).map((team) => [team.id, team]))
   const home = match ? teamMap[match.homeTeamId] : null
@@ -99,6 +135,10 @@ export const MatchDetailsPage = () => {
   const [editableStage, setEditableStage] = useState(match?.stage ?? '')
   const [editableTour, setEditableTour] = useState(match?.tour ?? match?.round ?? '')
   const [editableReferee, setEditableReferee] = useState(match?.referee ?? '')
+  const [editableStartAt, setEditableStartAt] = useState(match ? toMskDateTimeInput(match.date, match.time) : '')
+  const [editableBroadcastUrl, setEditableBroadcastUrl] = useState(match?.broadcastUrl ?? '')
+  const [editableDiskUrl, setEditableDiskUrl] = useState(match?.diskUrl ?? '')
+  const [editableCurrentMinute, setEditableCurrentMinute] = useState(String(match?.currentMinute ?? '0'))
   const [metadataStatus, setMetadataStatus] = useState<string | null>(null)
   const [scoreDraft, setScoreDraft] = useState<{ home: number; away: number } | null>(null)
   const [localEvents, setLocalEvents] = useState(match?.events ?? [])
@@ -106,9 +146,25 @@ export const MatchDetailsPage = () => {
   const [goalTeamId, setGoalTeamId] = useState('')
   const [goalScorerId, setGoalScorerId] = useState('')
   const [goalAssistId, setGoalAssistId] = useState('')
+  const [goalMinuteDraft, setGoalMinuteDraft] = useState('0')
+  const [goalMinuteAuto, setGoalMinuteAuto] = useState(false)
   const [goalStatus, setGoalStatus] = useState<string | null>(null)
-  const [goalDelta, setGoalDelta] = useState<1 | -1>(1)
+  const [goalAction, setGoalAction] = useState<'add' | 'remove_selected' | 'remove_last'>('add')
   const [goalConfirmOpen, setGoalConfirmOpen] = useState(false)
+  const [cardsEditorOpen, setCardsEditorOpen] = useState(false)
+  const [cardsTeamId, setCardsTeamId] = useState('')
+  const [cardsPlayerId, setCardsPlayerId] = useState('')
+  const [cardsMinuteDraft, setCardsMinuteDraft] = useState('0')
+  const [cardsMinuteAuto, setCardsMinuteAuto] = useState(false)
+  const [cardsAction, setCardsAction] = useState<'add_yellow' | 'add_red' | 'remove_yellow' | 'remove_red'>('add_yellow')
+  const [cardsConfirmOpen, setCardsConfirmOpen] = useState(false)
+  const [cardsStatus, setCardsStatus] = useState<string | null>(null)
+  const [cardCreateEvent, setCardCreateEvent] = useState(true)
+  const [matchFlowPending, setMatchFlowPending] = useState(false)
+  const [matchControlOpen, setMatchControlOpen] = useState(false)
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false)
+  const [archivePending, setArchivePending] = useState(false)
+  const [nowTs, setNowTs] = useState(Date.now())
   const [activeTournamentId, setActiveTournamentId] = useState('1')
   const normalizedTournamentId = /^\d+$/.test(activeTournamentId) ? activeTournamentId : '1'
   const [playoffModalOpen, setPlayoffModalOpen] = useState(false)
@@ -118,11 +174,16 @@ export const MatchDetailsPage = () => {
   const [selectedPlayoffId, setSelectedPlayoffId] = useState<string | null>(null)
   const [currentPlayoffCell, setCurrentPlayoffCell] = useState<{ id: string; col: number; row: number } | null>(null)
   const candidatePlayers = useMemo(() => (players ?? []).filter((p) => p.teamId === goalTeamId), [goalTeamId, players])
+  const cardCandidatePlayers = useMemo(() => (players ?? []).filter((p) => p.teamId === cardsTeamId), [cardsTeamId, players])
 
   useEffect(() => {
     if (!match) return
     setScoreDraft(match.score)
     setLocalEvents(match.events)
+    setEditableStartAt(toMskDateTimeInput(match.date, match.time))
+    setEditableBroadcastUrl(match.broadcastUrl ?? '')
+    setEditableDiskUrl(match.diskUrl ?? '')
+    setEditableCurrentMinute(String(match.currentMinute ?? 0))
   }, [match])
 
   useEffect(() => {
@@ -149,6 +210,56 @@ export const MatchDetailsPage = () => {
       }
     })()
   }, [match?.playoffCellId, normalizedTournamentId, playoffGridRepository])
+
+  useEffect(() => {
+    if (!match || match.status !== 'live') return
+    const timer = window.setInterval(() => setNowTs(Date.now()), 30_000)
+    return () => window.clearInterval(timer)
+  }, [match, match?.status])
+
+  useEffect(() => {
+    if (!match) return
+    if (!canManageMatchScore(session)) return
+    const kickoffTs = Date.parse(`${match.date}T${match.time}:00Z`)
+    if (!Number.isFinite(kickoffTs)) return
+
+    const now = Date.now()
+    const endTs = kickoffTs + 96 * 60 * 1000
+    const shouldStart = now >= kickoffTs && now < endTs && match.status === 'scheduled'
+    const shouldFinish = now >= endTs && (match.status === 'live' || match.status === 'half_time' || match.status === 'scheduled')
+    if (!shouldStart && !shouldFinish) return
+
+    void (async () => {
+      const hasStartEvent = localEvents.some((event) => event.id === `auto_start_${match.id}`)
+      const hasEndEvent = localEvents.some((event) => event.id === `auto_end_${match.id}`)
+      if (shouldStart && hasStartEvent && !shouldFinish) return
+      if (shouldFinish && hasEndEvent) return
+
+      const minuteBase = localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0
+      const estimatedLiveMinute = Math.max(match.currentMinute ?? 0, minuteBase)
+      const nextEvents = [...localEvents]
+      if (shouldStart && !hasStartEvent) {
+        nextEvents.push({ id: `auto_start_${match.id}`, minute: Math.max(1, estimatedLiveMinute || minuteBase + 1), type: 'substitution', note: 'Система: матч начался' })
+      }
+      if (shouldFinish && !hasEndEvent) {
+        nextEvents.push({ id: `auto_end_${match.id}`, minute: Math.max(96, estimatedLiveMinute || minuteBase + 1), type: 'substitution', note: 'Система: матч завершен (96 минут)' })
+      }
+      try {
+        await matchesRepository.updateMatch?.(match.id, {
+          status: shouldFinish ? 'finished' : 'live',
+          homeScore: match.score.home,
+          awayScore: match.score.away,
+          currentMinute: shouldFinish ? Math.max(96, estimatedLiveMinute || 96) : Math.max(1, estimatedLiveMinute || 1),
+          clockAnchorAt: shouldFinish ? null : new Date().toISOString(),
+          matchEvents: nextEvents,
+        })
+        setLocalEvents(nextEvents)
+        setGoalStatus(shouldFinish ? 'Матч автоматически завершен по таймеру 96 минут.' : 'Матч автоматически переведен в LIVE по времени старта.')
+      } catch (error) {
+        setGoalStatus(error instanceof Error ? error.message : 'Не удалось автоматически обновить статус матча.')
+      }
+    })()
+  }, [localEvents, match, matchesRepository, session])
 
   if (!match || !teams || !home || !away || !allMatches || !players) {
     return (
@@ -177,8 +288,25 @@ export const MatchDetailsPage = () => {
   const awayStats = getTeamStats(away.id, allMatches)
   const effectiveScore = scoreDraft ?? match.score
 
-  const liveMinute = localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : null
+  const eventsMinuteMax = localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0
+  const baseMinute = Math.max(match.currentMinute ?? 0, eventsMinuteMax)
+  const liveMinute = (() => {
+    if (match.status !== 'live') return baseMinute || null
+    if (!match.clockAnchorAt) return baseMinute || null
+    const anchorTs = Date.parse(match.clockAnchorAt)
+    if (!Number.isFinite(anchorTs)) return baseMinute || null
+    const elapsed = Math.max(0, Math.floor((nowTs - anchorTs) / 60_000))
+    return Math.min(120, baseMinute + elapsed)
+  })()
   const latestEvents = localEvents.slice().sort((a, b) => b.minute - a.minute).slice(0, 3)
+  const playersById = Object.fromEntries(players.map((player) => [player.id, player]))
+  const historyEvents = localEvents
+    .filter((event) => (event.type === 'goal' || event.type === 'yellow_card' || event.type === 'red_card') && event.teamId)
+    .sort((a, b) => b.minute - a.minute)
+  const historyHome = historyEvents.filter((event) => event.teamId === home.id)
+  const historyAway = historyEvents.filter((event) => event.teamId === away.id)
+  const lastGoalEvent = [...localEvents].reverse().find((event) => event.type === 'goal' && event.teamId)
+  const lastGoalTeamShortName = lastGoalEvent?.teamId ? (teamMap[lastGoalEvent.teamId]?.shortName ?? '—') : '—'
   const timingNote = (() => {
     if (match.status === 'live' || match.status === 'half_time') return liveMinute ? `${liveMinute}′ минута` : 'Матч в процессе'
     if (match.status === 'scheduled') return getTimeToKickoff(match.date, match.time) ?? 'Скоро'
@@ -211,9 +339,23 @@ export const MatchDetailsPage = () => {
     <PageContainer>
       <section className="relative rounded-2xl border border-borderStrong bg-panelBg px-5 py-6 shadow-matte sm:px-7 sm:py-7">
         {canEditScore && (
-          <button type="button" onClick={() => setGoalEditorOpen(true)} className="absolute left-1/2 top-0 z-30 inline-flex -translate-x-1/2 -translate-y-1/2 items-center rounded-full bg-accentYellow px-4 py-1 text-xs font-semibold text-app shadow-soft">
-            СЧЕТ
-          </button>
+          <div className="absolute left-1/2 top-0 z-30 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2">
+            <button type="button" onClick={() => { setCardsMinuteDraft(String(liveMinute ?? 0)); setCardsMinuteAuto(false); setCardsEditorOpen(true) }} className="inline-flex items-center rounded-full border border-borderSubtle bg-panelBg px-3 py-1 text-xs font-semibold text-textPrimary shadow-soft">
+              Карточки
+            </button>
+            <button type="button" onClick={() => { setGoalMinuteDraft(String(liveMinute ?? 0)); setGoalMinuteAuto(false); setGoalEditorOpen(true) }} className="inline-flex items-center rounded-full bg-accentYellow px-4 py-1 text-xs font-semibold text-app shadow-soft">
+              СЧЕТ
+            </button>
+            <button
+              type="button"
+              disabled={matchFlowPending}
+              onClick={() => setMatchControlOpen(true)}
+              className="inline-flex items-center gap-1 rounded-full border border-borderSubtle bg-panelBg px-3 py-1 text-xs font-semibold text-textPrimary shadow-soft disabled:opacity-50"
+            >
+              {match.status === 'live' || match.status === 'half_time' ? <Pause size={12} /> : <Play size={12} />}
+              {match.status === 'live' || match.status === 'half_time' ? 'Стоп' : 'Старт'}
+            </button>
+          </div>
         )}
 
         <div className="pointer-events-none absolute inset-0">
@@ -306,6 +448,7 @@ export const MatchDetailsPage = () => {
         </div>
       </div>
       {goalStatus && <p className="rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 text-xs text-textMuted">{goalStatus}</p>}
+      {cardsStatus && <p className="rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 text-xs text-textMuted">{cardsStatus}</p>}
       {goalEditorOpen && (
         <section className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-md rounded-2xl border border-borderSubtle bg-panelBg p-4">
@@ -325,12 +468,28 @@ export const MatchDetailsPage = () => {
               </select>
               <select value={goalAssistId} onChange={(e) => setGoalAssistId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm" disabled={!goalTeamId}>
                 <option value="">Ассист (необязательно)</option>
-                {candidatePlayers.filter((player) => player.id !== goalScorerId).map((player) => <option key={player.id} value={player.id}>{player.displayName}</option>)}
+                {candidatePlayers.map((player) => <option key={player.id} value={player.id}>{player.displayName}</option>)}
               </select>
+              <label className="space-y-1 text-xs text-textMuted">
+                Минута гола
+                <input type="number" min={0} max={120} value={goalMinuteDraft} onChange={(event) => setGoalMinuteDraft(event.target.value)} disabled={goalMinuteAuto} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm text-textPrimary disabled:opacity-60" />
+              </label>
+              <label className="flex items-center justify-between rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-xs text-textMuted">
+                Без указания минуты
+                <input type="checkbox" checked={goalMinuteAuto} onChange={(event) => setGoalMinuteAuto(event.target.checked)} />
+              </label>
               <div className="flex gap-2">
-                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => { setGoalDelta(1); setGoalConfirmOpen(true) }}>+1</button>
-                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50" onClick={() => { setGoalDelta(-1); setGoalConfirmOpen(true) }}>-1</button>
+                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => { setGoalAction('add'); setGoalConfirmOpen(true) }}>Добавить</button>
+                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50" onClick={() => { setGoalAction('remove_selected'); setGoalConfirmOpen(true) }}>Убавить</button>
               </div>
+              <button
+                type="button"
+                disabled={!lastGoalEvent}
+                className="w-full rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50"
+                onClick={() => { setGoalAction('remove_last'); setGoalConfirmOpen(true) }}
+              >
+                Убавить последний гол {lastGoalTeamShortName}
+              </button>
             </div>
           </div>
         </section>
@@ -339,25 +498,76 @@ export const MatchDetailsPage = () => {
         <section className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-md rounded-2xl border border-borderSubtle bg-panelBg p-4">
             <p className="text-sm font-semibold text-textPrimary">Подтвердить изменение счета</p>
-            <p className="mt-1 text-xs text-textMuted">{goalDelta > 0 ? 'Добавить гол выбранной команде?' : 'Убрать гол у выбранной команды?'}</p>
+            <p className="mt-1 text-xs text-textMuted">
+              {goalAction === 'add' && 'Добавить гол выбранной команде?'}
+              {goalAction === 'remove_selected' && 'Убрать гол у выбранной команды и выбранного игрока?'}
+              {goalAction === 'remove_last' && `Убрать последний гол (${lastGoalTeamShortName})?`}
+            </p>
             <div className="mt-3 flex gap-2">
               <button type="button" className="rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app" onClick={async () => {
-                const nextScore = goalTeamId === home.id
-                  ? { home: Math.max(0, effectiveScore.home + goalDelta), away: effectiveScore.away }
-                  : { home: effectiveScore.home, away: Math.max(0, effectiveScore.away + goalDelta) }
-                const nextEvents = (() => {
-                  if (goalDelta > 0) {
-                    return [...localEvents, { id: `goal_${Date.now()}`, minute: (localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0) + 1, type: 'goal', teamId: goalTeamId, playerId: goalScorerId, assistPlayerId: goalAssistId || undefined, note: goalAssistId ? `ассист: ${goalAssistId}` : undefined } satisfies Match['events'][number]]
+                const applyScoreDelta = (baseScore: { home: number; away: number }, teamId: string, delta: 1 | -1) => (
+                  teamId === home.id
+                    ? { home: Math.max(0, baseScore.home + delta), away: baseScore.away }
+                    : { home: baseScore.home, away: Math.max(0, baseScore.away + delta) }
+                )
+
+                const result = (() => {
+                  if (goalAction === 'add') {
+                    const manualMinute = Number(goalMinuteDraft)
+                    const selectedMinute = goalMinuteAuto
+                      ? 0
+                      : (Number.isFinite(manualMinute) && manualMinute >= 0 ? manualMinute : (liveMinute ?? 0))
+                    const createdEvent = {
+                      id: `goal_${Date.now()}`,
+                      minute: Math.max(0, selectedMinute),
+                      type: 'goal',
+                      teamId: goalTeamId,
+                      playerId: goalScorerId,
+                      assistPlayerId: goalAssistId || undefined,
+                      note: goalAssistId ? `ассист: ${goalAssistId}` : undefined,
+                    } satisfies Match['events'][number]
+                    return {
+                      nextEvents: [...localEvents, createdEvent],
+                      nextScore: applyScoreDelta(effectiveScore, goalTeamId, 1),
+                      notFoundMessage: null,
+                    }
                   }
-                  const toRemove = [...localEvents].reverse().find((event) => event.type === 'goal' && event.teamId === goalTeamId && event.playerId === goalScorerId)
-                  if (!toRemove) return localEvents
-                  const idx = localEvents.findIndex((event) => event.id === toRemove.id)
-                  return idx >= 0 ? localEvents.filter((_, eventIdx) => eventIdx !== idx) : localEvents
+
+                  const targetEvent = goalAction === 'remove_last'
+                    ? [...localEvents].reverse().find((event) => event.type === 'goal' && event.teamId)
+                    : [...localEvents].reverse().find((event) => event.type === 'goal' && event.teamId === goalTeamId && event.playerId === goalScorerId)
+
+                  if (!targetEvent?.teamId) {
+                    return {
+                      nextEvents: localEvents,
+                      nextScore: effectiveScore,
+                      notFoundMessage: goalAction === 'remove_last'
+                        ? 'Не найден последний гол для удаления.'
+                        : 'Не найден гол выбранного игрока для удаления.',
+                    }
+                  }
+
+                  const idx = localEvents.findIndex((event) => event.id === targetEvent.id)
+                  const trimmedEvents = idx >= 0 ? localEvents.filter((_, eventIdx) => eventIdx !== idx) : localEvents
+                  return {
+                    nextEvents: trimmedEvents,
+                    nextScore: applyScoreDelta(effectiveScore, targetEvent.teamId, -1),
+                    notFoundMessage: null,
+                  }
                 })()
+
+                if (result.notFoundMessage) {
+                  setGoalStatus(result.notFoundMessage)
+                  setGoalConfirmOpen(false)
+                  return
+                }
+
+                const nextEvents = result.nextEvents
+                const nextScore = result.nextScore
                 setScoreDraft(nextScore)
                 setLocalEvents(nextEvents)
                 try {
-                  await matchesRepository.updateMatch?.(match.id, { homeScore: nextScore.home, awayScore: nextScore.away, goalEvents: nextEvents })
+                  await matchesRepository.updateMatch?.(match.id, { homeScore: nextScore.home, awayScore: nextScore.away, matchEvents: nextEvents })
                   setGoalStatus('Счет сохранен.')
                 } catch (error) {
                   setGoalStatus(actionError(error))
@@ -368,6 +578,242 @@ export const MatchDetailsPage = () => {
               }}>Подтвердить</button>
               <button type="button" className="rounded-lg border border-borderSubtle px-3 py-1.5 text-xs text-textSecondary" onClick={() => setGoalConfirmOpen(false)}>Отмена</button>
             </div>
+          </div>
+        </section>
+      )}
+      {cardsEditorOpen && (
+        <section className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-borderSubtle bg-panelBg p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-semibold text-textPrimary">Карточки</p>
+              <button type="button" className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textSecondary" onClick={() => setCardsEditorOpen(false)}>Закрыть</button>
+            </div>
+            <div className="grid gap-2">
+              <select value={cardsTeamId} onChange={(event) => { setCardsTeamId(event.target.value); setCardsPlayerId('') }} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm">
+                <option value="">Выберите команду</option>
+                <option value={home.id}>{home.name}</option>
+                <option value={away.id}>{away.name}</option>
+              </select>
+              <select value={cardsPlayerId} onChange={(event) => setCardsPlayerId(event.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm" disabled={!cardsTeamId}>
+                <option value="">Игрок</option>
+                {cardCandidatePlayers.map((player) => <option key={player.id} value={player.id}>{player.displayName}</option>)}
+              </select>
+              <label className="space-y-1 text-xs text-textMuted">
+                Минута карточки
+                <input type="number" min={0} max={120} value={cardsMinuteDraft} onChange={(event) => setCardsMinuteDraft(event.target.value)} disabled={cardsMinuteAuto} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm text-textPrimary disabled:opacity-60" />
+              </label>
+              <label className="flex items-center justify-between rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-xs text-textMuted">
+                Без указания минуты
+                <input type="checkbox" checked={cardsMinuteAuto} onChange={(event) => setCardsMinuteAuto(event.target.checked)} />
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" disabled={!cardsTeamId || !cardsPlayerId} className="rounded-lg border border-amber-400/60 bg-amber-400/15 px-3 py-2 text-xs font-semibold text-amber-200 disabled:opacity-50" onClick={() => { setCardsAction('add_yellow'); setCardCreateEvent(true); setCardsConfirmOpen(true) }}>Желтая</button>
+                <button type="button" disabled={!cardsTeamId || !cardsPlayerId} className="rounded-lg border border-rose-400/60 bg-rose-400/15 px-3 py-2 text-xs font-semibold text-rose-200 disabled:opacity-50" onClick={() => { setCardsAction('add_red'); setCardCreateEvent(true); setCardsConfirmOpen(true) }}>Красная</button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" disabled={!cardsTeamId || !cardsPlayerId} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50" onClick={() => { setCardsAction('remove_yellow'); setCardCreateEvent(false); setCardsConfirmOpen(true) }}>Отменить желтую</button>
+                <button type="button" disabled={!cardsTeamId || !cardsPlayerId} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50" onClick={() => { setCardsAction('remove_red'); setCardCreateEvent(false); setCardsConfirmOpen(true) }}>Отменить красную</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+      {cardsConfirmOpen && (
+        <section className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-borderSubtle bg-panelBg p-4">
+            <p className="text-sm font-semibold text-textPrimary">Подтвердить карточку</p>
+            <p className="mt-1 text-xs text-textMuted">
+              {cardsAction === 'add_yellow' && 'Выдать желтую карточку выбранному игроку?'}
+              {cardsAction === 'add_red' && 'Выдать красную карточку выбранному игроку?'}
+              {cardsAction === 'remove_yellow' && 'Отменить последнюю желтую карточку выбранного игрока?'}
+              {cardsAction === 'remove_red' && 'Отменить последнюю красную карточку выбранного игрока?'}
+            </p>
+            {(cardsAction === 'add_yellow' || cardsAction === 'add_red') && (
+              <label className="mt-3 flex items-center justify-between rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-xs text-textSecondary">
+                Создать событие в ленте матча
+                <input type="checkbox" checked={cardCreateEvent} onChange={(event) => setCardCreateEvent(event.target.checked)} />
+              </label>
+            )}
+            <div className="mt-3 flex gap-2">
+              <button type="button" className="rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app" onClick={async () => {
+                const cardType = cardsAction === 'add_yellow' || cardsAction === 'remove_yellow' ? 'yellow_card' : 'red_card'
+                const isAdd = cardsAction === 'add_yellow' || cardsAction === 'add_red'
+                const minuteBase = localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0
+                const linkedEventId = `link_${Date.now()}`
+                const manualMinute = Number(cardsMinuteDraft)
+                const selectedMinute = cardsMinuteAuto
+                  ? 0
+                  : (Number.isFinite(manualMinute) && manualMinute >= 0 ? manualMinute : (liveMinute ?? minuteBase))
+
+                const result = (() => {
+                  if (isAdd) {
+                    const createdCard = {
+                      id: `card_${Date.now()}`,
+                      minute: Math.max(0, selectedMinute),
+                      type: cardType,
+                      teamId: cardsTeamId,
+                      playerId: cardsPlayerId,
+                      linkedEventId: cardCreateEvent ? linkedEventId : undefined,
+                      note: cardType === 'yellow_card' ? 'Желтая карточка' : 'Красная карточка',
+                    } satisfies Match['events'][number]
+                    return { nextEvents: [...localEvents, createdCard], status: null as string | null, createdCard }
+                  }
+                  const toRemove = [...localEvents].reverse().find((event) => event.type === cardType && event.teamId === cardsTeamId && event.playerId === cardsPlayerId)
+                  if (!toRemove) return { nextEvents: localEvents, status: 'Карточек для отмены не найдено.', createdCard: null }
+                  const idx = localEvents.findIndex((event) => event.id === toRemove.id)
+                  return { nextEvents: idx >= 0 ? localEvents.filter((_, eventIdx) => eventIdx !== idx) : localEvents, status: null, createdCard: null }
+                })()
+
+                if (result.status) {
+                  setCardsStatus(result.status)
+                  setCardsConfirmOpen(false)
+                  return
+                }
+
+                setLocalEvents(result.nextEvents)
+                try {
+                  await matchesRepository.updateMatch?.(match.id, { homeScore: effectiveScore.home, awayScore: effectiveScore.away, matchEvents: result.nextEvents })
+                  if (cardCreateEvent && result.createdCard) {
+                    const actor = players.find((player) => player.id === cardsPlayerId)?.displayName ?? `Игрок #${cardsPlayerId}`
+                    await eventsRepository.createEventForScope?.({
+                      scopeType: 'match',
+                      scopeId: match.id,
+                      title: cardType === 'yellow_card' ? 'Желтая карточка' : 'Красная карточка',
+                      summary: `${actor} • ${result.createdCard.minute}′`,
+                      body: `${actor} получил ${cardType === 'yellow_card' ? 'желтую' : 'красную'} карточку на ${result.createdCard.minute}-й минуте.`,
+                    })
+                  }
+                  setCardsStatus('Карточки сохранены.')
+                } catch (error) {
+                  setCardsStatus(actionError(error))
+                } finally {
+                  setCardsConfirmOpen(false)
+                  setCardsEditorOpen(false)
+                }
+              }}>Подтвердить</button>
+              <button type="button" className="rounded-lg border border-borderSubtle px-3 py-1.5 text-xs text-textSecondary" onClick={() => setCardsConfirmOpen(false)}>Отмена</button>
+            </div>
+          </div>
+        </section>
+      )}
+      {matchControlOpen && (
+        <section className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-borderSubtle bg-panelBg p-4">
+            <p className="text-sm font-semibold text-textPrimary">Управление матчем</p>
+            <p className="mt-1 text-xs text-textMuted">Текущий статус: {statusLabel[match.status]}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={matchFlowPending || match.status === 'live'}
+                className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50"
+                onClick={async () => {
+                  setMatchFlowPending(true)
+                  try {
+                    const hasStartEvent = localEvents.some((event) => event.id === `auto_start_${match.id}`)
+                    const minuteBase = localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0
+                    const nextEvents = hasStartEvent ? localEvents : [...localEvents, { id: `auto_start_${match.id}`, minute: minuteBase + 1, type: 'substitution', note: 'Система: матч начался' } satisfies Match['events'][number]]
+                    await matchesRepository.updateMatch?.(match.id, {
+                      status: 'live',
+                      homeScore: effectiveScore.home,
+                      awayScore: effectiveScore.away,
+                      currentMinute: Math.max(1, liveMinute ?? 1),
+                      clockAnchorAt: new Date().toISOString(),
+                      matchEvents: nextEvents,
+                    })
+                    setLocalEvents(nextEvents)
+                    setGoalStatus('Матч переведен в LIVE.')
+                    setMatchControlOpen(false)
+                  } catch (error) {
+                    setGoalStatus(actionError(error))
+                  } finally {
+                    setMatchFlowPending(false)
+                  }
+                }}
+              >
+                Начать матч
+              </button>
+              <button
+                type="button"
+                disabled={matchFlowPending || match.status === 'finished'}
+                className="rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50"
+                onClick={async () => {
+                  setMatchFlowPending(true)
+                  try {
+                    const hasEndEvent = localEvents.some((event) => event.id === `auto_end_${match.id}`)
+                    const minuteBase = localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0
+                    const nextEvents = hasEndEvent ? localEvents : [...localEvents, { id: `auto_end_${match.id}`, minute: Math.max(90, minuteBase + 1), type: 'substitution', note: 'Система: матч завершен' } satisfies Match['events'][number]]
+                    await matchesRepository.updateMatch?.(match.id, {
+                      status: 'finished',
+                      homeScore: effectiveScore.home,
+                      awayScore: effectiveScore.away,
+                      currentMinute: Math.max(liveMinute ?? 0, match.currentMinute ?? 0),
+                      clockAnchorAt: null,
+                      matchEvents: nextEvents,
+                    })
+                    setLocalEvents(nextEvents)
+                    setGoalStatus('Матч завершен.')
+                    setMatchControlOpen(false)
+                  } catch (error) {
+                    setGoalStatus(actionError(error))
+                  } finally {
+                    setMatchFlowPending(false)
+                  }
+                }}
+              >
+                Завершить матч
+              </button>
+              <button
+                type="button"
+                disabled={matchFlowPending || match.status !== 'live'}
+                className="rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50"
+                onClick={async () => {
+                  setMatchFlowPending(true)
+                  try {
+                    await matchesRepository.updateMatch?.(match.id, {
+                      status: 'half_time',
+                      homeScore: effectiveScore.home,
+                      awayScore: effectiveScore.away,
+                      currentMinute: Math.max(liveMinute ?? 0, match.currentMinute ?? 0),
+                      clockAnchorAt: null,
+                    })
+                    setGoalStatus('Перерыв начат.')
+                    setMatchControlOpen(false)
+                  } catch (error) {
+                    setGoalStatus(actionError(error))
+                  } finally {
+                    setMatchFlowPending(false)
+                  }
+                }}
+              >
+                Начать перерыв
+              </button>
+              <button
+                type="button"
+                disabled={matchFlowPending || match.status !== 'half_time'}
+                className="rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50"
+                onClick={async () => {
+                  setMatchFlowPending(true)
+                  try {
+                    await matchesRepository.updateMatch?.(match.id, {
+                      status: 'live',
+                      homeScore: effectiveScore.home,
+                      awayScore: effectiveScore.away,
+                      currentMinute: Math.max(liveMinute ?? 0, match.currentMinute ?? 0),
+                      clockAnchorAt: new Date().toISOString(),
+                    })
+                    setGoalStatus('Перерыв завершен, матч продолжен.')
+                    setMatchControlOpen(false)
+                  } catch (error) {
+                    setGoalStatus(actionError(error))
+                  } finally {
+                    setMatchFlowPending(false)
+                  }
+                }}
+              >
+                Закончить перерыв
+              </button>
+            </div>
+            <button type="button" className="mt-3 rounded-lg border border-borderSubtle px-3 py-1.5 text-xs text-textSecondary" onClick={() => setMatchControlOpen(false)}>Закрыть</button>
           </div>
         </section>
       )}
@@ -383,6 +829,10 @@ export const MatchDetailsPage = () => {
             setEditableStage(match.stage ?? '')
             setEditableTour(match.tour ?? match.round ?? '')
             setEditableReferee(match.referee ?? '')
+            setEditableStartAt(toMskDateTimeInput(match.date, match.time))
+            setEditableBroadcastUrl(match.broadcastUrl ?? '')
+            setEditableDiskUrl(match.diskUrl ?? '')
+            setEditableCurrentMinute(String(liveMinute ?? match.currentMinute ?? 0))
             setMetadataStatus(null)
             setIsInfoEditing(true)
           }}
@@ -393,12 +843,15 @@ export const MatchDetailsPage = () => {
           actions={<Info size={14} className="text-accentYellow" />}
         />
         {!isInfoEditing ? (
-          <div className="grid gap-2 text-sm text-textSecondary sm:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-2 text-sm text-textSecondary sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Статус:</span> {statusLabel[match.status]}</div>
             <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Этап:</span> <span className="text-textPrimary">{match.stage || '—'}</span></div>
             <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Тур:</span> <span className="text-textPrimary">{match.tour || match.round || '—'}</span></div>
             <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Судья:</span> <span className="text-textPrimary">{match.referee || '—'}</span></div>
             <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Стадион:</span> <span className="text-textPrimary">{match.venue || '—'}</span></div>
+            <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Старт (МСК):</span> <span className="text-textPrimary">{toMskDateTimeInput(match.date, match.time).replace('T', ' ')}</span></div>
+            <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Трансляция:</span> <span className="text-textPrimary">{match.broadcastUrl || '—'}</span></div>
+            <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Диск:</span> <span className="text-textPrimary">{match.diskUrl || '—'}</span></div>
           </div>
         ) : (
           <div className="space-y-2">
@@ -415,11 +868,29 @@ export const MatchDetailsPage = () => {
                 Судья
                 <input value={editableReferee} onChange={(event) => setEditableReferee(event.target.value)} placeholder="Имя судьи" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary" />
               </label>
+              <label className="space-y-1 text-xs text-textMuted">
+                Старт (МСК)
+                <input type="datetime-local" value={editableStartAt} onChange={(event) => setEditableStartAt(event.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary" />
+              </label>
+              <label className="space-y-1 text-xs text-textMuted">
+                Текущая минута
+                <input type="number" min={0} max={120} value={editableCurrentMinute} onChange={(event) => setEditableCurrentMinute(event.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary" />
+              </label>
             </div>
             <label className="space-y-1 text-xs text-textMuted">
               Стадион / площадка
               <input value={editableVenue} onChange={(event) => setEditableVenue(event.target.value)} placeholder="Название арены" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary" />
             </label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="space-y-1 text-xs text-textMuted">
+                Трансляция
+                <input value={editableBroadcastUrl} onChange={(event) => setEditableBroadcastUrl(event.target.value)} placeholder="https://..." className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary" />
+              </label>
+              <label className="space-y-1 text-xs text-textMuted">
+                Диск
+                <input value={editableDiskUrl} onChange={(event) => setEditableDiskUrl(event.target.value)} placeholder="https://..." className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary" />
+              </label>
+            </div>
           </div>
         )}
         <SectionActionBar
@@ -433,9 +904,13 @@ export const MatchDetailsPage = () => {
             try {
               await matchesRepository.updateMatch?.(match.id, {
                 venue: editableVenue.trim() || match.venue,
+                startAt: fromMskDateTimeInput(editableStartAt) ?? `${match.date}T${match.time}:00Z`,
+                currentMinute: Math.max(0, Number(editableCurrentMinute) || 0),
                 stage: editableStage.trim(),
                 tour: editableTour.trim(),
                 referee: editableReferee.trim(),
+                broadcastUrl: editableBroadcastUrl.trim(),
+                diskUrl: editableDiskUrl.trim(),
               })
               setMetadataStatus('Информация обновлена')
               setIsInfoEditing(false)
@@ -444,6 +919,38 @@ export const MatchDetailsPage = () => {
             }
           }}
         />
+      </section>
+
+      <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
+        <div className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary">
+          <Timer size={15} className="text-accentYellow" /> История матча
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1 rounded-xl border border-borderSubtle bg-mutedBg p-2">
+            <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-textMuted">{home.shortName}</p>
+            {historyHome.length === 0 ? (
+              <p className="px-1 text-xs text-textMuted">—</p>
+            ) : historyHome.map((event) => (
+              <div key={event.id} className="flex items-center gap-1.5 px-1 text-xs text-textPrimary">
+                <span>{matchHistoryIcon[event.type as 'goal' | 'yellow_card' | 'red_card']}</span>
+                <span>{getPlayerLastName(playersById[event.playerId ?? '']?.displayName)}</span>
+                {event.minute > 0 && <span className="text-textMuted">{event.minute}′</span>}
+              </div>
+            ))}
+          </div>
+          <div className="space-y-1 rounded-xl border border-borderSubtle bg-mutedBg p-2">
+            <p className="px-1 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-textMuted">{away.shortName}</p>
+            {historyAway.length === 0 ? (
+              <p className="px-1 text-right text-xs text-textMuted">—</p>
+            ) : historyAway.map((event) => (
+              <div key={event.id} className="flex items-center justify-end gap-1.5 px-1 text-xs text-textPrimary">
+                {event.minute > 0 && <span className="text-textMuted">{event.minute}′</span>}
+                <span>{getPlayerLastName(playersById[event.playerId ?? '']?.displayName)}</span>
+                <span>{matchHistoryIcon[event.type as 'goal' | 'yellow_card' | 'red_card']}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
@@ -559,13 +1066,53 @@ export const MatchDetailsPage = () => {
           </div>
         </div>
       )}
+      {archiveConfirmOpen && (
+        <section className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-borderSubtle bg-panelBg p-4">
+            <p className="text-sm font-semibold text-textPrimary">{match.archived ? 'Вернуть матч из архива?' : 'Скрыть матч и отправить в архив?'}</p>
+            <p className="mt-1 text-xs text-textMuted">{match.archived ? 'Матч снова появится в обычных лентах и статистике.' : 'Матч исчезнет из обычных лент, истории и статистики.'}</p>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                disabled={archivePending}
+                className="rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app disabled:opacity-50"
+                onClick={async () => {
+                  setArchivePending(true)
+                  try {
+                    if (!match.archived && match.playoffCellId) await playoffGridRepository.detachMatch(match.playoffCellId, match.id)
+                    await matchesRepository.updateMatch?.(match.id, {
+                      archived: !match.archived,
+                      clockAnchorAt: null,
+                      currentMinute: match.currentMinute ?? liveMinute ?? 0,
+                      status: match.archived ? match.status : 'finished',
+                    })
+                    setGoalStatus(match.archived ? 'Матч возвращен из архива.' : 'Матч отправлен в архив.')
+                    setArchiveConfirmOpen(false)
+                    if (!match.archived) navigate('/matches')
+                  } catch (error) {
+                    setGoalStatus(actionError(error))
+                  } finally {
+                    setArchivePending(false)
+                  }
+                }}
+              >
+                Подтвердить
+              </button>
+              <button type="button" className="rounded-lg border border-borderSubtle px-3 py-1.5 text-xs text-textSecondary" onClick={() => setArchiveConfirmOpen(false)}>Отмена</button>
+            </div>
+          </div>
+        </section>
+      )}
 
       <CommentsSection entityType="match" entityId={match.id} title="Комментарии" />
       {isAdmin && (
         <section className="mt-3 rounded-2xl border border-borderSubtle bg-panelBg p-3 shadow-soft">
-          <div className="flex items-center justify-end">
+          <div className="space-y-2">
             <button type="button" onClick={() => { void openPlayoffModal() }} className="inline-flex w-full justify-center rounded-xl bg-accentYellow px-4 py-2 text-xs font-semibold text-app shadow-soft">
               Добавить плейофф
+            </button>
+            <button type="button" onClick={() => setArchiveConfirmOpen(true)} className={`inline-flex w-full justify-center rounded-xl px-4 py-2 text-xs font-semibold shadow-soft ${match.archived ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'border border-borderSubtle bg-panelBg text-textPrimary'}`}>
+              {match.archived ? 'Вернуть из архива' : 'Скрыть матч'}
             </button>
           </div>
         </section>

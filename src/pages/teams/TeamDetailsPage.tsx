@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { CalendarClock, Pencil, ShieldCheck, Trophy, Users } from 'lucide-react'
+import { CalendarClock, Pencil, ShieldCheck, Star, Trophy, Users } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
 import { usePlayers } from '../../hooks/data/usePlayers'
@@ -18,6 +18,7 @@ import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { canManageTeam } from '../../domain/services/accessControl'
 import { ApiError } from '../../infrastructure/api/repositories'
+import { useUserPreferences } from '../../hooks/app/useUserPreferences'
 import {
   EditableSection,
   EditableTextField,
@@ -37,6 +38,7 @@ export const TeamDetailsPage = () => {
   const { data: matches } = useMatches()
   const { data: teams } = useTeams()
   const { session } = useSession()
+  const { isFavorite, toggleFavorite } = useUserPreferences()
   const { teamsRepository, uploadsRepository } = useRepositories()
   const [heroEditing, setHeroEditing] = useState(false)
   const [heroSaving, setHeroSaving] = useState(false)
@@ -100,6 +102,7 @@ export const TeamDetailsPage = () => {
       ? `Следующий • ${nextMatch.round}`
       : 'ВЫБЫЛА'
   const canManageCurrentTeam = canManageTeam(session, team)
+  const isFavoriteTeam = isFavorite(`team:${team.id}`)
   const actionError = (error: unknown) => {
     if (error instanceof ApiError) return `Ошибка API ${error.status}: ${error.message}`
     return error instanceof Error ? error.message : 'Не удалось сохранить'
@@ -136,22 +139,34 @@ export const TeamDetailsPage = () => {
         </div>
 
         <div className="relative z-10">
-          {canManageCurrentTeam && !heroEditing && (
+          {!heroEditing && session.isAuthenticated && (
             <div className="absolute right-4 top-4 z-20">
-              <button
-                type="button"
-                onClick={() => {
-                  syncHeroDraft()
-                  setHeroStatus(null)
-                  setHeroTone('idle')
-                  setHeroEditing(true)
-                }}
-                className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle bg-black/30 px-2 py-1 text-xs text-textSecondary"
-                aria-label="Редактировать профиль команды"
-              >
-                <Pencil size={14} />
-                Редактировать
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleFavorite(`team:${team.id}`)}
+                  className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${isFavoriteTeam ? 'border-accentYellow/70 bg-accentYellow/10 text-accentYellow' : 'border-borderSubtle bg-black/30 text-textMuted'}`}
+                  aria-label={isFavoriteTeam ? 'Убрать команду из избранного' : 'Добавить команду в избранное'}
+                >
+                  <Star size={14} className={isFavoriteTeam ? 'fill-current' : ''} />
+                </button>
+                {canManageCurrentTeam && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      syncHeroDraft()
+                      setHeroStatus(null)
+                      setHeroTone('idle')
+                      setHeroEditing(true)
+                    }}
+                    className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle bg-black/30 px-2 py-1 text-xs text-textSecondary"
+                    aria-label="Редактировать профиль команды"
+                  >
+                    <Pencil size={14} />
+                    Редактировать
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -288,7 +303,7 @@ export const TeamDetailsPage = () => {
         </div>
       </section>
 
-      <EventFeedSection title="События команды" events={localTeamFeed} layout="timeline" messageWhenEmpty="События команды пока не добавлены." linkToAll={`/teams/${team.id}/events`} />
+      <EventFeedSection title="События команды" events={localTeamFeed} layout="timeline" notificationScopeKey={`events:team:${team.id}`} messageWhenEmpty="События команды пока не добавлены." linkToAll={`/teams/${team.id}/events`} />
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
         <div className="mb-3 flex items-center justify-between">

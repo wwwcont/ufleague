@@ -162,8 +162,8 @@ export const playersRepository: PlayersRepository = {
 }
 
 export const matchesRepository: MatchesRepository = {
-  async getMatches() {
-    return matches
+  async getMatches(options) {
+    return options?.includeArchived ? matches : matches.filter((match) => !match.archived)
   },
   async getMatchById(matchId) {
     return matches.find((m) => m.id === matchId) ?? null

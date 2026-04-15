@@ -37,6 +37,7 @@ const sectionRoles: Record<string, UserRole> = {
   'revoke-access': 'admin',
   'issue-restriction': 'admin',
   'create-match': 'admin',
+  'matches-archive': 'admin',
   'team-socials': 'captain',
   roster: 'captain',
   moderation: 'admin',
@@ -68,6 +69,7 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   'revoke-access': { title: 'Забрать права', description: 'Снятие captain/admin прав.', tips: ['Сначала найдите пользователя по @username.', 'Действие требует подтверждения.'] },
   'issue-restriction': { title: 'Выдать ограничение', description: 'Ограничение комментирования пользователя.', tips: ['Укажите причину ограничения.', 'Можно выдать постоянный или временный блок.'] },
   'create-match': { title: 'Создать матч', description: 'Быстрое создание матча турнира.', tips: ['Выберите домашнюю и гостевую команды.', 'Проверьте RFC3339 для даты старта.'] },
+  'matches-archive': { title: 'Архив матчей', description: 'Скрытые матчи, исключенные из лент и статистики.', tips: ['Откройте матч из архива для проверки.', 'При необходимости верните матч обратно.'] },
   roster: { title: 'Управление составом', description: 'Состав команды с действиями по каждому игроку.', tips: ['Откроется страница команды в режиме состава.', 'Кнопки: глаз, карандаш, крестик.'] },
   'team-events': { title: 'События команды', description: 'Лента событий вашей команды.', tips: ['Кнопка создания доступна только капитану этой команды.', 'Редактирование/удаление скрыто для остальных.'] },
   'team-socials': { title: 'Соцсети команды', description: 'Обновление публичных ссылок команды.', tips: ['Формат ввода: key=value.', 'Сохраняйте только валидные URL.'] },
@@ -81,6 +83,52 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
 }
 
 const parseCSV = (raw: string) => raw.split(',').map((item) => item.trim()).filter(Boolean)
+const mskOffsetMinutes = 3 * 60
+
+const toMskDateTimeInput = (iso?: string) => {
+  if (!iso) return ''
+  const parsed = new Date(iso)
+  if (Number.isNaN(parsed.getTime())) return ''
+  const shifted = new Date(parsed.getTime() + mskOffsetMinutes * 60_000)
+  const yyyy = shifted.getUTCFullYear()
+  const mm = String(shifted.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(shifted.getUTCDate()).padStart(2, '0')
+  const hh = String(shifted.getUTCHours()).padStart(2, '0')
+  const mi = String(shifted.getUTCMinutes()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`
+}
+
+const fromMskDateTimeInput = (value: string) => {
+  if (!value) return ''
+  const [datePart, timePart] = value.split('T')
+  if (!datePart || !timePart) return ''
+  const [year, month, day] = datePart.split('-').map(Number)
+  const [hour, minute] = timePart.split(':').map(Number)
+  if (![year, month, day, hour, minute].every(Number.isFinite)) return ''
+  return new Date(Date.UTC(year, month - 1, day, hour - 3, minute, 0)).toISOString()
+}
+
+const toMskDisplay = (iso?: string) => {
+  if (!iso) return ''
+  const raw = toMskDateTimeInput(iso)
+  if (!raw) return ''
+  const [datePart, timePart] = raw.split('T')
+  if (!datePart || !timePart) return ''
+  const [year, month, day] = datePart.split('-')
+  return `${day}.${month}.${year} ${timePart}`
+}
+
+const toDateInputFromDdMmYyyy = (value: string) => {
+  if (!/^\d{2}\.\d{2}\.\d{4}$/.test(value)) return ''
+  const [dd, mm, yyyy] = value.split('.')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+const toDdMmYyyyFromDateInput = (value: string) => {
+  const [yyyy, mm, dd] = value.split('-')
+  if (!yyyy || !mm || !dd) return ''
+  return `${dd}.${mm}.${yyyy}`
+}
 
 const statusTone = (status: string) => status.startsWith('ok:') ? 'text-emerald-300' : 'text-rose-300'
 
@@ -179,6 +227,7 @@ export const CabinetSectionPage = () => {
   const [matchReferee, setMatchReferee] = useState('')
   const [matchBroadcastUrl, setMatchBroadcastUrl] = useState('')
   const [matchStage, setMatchStage] = useState('')
+  const [archivedMatches, setArchivedMatches] = useState<Match[]>([])
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileLoaded, setProfileLoaded] = useState<null | { displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> }>(null)
   const [tournamentCycles, setTournamentCycles] = useState<Array<{ id: string; name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive: boolean }>>([])
@@ -215,6 +264,13 @@ export const CabinetSectionPage = () => {
       }
     }).catch(() => undefined)
   }, [cabinetRepository, section])
+
+  useEffect(() => {
+    if (section !== 'matches-archive') return
+    void matchesRepository.getMatches({ includeArchived: true })
+      .then((list) => setArchivedMatches(list.filter((match) => match.archived)))
+      .catch(() => setArchivedMatches([]))
+  }, [matchesRepository, section, status])
 
   useEffect(() => {
     if (!(section === 'profile-settings' || section === 'profile' || section === 'edit')) return
@@ -430,7 +486,7 @@ export const CabinetSectionPage = () => {
             <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Имя" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           </div>
           <input value={middleName} onChange={(e) => setMiddleName(e.target.value)} placeholder="Отчество (если есть)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <input value={birthDate} onChange={(e) => setBirthDate(e.target.value)} placeholder="Дата рождения (ДД.ММ.ГГГГ)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input type="date" value={toDateInputFromDdMmYyyy(birthDate)} onChange={(e) => setBirthDate(toDdMmYyyyFromDateInput(e.target.value))} placeholder="Дата рождения (ДД.ММ.ГГГГ)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           {(birthDateError || nameError) && <p className="text-xs text-rose-300">{nameError || birthDateError}</p>}
           <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Отображаемое имя" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <input value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="Ссылка на фото профиля" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
@@ -910,7 +966,8 @@ export const CabinetSectionPage = () => {
               <option value="">Гостевая команда</option>
               {(teams ?? []).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}
             </select>
-            <input value={matchStartAt} onChange={(e) => setMatchStartAt(e.target.value)} placeholder="Дата и время старта (RFC3339)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <input type="datetime-local" value={toMskDateTimeInput(matchStartAt)} onChange={(e) => setMatchStartAt(fromMskDateTimeInput(e.target.value))} placeholder="Дата и время старта (МСК)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <p className="text-[11px] text-textMuted">МСК: {toMskDisplay(matchStartAt) || '—'} (формат ДД.ММ.ГГГГ ЧЧ:ММ)</p>
             <input value={matchStatus} onChange={(e) => setMatchStatus(e.target.value as typeof matchStatus)} placeholder="status" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={matchStage} onChange={(e) => setMatchStage(e.target.value)} placeholder="Стадия (например: 1/8)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={matchVenue} onChange={(e) => setMatchVenue(e.target.value)} placeholder="venue" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
@@ -950,7 +1007,8 @@ export const CabinetSectionPage = () => {
             <option value="">Гостевая команда</option>
             {(teams ?? []).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}
           </select>
-          <input value={matchStartAt} onChange={(e) => setMatchStartAt(e.target.value)} placeholder="Дата и время старта (RFC3339)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input type="datetime-local" value={toMskDateTimeInput(matchStartAt)} onChange={(e) => setMatchStartAt(fromMskDateTimeInput(e.target.value))} placeholder="Дата и время старта (МСК)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <p className="text-[11px] text-textMuted">МСК: {toMskDisplay(matchStartAt) || '—'} (формат ДД.ММ.ГГГГ ЧЧ:ММ)</p>
           <input value={matchStatus} onChange={(e) => setMatchStatus(e.target.value as typeof matchStatus)} placeholder="status" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <input value={matchStage} onChange={(e) => setMatchStage(e.target.value)} placeholder="Стадия (например: 1/8)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <button type="button" disabled={!isAdminScope} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
@@ -961,6 +1019,35 @@ export const CabinetSectionPage = () => {
               setStatus(`error: ${(error as Error).message}`)
             }
           }}>Create match</button>
+        </section>
+      )}
+
+      {section === 'matches-archive' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          <p className="text-xs text-textMuted">Скрытые матчи (архив):</p>
+          {archivedMatches.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-borderStrong bg-mutedBg px-3 py-2 text-xs text-textMuted">В архиве пока нет матчей.</p>
+          ) : (
+            <div className="space-y-2">
+              {archivedMatches.map((item) => (
+                <div key={item.id} className="rounded-lg border border-borderSubtle bg-mutedBg p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm text-textPrimary">Матч #{item.id} • {item.date} {item.time}</p>
+                    <Link to={`/matches/${item.id}`} className="text-xs text-accentYellow hover:underline">Открыть</Link>
+                  </div>
+                  <button type="button" className="mt-2 rounded-lg border border-borderSubtle px-3 py-1.5 text-xs text-textSecondary" onClick={async () => {
+                    try {
+                      await matchesRepository.updateMatch?.(item.id, { archived: false })
+                      setStatus('ok: match restored from archive')
+                      setArchivedMatches((prev) => prev.filter((match) => match.id !== item.id))
+                    } catch (error) {
+                      setStatus(`error: ${(error as Error).message}`)
+                    }
+                  }}>Вернуть из архива</button>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -991,7 +1078,11 @@ export const CabinetSectionPage = () => {
           )}
           <input value={blockedUserId} onChange={(e) => setBlockedUserId(e.target.value)} placeholder="user id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <label className="text-xs text-textSecondary flex items-center gap-2"><input type="checkbox" checked={permanent} onChange={(e) => setPermanent(e.target.checked)} /> permanent</label>
-          <input value={untilUnix} onChange={(e) => setUntilUnix(e.target.value)} placeholder="until unix" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <input type="datetime-local" value={toMskDateTimeInput(Number(untilUnix) > 0 ? new Date(Number(untilUnix) * 1000).toISOString() : '')} onChange={(e) => {
+            const iso = fromMskDateTimeInput(e.target.value)
+            setUntilUnix(iso ? String(Math.floor(new Date(iso).getTime() / 1000)) : '0')
+          }} placeholder="Срок блока (МСК)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <p className="text-[11px] text-textMuted">До: {Number(untilUnix) > 0 ? toMskDisplay(new Date(Number(untilUnix) * 1000).toISOString()) : 'без срока'} (МСК)</p>
           <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Причина ограничения" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
             try {
@@ -1076,7 +1167,7 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'create-match', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
+      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'create-match', 'matches-archive', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
           Раздел синхронизирован по правам доступа и готов к расширению бизнес-формами.
         </section>

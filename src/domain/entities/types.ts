@@ -142,6 +142,7 @@ export interface MatchEvent {
   teamId?: ID
   playerId?: ID
   assistPlayerId?: ID
+  linkedEventId?: ID
   note?: string
 }
 
@@ -163,6 +164,9 @@ export interface Match {
   referee?: string
   broadcastUrl?: string
   diskUrl?: string
+  currentMinute?: number
+  clockAnchorAt?: string
+  archived?: boolean
   playoffCellId?: ID | null
   tieRelation?: MatchTieRelation | null
 }
