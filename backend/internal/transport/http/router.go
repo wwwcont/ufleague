@@ -306,18 +306,7 @@ func (h Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); forwarded != "" {
-		scheme = forwarded
-	}
-	host := r.Host
-	if forwardedHost := strings.TrimSpace(r.Header.Get("X-Forwarded-Host")); forwardedHost != "" {
-		host = forwardedHost
-	}
-	writeJSON(w, 201, map[string]string{"url": fmt.Sprintf("%s://%s/uploads/%s", scheme, host, filename)})
+	writeJSON(w, 201, map[string]string{"url": fmt.Sprintf("/uploads/%s", filename)})
 }
 
 func detectImageContentType(raw []byte, headerContentType, filename string) string {

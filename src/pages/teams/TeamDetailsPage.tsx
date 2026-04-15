@@ -183,8 +183,9 @@ export const TeamDetailsPage = () => {
               <TeamAvatar
                 team={{ ...team, logoUrl: editableLogoUrl ?? team.logoUrl }}
                 size="xl"
+                fit="cover"
                 fallbackLogoUrl={tournamentFallbackLogo}
-                className="h-28 w-28 overflow-hidden rounded-full border border-borderStrong bg-panelSoft p-0 [&_img]:h-full [&_img]:w-full [&_img]:object-cover"
+                className="h-28 w-28 overflow-hidden rounded-full border border-borderStrong bg-panelSoft p-0"
               />
               <p className="text-5xl font-black uppercase tracking-[0.14em] text-white">{team.shortName}</p>
             </div>
