@@ -289,6 +289,10 @@ func (h Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 
 	ext := extensionByContentType(contentType)
 	filename := fmt.Sprintf("%d_%06d%s", time.Now().UnixMilli(), rand.Intn(1000000), ext)
+	if err = os.MkdirAll("uploads", 0o755); err != nil {
+		http.Error(w, "failed to prepare upload dir", 500)
+		return
+	}
 	targetPath := filepath.Join("uploads", filename)
 
 	dst, err := os.Create(targetPath)

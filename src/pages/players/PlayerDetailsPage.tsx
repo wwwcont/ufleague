@@ -25,6 +25,8 @@ import {
 import type { EventContentBlock } from '../../domain/entities/types'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
 import { useUserPreferences } from '../../hooks/app/useUserPreferences'
+import { CircularImageCropField } from '../../components/ui/CircularImageCropField'
+import { buildCircularCropUploadFile, type CircleCrop } from '../../lib/image-upload'
 
 const getInitials = (name: string) => name.split(' ').map((part) => part[0]).join('').slice(0, 2)
 
@@ -46,7 +48,7 @@ export const PlayerDetailsPage = () => {
   const { data: matches } = useMatches()
   const { session } = useSession()
   const { isFavorite, toggleFavorite } = useUserPreferences()
-  const { playersRepository, eventsRepository, uploadsRepository } = useRepositories()
+  const { playersRepository, eventsRepository, uploadsRepository, usersRepository } = useRepositories()
 
   const [heroEditing, setHeroEditing] = useState(false)
   const [profileEditing, setProfileEditing] = useState(false)
@@ -70,6 +72,7 @@ export const PlayerDetailsPage = () => {
   const [number, setNumber] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | undefined>(undefined)
+  const [avatarCrop, setAvatarCrop] = useState<CircleCrop>({ x: 0, y: 0, zoom: 1 })
   const [position, setPosition] = useState(player?.position ?? 'MF')
   const [eventCreateOpen, setEventCreateOpen] = useState(false)
   const [eventCreatePending, setEventCreatePending] = useState(false)
@@ -90,10 +93,21 @@ export const PlayerDetailsPage = () => {
     setPosition(player.position ?? 'MF')
     setAvatarPreview(player.avatar ?? undefined)
     setAvatarFile(null)
+    setAvatarCrop({ x: 0, y: 0, zoom: 1 })
     setHeroEditing(false)
     setProfileEditing(false)
     setSportsEditing(false)
   }, [player])
+
+  useEffect(() => {
+    if (!player?.userId || !usersRepository.getUserProfile) return
+    void usersRepository.getUserProfile(player.userId)
+      .then((profile) => {
+        if (!profile?.avatarUrl) return
+        setAvatarPreview(profile.avatarUrl)
+      })
+      .catch(() => undefined)
+  }, [player?.userId, usersRepository])
 
   if (!player) return <PageContainer><EmptyState title="Игрок не найден" /></PageContainer>
 
@@ -187,6 +201,7 @@ export const PlayerDetailsPage = () => {
                   isEditing
                   onSelectFile={(file) => {
                     setAvatarFile(file)
+                    setAvatarCrop({ x: 0, y: 0, zoom: 1 })
                     if (!file) {
                       setAvatarPreview(player.avatar ?? undefined)
                       return
@@ -194,6 +209,16 @@ export const PlayerDetailsPage = () => {
                     setAvatarPreview(URL.createObjectURL(file))
                   }}
                 />
+                {avatarFile && avatarPreview && (
+                  <div className="mt-3">
+                    <CircularImageCropField
+                      label="Миниатюра (круг)"
+                      imageUrl={avatarPreview}
+                      crop={avatarCrop}
+                      onChange={setAvatarCrop}
+                    />
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -216,8 +241,15 @@ export const PlayerDetailsPage = () => {
               setHeroStatus('Сохраняем профиль...')
               setHeroTone('idle')
               try {
-                const uploadedAvatar = avatarFile ? (await uploadsRepository.uploadImage(avatarFile)).url : player.avatar || undefined
+                const preparedAvatarFile = avatarFile ? await buildCircularCropUploadFile(avatarFile, avatarCrop) : null
+                const uploadedAvatar = preparedAvatarFile ? (await uploadsRepository.uploadImage(preparedAvatarFile)).url : avatarPreview || player.avatar || undefined
                 await playersRepository.updatePlayer(player.id, { displayName: displayName || player.displayName, avatar: uploadedAvatar })
+                if (uploadedAvatar && player.userId && usersRepository.getUserProfile && usersRepository.updateUserProfile) {
+                  const userProfile = await usersRepository.getUserProfile(player.userId)
+                  if (userProfile) {
+                    await usersRepository.updateUserProfile(player.userId, { ...userProfile, avatarUrl: uploadedAvatar })
+                  }
+                }
                 setHeroStatus('Профиль обновлен')
                 setHeroTone('success')
                 setHeroEditing(false)
