@@ -6,6 +6,7 @@ import { useRepositories } from '../../app/providers/use-repositories'
 import { useQueryState } from '../../hooks/data/useQueryState'
 import { useSession } from '../../app/providers/use-session'
 import { isAdmin } from '../../domain/services/accessControl'
+import { ImageCropperDialog } from '../../components/ui/ImageCropperDialog'
 
 const roleLabel: Record<string, string> = {
   guest: 'Пользователь',
@@ -17,7 +18,7 @@ const roleLabel: Record<string, string> = {
 
 export const UserDetailsPage = () => {
   const { userId } = useParams()
-  const { usersRepository, uploadsRepository } = useRepositories()
+  const { usersRepository, playersRepository, uploadsRepository } = useRepositories()
   const { session } = useSession()
   const { data: user } = useQueryState(() => (userId ? usersRepository.getUserCard(userId) : Promise.resolve(null)), (value) => !value)
   const [profile, setProfile] = useState<{ userId: string; username: string; telegramId?: string; telegramUsername?: string; displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> } | null>(null)
@@ -28,6 +29,7 @@ export const UserDetailsPage = () => {
   const [bio, setBio] = useState('')
   const [avatarUrl, setAvatarUrl] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [avatarCropFile, setAvatarCropFile] = useState<File | null>(null)
   const [status, setStatus] = useState<string | null>(null)
 
   const canEditUser = useMemo(() => {
@@ -59,6 +61,7 @@ export const UserDetailsPage = () => {
     setBio('')
     setAvatarUrl('')
     setAvatarFile(null)
+    setAvatarCropFile(null)
   }, [canEditUser])
 
   if (!user) {
@@ -130,7 +133,19 @@ export const UserDetailsPage = () => {
               <input value={firstName} onChange={(event) => setFirstName(event.target.value)} maxLength={30} placeholder="Имя (до 30 символов)" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
               <input value={lastName} onChange={(event) => setLastName(event.target.value)} maxLength={30} placeholder="Фамилия (до 30 символов)" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
             </div>
-            <input type="file" accept="image/*" onChange={(event) => setAvatarFile(event.target.files?.[0] ?? null)} className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1 text-xs" />
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null
+                if (!file) {
+                  setAvatarFile(null)
+                  return
+                }
+                setAvatarCropFile(file)
+              }}
+              className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1 text-xs"
+            />
             <input value={avatarUrl} onChange={(event) => setAvatarUrl(event.target.value)} placeholder="Avatar URL (или загрузите файл выше)" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
             <textarea value={bio} onChange={(event) => setBio(event.target.value)} rows={3} placeholder="Bio" className="w-full rounded-lg border border-borderSubtle bg-panelBg px-2 py-1" />
             <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
@@ -138,6 +153,9 @@ export const UserDetailsPage = () => {
               try {
                 const uploadedAvatarUrl = avatarFile ? (await uploadsRepository.uploadImage(avatarFile)).url : avatarUrl
                 await usersRepository.updateUserProfile(userId, { displayName, firstName: firstName.trim(), lastName: lastName.trim(), bio, avatarUrl: uploadedAvatarUrl, socials: profile?.socials ?? {} })
+                if (user.playerId && playersRepository.updatePlayer) {
+                  await playersRepository.updatePlayer(user.playerId, { avatar: uploadedAvatarUrl })
+                }
                 setProfile((prev) => prev ? { ...prev, displayName, firstName: firstName.trim(), lastName: lastName.trim(), bio, avatarUrl: uploadedAvatarUrl } : prev)
                 setStatus('Профиль сохранён')
                 setIsEditing(false)
@@ -149,6 +167,17 @@ export const UserDetailsPage = () => {
           </div>
         )}
       </section>
+      <ImageCropperDialog
+        isOpen={Boolean(avatarCropFile)}
+        file={avatarCropFile}
+        title="Миниатюра аватара"
+        onCancel={() => setAvatarCropFile(null)}
+        onApply={(file, previewUrl) => {
+          setAvatarFile(file)
+          setAvatarUrl(previewUrl)
+          setAvatarCropFile(null)
+        }}
+      />
 
       {(user.playerId || user.teamId) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">

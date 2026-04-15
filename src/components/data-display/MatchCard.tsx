@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { Match, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
-import { EntityReactions } from '../ui/EntityReactions'
 import { formatMatchMetaMsk, getTimeToKickoff } from '../../lib/date-time'
 
 const tournamentFallbackLogo = '/assets/logos/tournament.svg'
@@ -70,12 +69,8 @@ export const MatchCard = ({ match, home, away }: { match: Match; home: Team; awa
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-3 text-xs text-textMuted sm:text-sm">
+      <div className="mt-3 text-xs text-textMuted sm:text-sm">
         <span className="truncate">{match.venue}</span>
-        <div className="flex items-center gap-2">
-          <span className="text-textMuted">{match.round}</span>
-          <EntityReactions entityKey={`match:${match.id}`} compact interactive={false} />
-        </div>
       </div>
     </Link>
   )

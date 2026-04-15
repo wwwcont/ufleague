@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { PublicEvent } from '../../domain/entities/types'
-import { EntityReactions } from '../ui/EntityReactions'
 import { formatDateTimeMsk } from '../../lib/date-time'
 import { MediaPreviewModal } from '../ui/MediaPreviewModal'
 import { useTeams } from '../../hooks/data/useTeams'
@@ -62,7 +61,6 @@ const EventCardInner = ({ event, showRoleActions }: EventCardProps) => {
 
         <div className="mt-2 flex items-center justify-between gap-2">
           <p className="text-xs text-textMuted">{sourceLabel} · {event.authorName}</p>
-          <EntityReactions entityKey={`event:${event.id}`} compact />
         </div>
 
         {showRoleActions && (
