@@ -10,6 +10,7 @@ type UserPreferenceState = {
 type UserPreferenceStore = Record<string, UserPreferenceState>
 
 const STORAGE_KEY = 'ufl_user_preferences_v1'
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 
 const defaultState: UserPreferenceState = {
   mutedMatchIds: [],
@@ -50,6 +51,16 @@ export const useUserPreferences = () => {
     const current = store[userId] ?? defaultState
     const next = updater(current)
     writeStore({ ...store, [userId]: next })
+    void fetch(`${API_BASE}/api/me/notification-preferences`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        muted_match_ids: next.mutedMatchIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0),
+        muted_feed_keys: next.mutedFeedKeys,
+        favorite_entity_keys: next.favoriteEntityKeys,
+      }),
+    }).catch(() => undefined)
     setRevision((value) => value + 1)
   }, [userId])
 

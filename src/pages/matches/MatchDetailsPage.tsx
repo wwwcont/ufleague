@@ -88,7 +88,7 @@ export const MatchDetailsPage = () => {
   const { data: teams } = useTeams()
   const { data: players } = usePlayers()
   const { session } = useSession()
-  const { matchesRepository, playoffGridRepository, cabinetRepository } = useRepositories()
+  const { matchesRepository, playoffGridRepository, cabinetRepository, eventsRepository } = useRepositories()
 
   const teamMap = Object.fromEntries((teams ?? []).map((team) => [team.id, team]))
   const home = match ? teamMap[match.homeTeamId] : null
@@ -108,6 +108,7 @@ export const MatchDetailsPage = () => {
   const [goalAssistId, setGoalAssistId] = useState('')
   const [goalStatus, setGoalStatus] = useState<string | null>(null)
   const [goalAction, setGoalAction] = useState<'add' | 'remove_selected' | 'remove_last'>('add')
+  const [autoCreateGoalEvent, setAutoCreateGoalEvent] = useState(true)
   const [goalConfirmOpen, setGoalConfirmOpen] = useState(false)
   const [activeTournamentId, setActiveTournamentId] = useState('1')
   const normalizedTournamentId = /^\d+$/.test(activeTournamentId) ? activeTournamentId : '1'
@@ -341,6 +342,21 @@ export const MatchDetailsPage = () => {
               >
                 Убавить последний гол {lastGoalTeamShortName}
               </button>
+              <div className="mt-1 flex items-center justify-between rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2">
+                <div>
+                  <p className="text-xs font-semibold text-textPrimary">Автосоздание события о голе</p>
+                  <p className="text-[11px] text-textMuted">После подтверждения счета в ленте матча</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={autoCreateGoalEvent}
+                  onClick={() => setAutoCreateGoalEvent((value) => !value)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${autoCreateGoalEvent ? 'bg-accentYellow' : 'bg-zinc-500/70'}`}
+                >
+                  <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${autoCreateGoalEvent ? 'translate-x-5' : 'translate-x-1'}`} />
+                </button>
+              </div>
             </div>
           </div>
         </section>
@@ -415,6 +431,21 @@ export const MatchDetailsPage = () => {
                 setLocalEvents(nextEvents)
                 try {
                   await matchesRepository.updateMatch?.(match.id, { homeScore: nextScore.home, awayScore: nextScore.away, goalEvents: nextEvents })
+                  if (goalAction === 'add' && autoCreateGoalEvent) {
+                    const scorerName = players.find((player) => player.id === goalScorerId)?.displayName ?? 'Игрок'
+                    const assistName = goalAssistId ? players.find((player) => player.id === goalAssistId)?.displayName : ''
+                    const teamName = teamMap[goalTeamId]?.name ?? 'Команда'
+                    const summary = assistName
+                      ? `${teamName}: ${scorerName} (ассист: ${assistName})`
+                      : `${teamName}: ${scorerName}`
+                    await eventsRepository.createEventForScope?.({
+                      scopeType: 'match',
+                      scopeId: match.id,
+                      title: `Гол: ${teamMap[goalTeamId]?.shortName ?? teamName}`,
+                      summary,
+                      body: summary,
+                    })
+                  }
                   setGoalStatus('Счет сохранен.')
                 } catch (error) {
                   setGoalStatus(actionError(error))
