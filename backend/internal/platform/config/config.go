@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -66,17 +67,29 @@ func (h HTTPConfig) Address() string {
 }
 
 func Load() (Config, error) {
-	_ = godotenv.Load()
+	_ = godotenv.Load(".env", "backend/.env")
 
 	cfg := Config{}
 	if err := env.Parse(&cfg); err != nil {
 		return Config{}, err
+	}
+	if strings.TrimSpace(cfg.Telegram.BotToken) == "" {
+		cfg.Telegram.BotToken = firstNonEmptyEnv("BOT_TOKEN", "TELEGRAM_TOKEN")
 	}
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
 
 	return cfg, nil
+}
+
+func firstNonEmptyEnv(keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func (c Config) IsProduction() bool {

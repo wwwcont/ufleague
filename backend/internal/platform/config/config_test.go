@@ -59,3 +59,11 @@ func TestValidateDevelopmentAllowsMockFlags(t *testing.T) {
 		t.Fatalf("unexpected validation error in development: %v", err)
 	}
 }
+
+func TestFirstNonEmptyEnvReturnsFirstPresentValue(t *testing.T) {
+	t.Setenv("BOT_TOKEN", "")
+	t.Setenv("TELEGRAM_TOKEN", "legacy-token")
+	if got := firstNonEmptyEnv("BOT_TOKEN", "TELEGRAM_TOKEN"); got != "legacy-token" {
+		t.Fatalf("expected legacy token fallback, got %q", got)
+	}
+}
