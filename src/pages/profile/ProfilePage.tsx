@@ -40,12 +40,14 @@ const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
     { title: 'Забрать права', description: 'Снять captain/admin права у пользователя.', route: '/profile/revoke-access', icon: 'shield' },
     { title: 'Выдать ограничение', description: 'Ограничить публикацию комментариев.', route: '/profile/issue-restriction', icon: 'shield' },
     { title: 'Создать матч', description: 'Создание нового матча турнира.', route: '/profile/create-match', icon: 'shield' },
+    { title: 'Архив матчей', description: 'Скрытые матчи и возврат из архива.', route: '/profile/matches-archive', icon: 'shield' },
   ],
   superadmin: [
     { title: 'Выдать права', description: 'Найти пользователя и выдать роль капитана/игрока/админа.', route: '/profile/grant-access', icon: 'shield' },
     { title: 'Забрать права', description: 'Снять captain/admin права у пользователя.', route: '/profile/revoke-access', icon: 'shield' },
     { title: 'Выдать ограничение', description: 'Ограничить публикацию комментариев.', route: '/profile/issue-restriction', icon: 'shield' },
     { title: 'Создать матч', description: 'Создание нового матча турнира.', route: '/profile/create-match', icon: 'shield' },
+    { title: 'Архив матчей', description: 'Скрытые матчи и возврат из архива.', route: '/profile/matches-archive', icon: 'shield' },
   ],
 }
 

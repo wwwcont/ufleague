@@ -37,6 +37,7 @@ const sectionRoles: Record<string, UserRole> = {
   'revoke-access': 'admin',
   'issue-restriction': 'admin',
   'create-match': 'admin',
+  'matches-archive': 'admin',
   'team-socials': 'captain',
   roster: 'captain',
   moderation: 'admin',
@@ -68,6 +69,7 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   'revoke-access': { title: 'Забрать права', description: 'Снятие captain/admin прав.', tips: ['Сначала найдите пользователя по @username.', 'Действие требует подтверждения.'] },
   'issue-restriction': { title: 'Выдать ограничение', description: 'Ограничение комментирования пользователя.', tips: ['Укажите причину ограничения.', 'Можно выдать постоянный или временный блок.'] },
   'create-match': { title: 'Создать матч', description: 'Быстрое создание матча турнира.', tips: ['Выберите домашнюю и гостевую команды.', 'Проверьте RFC3339 для даты старта.'] },
+  'matches-archive': { title: 'Архив матчей', description: 'Скрытые матчи, исключенные из лент и статистики.', tips: ['Откройте матч из архива для проверки.', 'При необходимости верните матч обратно.'] },
   roster: { title: 'Управление составом', description: 'Состав команды с действиями по каждому игроку.', tips: ['Откроется страница команды в режиме состава.', 'Кнопки: глаз, карандаш, крестик.'] },
   'team-events': { title: 'События команды', description: 'Лента событий вашей команды.', tips: ['Кнопка создания доступна только капитану этой команды.', 'Редактирование/удаление скрыто для остальных.'] },
   'team-socials': { title: 'Соцсети команды', description: 'Обновление публичных ссылок команды.', tips: ['Формат ввода: key=value.', 'Сохраняйте только валидные URL.'] },
@@ -225,6 +227,7 @@ export const CabinetSectionPage = () => {
   const [matchReferee, setMatchReferee] = useState('')
   const [matchBroadcastUrl, setMatchBroadcastUrl] = useState('')
   const [matchStage, setMatchStage] = useState('')
+  const [archivedMatches, setArchivedMatches] = useState<Match[]>([])
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileLoaded, setProfileLoaded] = useState<null | { displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> }>(null)
   const [tournamentCycles, setTournamentCycles] = useState<Array<{ id: string; name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive: boolean }>>([])
@@ -261,6 +264,13 @@ export const CabinetSectionPage = () => {
       }
     }).catch(() => undefined)
   }, [cabinetRepository, section])
+
+  useEffect(() => {
+    if (section !== 'matches-archive') return
+    void matchesRepository.getMatches({ includeArchived: true })
+      .then((list) => setArchivedMatches(list.filter((match) => match.archived)))
+      .catch(() => setArchivedMatches([]))
+  }, [matchesRepository, section, status])
 
   useEffect(() => {
     if (!(section === 'profile-settings' || section === 'profile' || section === 'edit')) return
@@ -1012,6 +1022,35 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
+      {section === 'matches-archive' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          <p className="text-xs text-textMuted">Скрытые матчи (архив):</p>
+          {archivedMatches.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-borderStrong bg-mutedBg px-3 py-2 text-xs text-textMuted">В архиве пока нет матчей.</p>
+          ) : (
+            <div className="space-y-2">
+              {archivedMatches.map((item) => (
+                <div key={item.id} className="rounded-lg border border-borderSubtle bg-mutedBg p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm text-textPrimary">Матч #{item.id} • {item.date} {item.time}</p>
+                    <Link to={`/matches/${item.id}`} className="text-xs text-accentYellow hover:underline">Открыть</Link>
+                  </div>
+                  <button type="button" className="mt-2 rounded-lg border border-borderSubtle px-3 py-1.5 text-xs text-textSecondary" onClick={async () => {
+                    try {
+                      await matchesRepository.updateMatch?.(item.id, { archived: false })
+                      setStatus('ok: match restored from archive')
+                      setArchivedMatches((prev) => prev.filter((match) => match.id !== item.id))
+                    } catch (error) {
+                      setStatus(`error: ${(error as Error).message}`)
+                    }
+                  }}>Вернуть из архива</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {section === 'moderation' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
           <input value={commentId} onChange={(e) => setCommentId(e.target.value)} placeholder="comment id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
@@ -1128,7 +1167,7 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'create-match', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
+      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'create-match', 'matches-archive', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
           Раздел синхронизирован по правам доступа и готов к расширению бизнес-формами.
         </section>

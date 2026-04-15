@@ -166,6 +166,7 @@ export interface Match {
   diskUrl?: string
   currentMinute?: number
   clockAnchorAt?: string
+  archived?: boolean
   playoffCellId?: ID | null
   tieRelation?: MatchTieRelation | null
 }

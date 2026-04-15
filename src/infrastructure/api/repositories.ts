@@ -166,6 +166,7 @@ const mapMatch = (m: any): Match => ({
   diskUrl: m.extra_time?.disk_url ?? undefined,
   currentMinute: Number(m.extra_time?.match_minute ?? 0) || undefined,
   clockAnchorAt: m.extra_time?.clock_anchor_at ? String(m.extra_time.clock_anchor_at) : undefined,
+  archived: Boolean(m.extra_time?.archived),
   playoffCellId: m.playoff_cell_id ? String(m.playoff_cell_id) : null,
 })
 
@@ -352,7 +353,10 @@ export const playersRepository: PlayersRepository = {
   },
 }
 export const matchesRepository: MatchesRepository = {
-  async getMatches() { return (await api<any[]>('/api/matches')).map(mapMatch) },
+  async getMatches(options) {
+    const list = (await api<any[]>('/api/matches')).map(mapMatch)
+    return options?.includeArchived ? list : list.filter((match) => !match.archived)
+  },
   async getMatchById(matchId) { try { return mapMatch(await api<any>(`/api/matches/${matchId}`)) } catch { return null } },
   async createMatch(input) {
     const created = await api<any>('/api/matches', {
@@ -390,6 +394,7 @@ export const matchesRepository: MatchesRepository = {
       ...(patch.referee !== undefined ? { referee: patch.referee } : {}),
       ...(patch.currentMinute !== undefined ? { match_minute: patch.currentMinute } : {}),
       ...(patch.clockAnchorAt !== undefined ? { clock_anchor_at: patch.clockAnchorAt } : {}),
+      ...(patch.archived !== undefined ? { archived: patch.archived } : {}),
     }
     await api(`/api/matches/${matchId}`, {
       method: 'PATCH',
@@ -408,21 +413,59 @@ export const matchesRepository: MatchesRepository = {
   },
 }
 export const standingsRepository: StandingsRepository = {
-  async getStandings(tournamentId) {
-    const query = tournamentId ? `?tournamentId=${encodeURIComponent(tournamentId)}` : ''
-    const rows = await api<any[]>(`/api/standings${query}`)
-    return rows.map((row): StandingRow => ({
-      position: row.position,
-      teamId: String(row.team_id),
-      played: row.played,
-      won: row.won,
-      drawn: row.drawn,
-      lost: row.lost,
-      goalsFor: row.goals_for,
-      goalsAgainst: row.goals_against,
-      goalDiff: row.goal_diff,
-      points: row.points,
-    }))
+  async getStandings(_tournamentId) {
+    const teams = (await api<any[]>('/api/teams')).map(mapTeam)
+    const matches = (await api<any[]>('/api/matches')).map(mapMatch).filter((match) => !match.archived && match.status === 'finished')
+    const stats = new Map<string, StandingRow>()
+
+    teams.forEach((team) => {
+      stats.set(team.id, {
+        position: 0,
+        teamId: team.id,
+        played: 0,
+        won: 0,
+        drawn: 0,
+        lost: 0,
+        goalsFor: 0,
+        goalsAgainst: 0,
+        goalDiff: 0,
+        points: 0,
+      })
+    })
+
+    matches.forEach((match) => {
+      const home = stats.get(match.homeTeamId)
+      const away = stats.get(match.awayTeamId)
+      if (!home || !away) return
+
+      home.played += 1
+      away.played += 1
+      home.goalsFor += match.score.home
+      home.goalsAgainst += match.score.away
+      away.goalsFor += match.score.away
+      away.goalsAgainst += match.score.home
+
+      if (match.score.home > match.score.away) {
+        home.won += 1
+        away.lost += 1
+        home.points += 3
+      } else if (match.score.home < match.score.away) {
+        away.won += 1
+        home.lost += 1
+        away.points += 3
+      } else {
+        home.drawn += 1
+        away.drawn += 1
+        home.points += 1
+        away.points += 1
+      }
+    })
+
+    const rows = [...stats.values()].map((row) => ({ ...row, goalDiff: row.goalsFor - row.goalsAgainst }))
+      .sort((a, b) => b.points - a.points || b.goalDiff - a.goalDiff || b.goalsFor - a.goalsFor || a.teamId.localeCompare(b.teamId))
+      .map((row, index) => ({ ...row, position: index + 1 }))
+
+    return rows
   },
 }
 export const playoffGridRepository: PlayoffGridRepository = {

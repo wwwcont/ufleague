@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Activity, Disc3, Info, Pause, Play, Plus, Radio, Timer } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
@@ -118,6 +118,7 @@ const fromMskDateTimeInput = (input: string) => {
 
 export const MatchDetailsPage = () => {
   const { matchId } = useParams()
+  const navigate = useNavigate()
   const { data: match, refetch: refetchMatch } = useMatchDetails(matchId)
   const { data: allMatches } = useMatches()
   const { data: teams } = useTeams()
@@ -161,6 +162,8 @@ export const MatchDetailsPage = () => {
   const [cardCreateEvent, setCardCreateEvent] = useState(true)
   const [matchFlowPending, setMatchFlowPending] = useState(false)
   const [matchControlOpen, setMatchControlOpen] = useState(false)
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false)
+  const [archivePending, setArchivePending] = useState(false)
   const [nowTs, setNowTs] = useState(Date.now())
   const [activeTournamentId, setActiveTournamentId] = useState('1')
   const normalizedTournamentId = /^\d+$/.test(activeTournamentId) ? activeTournamentId : '1'
@@ -1063,13 +1066,53 @@ export const MatchDetailsPage = () => {
           </div>
         </div>
       )}
+      {archiveConfirmOpen && (
+        <section className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-borderSubtle bg-panelBg p-4">
+            <p className="text-sm font-semibold text-textPrimary">{match.archived ? 'Вернуть матч из архива?' : 'Скрыть матч и отправить в архив?'}</p>
+            <p className="mt-1 text-xs text-textMuted">{match.archived ? 'Матч снова появится в обычных лентах и статистике.' : 'Матч исчезнет из обычных лент, истории и статистики.'}</p>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                disabled={archivePending}
+                className="rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app disabled:opacity-50"
+                onClick={async () => {
+                  setArchivePending(true)
+                  try {
+                    if (!match.archived && match.playoffCellId) await playoffGridRepository.detachMatch(match.playoffCellId, match.id)
+                    await matchesRepository.updateMatch?.(match.id, {
+                      archived: !match.archived,
+                      clockAnchorAt: null,
+                      currentMinute: match.currentMinute ?? liveMinute ?? 0,
+                      status: match.archived ? match.status : 'finished',
+                    })
+                    setGoalStatus(match.archived ? 'Матч возвращен из архива.' : 'Матч отправлен в архив.')
+                    setArchiveConfirmOpen(false)
+                    if (!match.archived) navigate('/matches')
+                  } catch (error) {
+                    setGoalStatus(actionError(error))
+                  } finally {
+                    setArchivePending(false)
+                  }
+                }}
+              >
+                Подтвердить
+              </button>
+              <button type="button" className="rounded-lg border border-borderSubtle px-3 py-1.5 text-xs text-textSecondary" onClick={() => setArchiveConfirmOpen(false)}>Отмена</button>
+            </div>
+          </div>
+        </section>
+      )}
 
       <CommentsSection entityType="match" entityId={match.id} title="Комментарии" />
       {isAdmin && (
         <section className="mt-3 rounded-2xl border border-borderSubtle bg-panelBg p-3 shadow-soft">
-          <div className="flex items-center justify-end">
+          <div className="space-y-2">
             <button type="button" onClick={() => { void openPlayoffModal() }} className="inline-flex w-full justify-center rounded-xl bg-accentYellow px-4 py-2 text-xs font-semibold text-app shadow-soft">
               Добавить плейофф
+            </button>
+            <button type="button" onClick={() => setArchiveConfirmOpen(true)} className={`inline-flex w-full justify-center rounded-xl px-4 py-2 text-xs font-semibold shadow-soft ${match.archived ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'border border-borderSubtle bg-panelBg text-textPrimary'}`}>
+              {match.archived ? 'Вернуть из архива' : 'Скрыть матч'}
             </button>
           </div>
         </section>
