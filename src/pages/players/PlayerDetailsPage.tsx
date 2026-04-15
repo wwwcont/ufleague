@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { UserCircle2 } from 'lucide-react'
+import { Star, UserCircle2 } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { usePlayerDetails } from '../../hooks/data/usePlayerDetails'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
@@ -24,6 +24,7 @@ import {
 } from '../../components/ui/editable'
 import type { EventContentBlock } from '../../domain/entities/types'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
+import { useUserPreferences } from '../../hooks/app/useUserPreferences'
 
 const getInitials = (name: string) => name.split(' ').map((part) => part[0]).join('').slice(0, 2)
 
@@ -44,6 +45,7 @@ export const PlayerDetailsPage = () => {
   const { data: playerFeed } = useEvents({ entityType: 'player', entityId: playerId, limit: 4 })
   const { data: matches } = useMatches()
   const { session } = useSession()
+  const { isFavorite, toggleFavorite } = useUserPreferences()
   const { playersRepository, eventsRepository, uploadsRepository } = useRepositories()
 
   const [heroEditing, setHeroEditing] = useState(false)
@@ -96,6 +98,7 @@ export const PlayerDetailsPage = () => {
   if (!player) return <PageContainer><EmptyState title="Игрок не найден" /></PageContainer>
 
   const canEditPlayer = canManagePlayer(session, player, team)
+  const isFavoritePlayer = isFavorite(`player:${player.id}`)
   const goalsFromMatches = (matches ?? []).flatMap((match) => match.events).filter((event) => event.type === 'goal' && event.playerId === player.id).length
   const assistsFromMatches = (matches ?? []).flatMap((match) => match.events).filter((event) => event.type === 'goal' && event.assistPlayerId === player.id).length
 
@@ -123,6 +126,18 @@ export const PlayerDetailsPage = () => {
         </div>
 
         <div className="relative z-10">
+          {session.isAuthenticated && (
+            <div className="absolute right-0 top-0 z-20">
+              <button
+                type="button"
+                onClick={() => toggleFavorite(`player:${player.id}`)}
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${isFavoritePlayer ? 'border-accentYellow/70 bg-accentYellow/10 text-accentYellow' : 'border-borderSubtle bg-black/30 text-textMuted'}`}
+                aria-label={isFavoritePlayer ? 'Убрать игрока из избранного' : 'Добавить игрока в избранное'}
+              >
+                <Star size={14} className={isFavoritePlayer ? 'fill-current' : ''} />
+              </button>
+            </div>
+          )}
           <EditableSectionHeader
             title="Профиль игрока"
             subtitle="Аватар и имя"
@@ -393,7 +408,7 @@ export const PlayerDetailsPage = () => {
         </div>
       </section>
 
-      <EventFeedSection title="События игрока" events={playerFeed ?? []} layout="timeline" messageWhenEmpty="События игрока пока не найдены." />
+      <EventFeedSection title="События игрока" events={playerFeed ?? []} layout="timeline" notificationScopeKey={`events:player:${player.id}`} messageWhenEmpty="События игрока пока не найдены." />
 
       {canEditPlayer && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
