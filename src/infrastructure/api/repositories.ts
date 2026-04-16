@@ -71,6 +71,7 @@ const mapTeam = (t: any): Team => ({
   name: t.name,
   shortName: (t.short_name ? String(t.short_name) : t.name?.slice(0, 3)?.toUpperCase()) ?? 'TBD',
   logoUrl: normalizeMediaUrl(t.logo_url),
+  archived: Boolean(t.archived),
   captainUserId: t.captain_user_id ? String(t.captain_user_id) : null,
   city: t.socials?.city || 'UFL Development',
   slogan: t.socials?.slogan ?? undefined,
@@ -237,7 +238,10 @@ const serializeMatchEvents = (events: Match['events']) => events
   }))
 
 export const teamsRepository: TeamsRepository = {
-  async getTeams() { return (await api<any[]>('/api/teams')).map(mapTeam) },
+  async getTeams(options) {
+    const list = (await api<any[]>('/api/teams')).map(mapTeam)
+    return options?.includeArchived ? list : list.filter((team) => !team.archived)
+  },
   async getTeamById(teamId) { try { return mapTeam(await api<any>(`/api/teams/${teamId}`)) } catch { return null } },
   async createTeam(input) {
     const created = await api<any>('/api/teams', {
@@ -292,6 +296,9 @@ export const teamsRepository: TeamsRepository = {
   },
   async adminTransferCaptain(teamId, newCaptainUserId) {
     await api(`/api/admin/teams/${teamId}/transfer-captain`, { method: 'POST', body: JSON.stringify({ new_captain_user_id: Number(newCaptainUserId) }) })
+  },
+  async adminArchiveTeam(teamId, archived) {
+    await api(`/api/admin/teams/${teamId}/archive`, { method: 'POST', body: JSON.stringify({ archived }) })
   },
 }
 export const playersRepository: PlayersRepository = {

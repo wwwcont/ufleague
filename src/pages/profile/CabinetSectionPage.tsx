@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2, ChevronRight, LayoutPanelTop } from 'lucide-react'
-import type { Match, PublicUserCard, UserRole } from '../../domain/entities/types'
+import type { Match, PublicUserCard, Team, UserRole } from '../../domain/entities/types'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
@@ -42,6 +42,7 @@ const sectionRoles: Record<string, UserRole> = {
   'issue-restriction': 'admin',
   'create-match': 'admin',
   'matches-archive': 'admin',
+  'teams-archive': 'admin',
   'team-socials': 'captain',
   roster: 'captain',
   moderation: 'admin',
@@ -76,6 +77,7 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   'issue-restriction': { title: 'Выдать ограничение', description: 'Ограничение комментирования пользователя.', tips: ['Укажите причину ограничения.', 'Можно выдать постоянный или временный блок.'] },
   'create-match': { title: 'Создать матч', description: 'Быстрое создание матча турнира.', tips: ['Выберите домашнюю и гостевую команды.', 'Проверьте RFC3339 для даты старта.'] },
   'matches-archive': { title: 'Архив матчей', description: 'Скрытые матчи, исключенные из лент и статистики.', tips: ['Откройте матч из архива для проверки.', 'При необходимости верните матч обратно.'] },
+  'teams-archive': { title: 'Архив команд', description: 'Скрытые команды. Их матчи автоматически архивируются.', tips: ['Архивирование команды отправляет связанные матчи в архив.', 'Возврат команды из архива возвращает и ее матчи.'] },
   roster: { title: 'Управление составом', description: 'Состав команды с действиями по каждому игроку.', tips: ['Откроется страница команды в режиме состава.', 'Кнопки: глаз, карандаш, крестик.'] },
   'team-events': { title: 'События команды', description: 'Лента событий вашей команды.', tips: ['Кнопка создания доступна только капитану этой команды.', 'Редактирование/удаление скрыто для остальных.'] },
   'team-socials': { title: 'Соцсети команды', description: 'Обновление публичных ссылок команды.', tips: ['Формат ввода: key=value.', 'Сохраняйте только валидные URL.'] },
@@ -253,6 +255,7 @@ export const CabinetSectionPage = () => {
   const [matchBroadcastUrl, setMatchBroadcastUrl] = useState('')
   const [matchStage, setMatchStage] = useState('')
   const [archivedMatches, setArchivedMatches] = useState<Match[]>([])
+  const [archivedTeams, setArchivedTeams] = useState<Team[]>([])
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileLoaded, setProfileLoaded] = useState<null | { displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> }>(null)
   const [tournamentCycles, setTournamentCycles] = useState<Array<{ id: string; name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive: boolean }>>([])
@@ -296,6 +299,13 @@ export const CabinetSectionPage = () => {
       .then((list) => setArchivedMatches(list.filter((match) => match.archived)))
       .catch(() => setArchivedMatches([]))
   }, [matchesRepository, section, status])
+
+  useEffect(() => {
+    if (section !== 'teams-archive') return
+    void teamsRepository.getTeams({ includeArchived: true })
+      .then((list) => setArchivedTeams(list.filter((team) => team.archived)))
+      .catch(() => setArchivedTeams([]))
+  }, [section, status, teamsRepository])
 
   useEffect(() => {
     if (!(section === 'profile-settings' || section === 'profile' || section === 'edit')) return
@@ -850,8 +860,10 @@ export const CabinetSectionPage = () => {
                 <div className="flex flex-wrap gap-2">
                   <button type="button" disabled={section === 'revoke-access' || !currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
                     try {
-                      await cabinetRepository.superadminAssignRoles({ userId: selectedUser.id, roles: ['admin'] })
+                      const nextRoles = Array.from(new Set<UserRole>([...selectedUser.statuses, 'admin']))
+                      await cabinetRepository.superadminAssignRoles({ userId: selectedUser.id, roles: nextRoles })
                       setStatus('ok: admin rights granted')
+                      setSelectedUser({ ...selectedUser, statuses: nextRoles })
                     } catch (error) {
                       setStatus(`error: ${(error as Error).message}`)
                     }
@@ -859,8 +871,10 @@ export const CabinetSectionPage = () => {
                   <button type="button" disabled={section === 'grant-access' || !currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
                     if (!window.confirm('Снять admin права у пользователя?')) return
                     try {
-                      await cabinetRepository.superadminAssignRoles({ userId: selectedUser.id, roles: ['player'] })
+                      const nextRoles = selectedUser.statuses.filter((role) => role !== 'admin')
+                      await cabinetRepository.superadminAssignRoles({ userId: selectedUser.id, roles: nextRoles.length ? nextRoles : ['guest'] })
                       setStatus('ok: admin rights revoked')
+                      setSelectedUser({ ...selectedUser, statuses: nextRoles.length ? nextRoles : ['guest'] })
                     } catch (error) {
                       setStatus(`error: ${(error as Error).message}`)
                     }
@@ -870,6 +884,7 @@ export const CabinetSectionPage = () => {
                     try {
                       await cabinetRepository.adminRevokeCaptainRole?.(selectedUser.id)
                       setStatus('ok: captain rights revoked')
+                      setSelectedUser({ ...selectedUser, statuses: selectedUser.statuses.filter((role) => role !== 'captain') })
                     } catch (error) {
                       setStatus(`error: ${(error as Error).message}`)
                     }
@@ -879,6 +894,7 @@ export const CabinetSectionPage = () => {
                     try {
                       await cabinetRepository.adminRemovePlayerFromUser?.(selectedUser.id)
                       setStatus('ok: player profile detached from user')
+                      setSelectedUser({ ...selectedUser, statuses: selectedUser.statuses.filter((role) => role !== 'player') })
                     } catch (error) {
                       setStatus(`error: ${(error as Error).message}`)
                     }
@@ -1155,6 +1171,54 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
+      {section === 'teams-archive' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          <p className="text-xs text-textMuted">Активные команды:</p>
+          <div className="space-y-2">
+            {(teams ?? []).map((item) => (
+              <div key={`active:${item.id}`} className="rounded-lg border border-borderSubtle bg-mutedBg p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-textPrimary">{item.name} ({item.shortName})</p>
+                  <button type="button" className="rounded-lg border border-borderSubtle px-3 py-1.5 text-xs text-textSecondary" onClick={async () => {
+                    try {
+                      await teamsRepository.adminArchiveTeam?.(item.id, true)
+                      setStatus('ok: team archived (related matches moved to archive)')
+                    } catch (error) {
+                      setStatus(`error: ${(error as Error).message}`)
+                    }
+                  }}>В архив</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-textMuted">Скрытые команды (архив):</p>
+          {archivedTeams.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-borderStrong bg-mutedBg px-3 py-2 text-xs text-textMuted">В архиве пока нет команд.</p>
+          ) : (
+            <div className="space-y-2">
+              {archivedTeams.map((item) => (
+                <div key={item.id} className="rounded-lg border border-borderSubtle bg-mutedBg p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm text-textPrimary">{item.name} ({item.shortName})</p>
+                    <Link to={`/teams/${item.id}`} className="text-xs text-accentYellow hover:underline">Открыть</Link>
+                  </div>
+                  <button type="button" className="mt-2 rounded-lg border border-borderSubtle px-3 py-1.5 text-xs text-textSecondary" onClick={async () => {
+                    try {
+                      await teamsRepository.adminArchiveTeam?.(item.id, false)
+                      setStatus('ok: team restored from archive')
+                      setArchivedTeams((prev) => prev.filter((team) => team.id !== item.id))
+                      setArchivedMatches((prev) => prev.filter((match) => match.homeTeamId !== item.id && match.awayTeamId !== item.id))
+                    } catch (error) {
+                      setStatus(`error: ${(error as Error).message}`)
+                    }
+                  }}>Вернуть команду и связанные матчи</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {section === 'moderation' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
           <input value={commentId} onChange={(e) => setCommentId(e.target.value)} placeholder="comment id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
@@ -1271,7 +1335,7 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'my-notifications', 'favorites', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'create-match', 'matches-archive', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
+      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'my-notifications', 'favorites', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'create-match', 'matches-archive', 'teams-archive', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
           Раздел синхронизирован по правам доступа и готов к расширению бизнес-формами.
         </section>

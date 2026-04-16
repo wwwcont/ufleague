@@ -43,6 +43,7 @@ const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
     { title: 'Выдать ограничение', description: 'Ограничить публикацию комментариев.', route: '/profile/issue-restriction', icon: 'shield' },
     { title: 'Создать матч', description: 'Создание нового матча турнира.', route: '/profile/create-match', icon: 'shield' },
     { title: 'Архив матчей', description: 'Скрытые матчи и возврат из архива.', route: '/profile/matches-archive', icon: 'shield' },
+    { title: 'Архив команд', description: 'Скрытые команды и связанные матчи.', route: '/profile/teams-archive', icon: 'shield' },
   ],
   superadmin: [
     { title: 'Выдать права', description: 'Найти пользователя и выдать роль капитана/игрока/админа.', route: '/profile/grant-access', icon: 'shield' },
@@ -50,6 +51,7 @@ const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
     { title: 'Выдать ограничение', description: 'Ограничить публикацию комментариев.', route: '/profile/issue-restriction', icon: 'shield' },
     { title: 'Создать матч', description: 'Создание нового матча турнира.', route: '/profile/create-match', icon: 'shield' },
     { title: 'Архив матчей', description: 'Скрытые матчи и возврат из архива.', route: '/profile/matches-archive', icon: 'shield' },
+    { title: 'Архив команд', description: 'Скрытые команды и связанные матчи.', route: '/profile/teams-archive', icon: 'shield' },
   ],
 }
 

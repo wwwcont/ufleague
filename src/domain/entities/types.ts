@@ -96,6 +96,7 @@ export interface Team {
   name: string
   shortName: string
   logoUrl: string | null
+  archived?: boolean
   captainUserId?: ID | null
   city: string
   slogan?: string

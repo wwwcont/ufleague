@@ -36,6 +36,7 @@ type Repository interface {
 	CountTeamsByCaptain(ctx context.Context, userID int64) (int, error)
 	ClearCaptainFromTeams(ctx context.Context, userID int64) error
 	GetUserRoles(ctx context.Context, userID int64) ([]domain.Role, error)
+	SetTeamArchived(ctx context.Context, teamID int64, archived bool) error
 	ListAuditActionsByActor(ctx context.Context, userID int64, limit int) ([]domain.UserActionItem, error)
 }
 
@@ -305,6 +306,17 @@ func (s Service) AdminRemovePlayerFromUser(ctx context.Context, actor domain.Use
 	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "admin.remove_player_from_user", "user", strconv.FormatInt(userID, 10), nil)
 }
+
+func (s Service) AdminArchiveTeam(ctx context.Context, actor domain.User, teamID int64, archived bool) error {
+	if !s.policy.CanAdminModerate(actor) {
+		return fmt.Errorf("forbidden")
+	}
+	if err := s.repo.SetTeamArchived(ctx, teamID, archived); err != nil {
+		return err
+	}
+	return s.repo.AddAuditLog(ctx, actor.ID, "admin.archive_team", "team", strconv.FormatInt(teamID, 10), map[string]any{"archived": archived})
+}
+
 func (s Service) AdminBlockComments(ctx context.Context, actor domain.User, userID int64, req domain.CommentBlockRequest) error {
 	if !s.policy.CanAdminModerate(actor) {
 		return fmt.Errorf("forbidden")

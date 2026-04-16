@@ -126,6 +126,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Patch("/captain/teams/{id}/roster/{playerId}", h.CaptainSetRosterVisibility)
 		r.With(sessionMW.RequireSession).Post("/admin/comments/{id}/moderate-delete", h.AdminModerateComment)
 		r.With(sessionMW.RequireSession).Post("/admin/teams/{id}/transfer-captain", h.AdminTransferCaptain)
+		r.With(sessionMW.RequireSession).Post("/admin/teams/{id}/archive", h.AdminArchiveTeam)
 		r.With(sessionMW.RequireSession).Get("/admin/users/{id}/profile", h.AdminGetUserProfile)
 		r.With(sessionMW.RequireSession).Patch("/admin/users/{id}/profile", h.AdminUpdateUserProfile)
 		r.With(sessionMW.RequireSession).Post("/admin/users/{id}/comment-block", h.AdminBlockComments)
@@ -1824,6 +1825,30 @@ func (h Handler) AdminTransferCaptain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err = h.cabinet.AdminTransferCaptain(r.Context(), current.User, teamID, req.NewCaptainUserID); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+func (h Handler) AdminArchiveTeam(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	teamID, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	var req struct {
+		Archived bool `json:"archived"`
+	}
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	if err = h.cabinet.AdminArchiveTeam(r.Context(), current.User, teamID, req.Archived); err != nil {
 		handleDomainErr(w, err)
 		return
 	}

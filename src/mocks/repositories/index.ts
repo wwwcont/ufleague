@@ -23,6 +23,7 @@ import { teams } from '../data/teams'
 
 let inMemoryTeams = teams.map((team) => ({ ...team, socials: { ...(team.socials ?? {}), custom: [...(team.socials?.custom ?? [])] } }))
 let inMemoryPlayers = players.map((player) => ({ ...player, socials: { ...(player.socials ?? {}) }, stats: { ...player.stats } }))
+let inMemoryMatches = matches.map((match) => ({ ...match, events: [...match.events] }))
 
 let inMemorySession = defaultSession
 
@@ -131,8 +132,8 @@ const syncSessionLinks = () => {
 }
 
 export const teamsRepository: TeamsRepository = {
-  async getTeams() {
-    return inMemoryTeams
+  async getTeams(options) {
+    return options?.includeArchived ? inMemoryTeams : inMemoryTeams.filter((team) => !team.archived)
   },
   async getTeamById(teamId) {
     return inMemoryTeams.find((t) => t.id === teamId) ?? null
@@ -144,6 +145,7 @@ export const teamsRepository: TeamsRepository = {
       name: input.name,
       shortName: (input.shortName ?? input.name.slice(0, 3)).toUpperCase().slice(0, 3),
       logoUrl: input.logoUrl ?? null,
+      archived: false,
       captainUserId: inMemorySession.isAuthenticated ? inMemorySession.user.id : null,
       city: 'Новый город',
       slogan: '',
@@ -198,6 +200,15 @@ export const teamsRepository: TeamsRepository = {
     syncSessionLinks()
     saveState()
   },
+  async adminArchiveTeam(teamId, archived) {
+    inMemoryTeams = inMemoryTeams.map((team) => team.id === teamId ? { ...team, archived } : team)
+    inMemoryMatches = inMemoryMatches.map((match) => (
+      match.homeTeamId === teamId || match.awayTeamId === teamId
+        ? { ...match, archived }
+        : match
+    ))
+    saveState()
+  },
 }
 
 export const playersRepository: PlayersRepository = {
@@ -216,10 +227,10 @@ export const playersRepository: PlayersRepository = {
 
 export const matchesRepository: MatchesRepository = {
   async getMatches(options) {
-    return options?.includeArchived ? matches : matches.filter((match) => !match.archived)
+    return options?.includeArchived ? inMemoryMatches : inMemoryMatches.filter((match) => !match.archived)
   },
   async getMatchById(matchId) {
-    return matches.find((m) => m.id === matchId) ?? null
+    return inMemoryMatches.find((m) => m.id === matchId) ?? null
   },
   async createMatch() {
     return { id: `match_mock_${Date.now()}` }

@@ -242,6 +242,31 @@ func (r *CabinetAdminRepository) GetUserRoles(ctx context.Context, userID int64)
 	}
 	return roles, nil
 }
+func (r *CabinetAdminRepository) SetTeamArchived(ctx context.Context, teamID int64, archived bool) error {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	tag, err := tx.Exec(ctx, `UPDATE teams SET archived=$2, updated_at=NOW() WHERE id=$1`, teamID, archived)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+
+	_, err = tx.Exec(ctx, `
+		UPDATE matches
+		SET extra_time=jsonb_set(COALESCE(extra_time, '{}'::jsonb), '{archived}', to_jsonb($2::boolean), true), updated_at=NOW()
+		WHERE home_team_id=$1 OR away_team_id=$1
+	`, teamID, archived)
+	if err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
 func (r *CabinetAdminRepository) ListAuditActionsByActor(ctx context.Context, userID int64, limit int) ([]domain.UserActionItem, error) {
 	type actionRecord struct {
 		id        int64

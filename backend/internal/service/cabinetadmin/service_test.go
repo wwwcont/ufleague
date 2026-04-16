@@ -18,6 +18,8 @@ type fakeRepo struct {
 	detached           bool
 	revokedPlayer      bool
 	clearedCaptains    bool
+	archivedTeamID     int64
+	archivedValue      bool
 	transferredTeamID  int64
 	transferredCaptain *int64
 	createdUserID      int64
@@ -89,6 +91,11 @@ func (f *fakeRepo) ClearCaptainFromTeams(context.Context, int64) error {
 	return nil
 }
 func (f *fakeRepo) GetUserRoles(context.Context, int64) ([]domain.Role, error) { return f.roles, nil }
+func (f *fakeRepo) SetTeamArchived(_ context.Context, teamID int64, archived bool) error {
+	f.archivedTeamID = teamID
+	f.archivedValue = archived
+	return nil
+}
 func (f *fakeRepo) ListAuditActionsByActor(context.Context, int64, int) ([]domain.UserActionItem, error) {
 	return nil, nil
 }
@@ -199,6 +206,19 @@ func TestAdminRevokeCaptainRoleClearsTeams(t *testing.T) {
 	}
 	if !repo.clearedCaptains {
 		t.Fatalf("expected captain to be cleared from teams")
+	}
+}
+
+func TestAdminArchiveTeam(t *testing.T) {
+	repo := &fakeRepo{}
+	svc := NewService(repo)
+	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+
+	if err := svc.AdminArchiveTeam(context.Background(), admin, 55, true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if repo.archivedTeamID != 55 || !repo.archivedValue {
+		t.Fatalf("unexpected archive payload: team=%d archived=%v", repo.archivedTeamID, repo.archivedValue)
 	}
 }
 
