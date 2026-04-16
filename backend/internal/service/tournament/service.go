@@ -208,27 +208,22 @@ func (s Service) CreatePlayer(ctx context.Context, actor domain.User, req domain
 }
 
 func (s Service) UpdatePlayer(ctx context.Context, actor domain.User, id int64, req domain.UpdatePlayerRequest) (domain.Player, error) {
-	if req.TeamID == nil || req.UserID == nil {
-		slog.Warn("tournament.update_player.forbidden.missing_required_fields",
+	player, err := s.repo.GetPlayer(ctx, id)
+	if err != nil {
+		slog.Error("tournament.update_player.player_lookup_failed",
 			"actor_id", actor.ID,
 			"actor_roles", actor.Roles,
 			"player_id", id,
-			"team_id_nil", req.TeamID == nil,
-			"user_id_nil", req.UserID == nil,
+			"error", err,
 		)
 		return domain.Player{}, ErrForbidden
 	}
-	if hasRole(actor, domain.RoleCaptain) && !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
-		player, err := s.repo.GetPlayer(ctx, id)
-		if err != nil {
-			slog.Error("tournament.update_player.player_lookup_failed",
-				"actor_id", actor.ID,
-				"actor_roles", actor.Roles,
-				"player_id", id,
-				"error", err,
-			)
-			return domain.Player{}, ErrForbidden
-		}
+	isAdmin := hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin)
+	canManage := false
+	switch {
+	case isAdmin:
+		canManage = true
+	case hasRole(actor, domain.RoleCaptain):
 		if player.TeamID == nil {
 			slog.Warn("tournament.update_player.forbidden.player_without_team",
 				"actor_id", actor.ID,
@@ -237,18 +232,19 @@ func (s Service) UpdatePlayer(ctx context.Context, actor domain.User, id int64, 
 			)
 			return domain.Player{}, ErrForbidden
 		}
-		team, err := s.repo.GetTeam(ctx, *player.TeamID)
-		if err != nil {
+		team, teamErr := s.repo.GetTeam(ctx, *player.TeamID)
+		if teamErr != nil {
 			slog.Error("tournament.update_player.team_lookup_failed",
 				"actor_id", actor.ID,
 				"actor_roles", actor.Roles,
 				"player_id", id,
 				"team_id", *player.TeamID,
-				"error", err,
+				"error", teamErr,
 			)
 			return domain.Player{}, ErrForbidden
 		}
-		if team.CaptainUserID == nil || *team.CaptainUserID != actor.ID {
+		canManage = team.CaptainUserID != nil && *team.CaptainUserID == actor.ID
+		if !canManage {
 			slog.Warn("tournament.update_player.forbidden.team_not_owned_by_captain",
 				"actor_id", actor.ID,
 				"actor_roles", actor.Roles,
@@ -256,13 +252,38 @@ func (s Service) UpdatePlayer(ctx context.Context, actor domain.User, id int64, 
 				"team_id", *player.TeamID,
 				"team_captain_user_id", team.CaptainUserID,
 			)
-			return domain.Player{}, ErrForbidden
 		}
-	} else if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+	case hasRole(actor, domain.RolePlayer):
+		canManage = player.UserID != nil && *player.UserID == actor.ID
+		if !canManage {
+			slog.Warn("tournament.update_player.forbidden.not_owner_player_profile",
+				"actor_id", actor.ID,
+				"actor_roles", actor.Roles,
+				"player_id", id,
+				"player_user_id", player.UserID,
+			)
+		}
+	default:
 		slog.Warn("tournament.update_player.forbidden.missing_role",
 			"actor_id", actor.ID,
 			"actor_roles", actor.Roles,
 			"player_id", id,
+		)
+	}
+	if !canManage {
+		return domain.Player{}, ErrForbidden
+	}
+	if !isAdmin {
+		req.TeamID = player.TeamID
+		req.UserID = player.UserID
+	}
+	if req.TeamID == nil || req.UserID == nil {
+		slog.Warn("tournament.update_player.forbidden.missing_required_fields",
+			"actor_id", actor.ID,
+			"actor_roles", actor.Roles,
+			"player_id", id,
+			"team_id_nil", req.TeamID == nil,
+			"user_id_nil", req.UserID == nil,
 		)
 		return domain.Player{}, ErrForbidden
 	}

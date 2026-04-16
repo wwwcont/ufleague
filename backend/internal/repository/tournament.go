@@ -71,7 +71,7 @@ func (r *TournamentRepository) CountTeamsByCaptain(ctx context.Context, userID i
 }
 
 func (r *TournamentRepository) ListPlayers(ctx context.Context) ([]domain.Player, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id,user_id,team_id,full_name,COALESCE(nickname,''),COALESCE(avatar_url,''),socials,COALESCE(position,''),shirt_number,created_at,updated_at FROM players ORDER BY id DESC`)
+	rows, err := r.pool.Query(ctx, `SELECT id,user_id,team_id,COALESCE(full_name,''),COALESCE(nickname,''),COALESCE(avatar_url,''),COALESCE(socials,'{}'::jsonb),COALESCE(position,''),shirt_number,created_at,updated_at FROM players ORDER BY id DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func (r *TournamentRepository) ListPlayers(ctx context.Context) ([]domain.Player
 	return out, rows.Err()
 }
 func (r *TournamentRepository) GetPlayer(ctx context.Context, id int64) (domain.Player, error) {
-	row := r.pool.QueryRow(ctx, `SELECT id,user_id,team_id,full_name,COALESCE(nickname,''),COALESCE(avatar_url,''),socials,COALESCE(position,''),shirt_number,created_at,updated_at FROM players WHERE id=$1`, id)
+	row := r.pool.QueryRow(ctx, `SELECT id,user_id,team_id,COALESCE(full_name,''),COALESCE(nickname,''),COALESCE(avatar_url,''),COALESCE(socials,'{}'::jsonb),COALESCE(position,''),shirt_number,created_at,updated_at FROM players WHERE id=$1`, id)
 	return scanPlayer(row)
 }
 func (r *TournamentRepository) CreatePlayer(ctx context.Context, p domain.Player) (domain.Player, error) {
@@ -120,7 +120,22 @@ func (r *TournamentRepository) UpdatePlayer(ctx context.Context, id int64, p dom
 }
 
 func (r *TournamentRepository) ListMatches(ctx context.Context) ([]domain.Match, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id,tournament_cycle_id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),playoff_cell_id,created_at,updated_at FROM matches ORDER BY start_at DESC`)
+	rows, err := r.pool.Query(ctx, `
+		SELECT id,
+			COALESCE(tournament_cycle_id, 1),
+			COALESCE(home_team_id, 0),
+			COALESCE(away_team_id, 0),
+			COALESCE(start_at, NOW()),
+			COALESCE(status, 'scheduled'),
+			COALESCE(home_score, 0),
+			COALESCE(away_score, 0),
+			COALESCE(extra_time, '{}'::jsonb),
+			COALESCE(venue,''),
+			playoff_cell_id,
+			created_at,
+			updated_at
+		FROM matches
+		ORDER BY start_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +151,21 @@ func (r *TournamentRepository) ListMatches(ctx context.Context) ([]domain.Match,
 	return out, rows.Err()
 }
 func (r *TournamentRepository) GetMatch(ctx context.Context, id int64) (domain.Match, error) {
-	row := r.pool.QueryRow(ctx, `SELECT id,tournament_cycle_id,home_team_id,away_team_id,start_at,status,home_score,away_score,extra_time,COALESCE(venue,''),playoff_cell_id,created_at,updated_at FROM matches WHERE id=$1`, id)
+	row := r.pool.QueryRow(ctx, `
+		SELECT id,
+			COALESCE(tournament_cycle_id, 1),
+			COALESCE(home_team_id, 0),
+			COALESCE(away_team_id, 0),
+			COALESCE(start_at, NOW()),
+			COALESCE(status, 'scheduled'),
+			COALESCE(home_score, 0),
+			COALESCE(away_score, 0),
+			COALESCE(extra_time, '{}'::jsonb),
+			COALESCE(venue,''),
+			playoff_cell_id,
+			created_at,
+			updated_at
+		FROM matches WHERE id=$1`, id)
 	return scanMatch(row)
 }
 func (r *TournamentRepository) CreateMatch(ctx context.Context, m domain.Match) (domain.Match, error) {
@@ -159,7 +188,7 @@ func (r *TournamentRepository) UpdateMatch(ctx context.Context, id int64, m doma
 }
 
 func (r *TournamentRepository) ListTournamentCycles(ctx context.Context) ([]domain.TournamentCycle, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id,name,bracket_team_capacity,is_active FROM tournament_cycles ORDER BY id DESC`)
+	rows, err := r.pool.Query(ctx, `SELECT id,COALESCE(name,''),COALESCE(bracket_team_capacity,8),COALESCE(is_active,false) FROM tournament_cycles ORDER BY id DESC`)
 	if err != nil {
 		return nil, err
 	}
