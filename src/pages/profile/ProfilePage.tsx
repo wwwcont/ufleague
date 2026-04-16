@@ -18,6 +18,8 @@ interface CabinetEntry {
 const userCabinetEntries: CabinetEntry[] = [
   { title: 'Профиль пользователя', description: 'Открыть свою карточку пользователя для редактирования.', route: '/profile/my-user', icon: 'user' },
   { title: 'Мои действия', description: 'Лента личных действий по дате.', route: '/profile/my-actions', icon: 'shield' },
+  { title: 'Мои уведомления', description: 'Все уведомления из Telegram-канала аккаунта.', route: '/profile/my-notifications', icon: 'shield' },
+  { title: 'Избранное', description: 'Список команд и игроков, отмеченных звездочкой.', route: '/profile/favorites', icon: 'shield' },
   { title: 'Настройки', description: 'Персональные настройки (пока заглушка).', route: '/profile/user-settings', icon: 'shield' },
 ]
 
@@ -82,7 +84,7 @@ export const ProfilePage = () => {
     const activeRoles = new Set<UserRole>(session.user.roles?.length ? session.user.roles : [session.user.role])
     if (!session.isAuthenticated) activeRoles.add('guest')
     return (Object.keys(cabinetByRole) as UserRole[])
-      .filter((role) => activeRoles.has(role))
+      .filter((role) => role !== 'guest' && activeRoles.has(role))
       .map((role) => ({ role, entries: cabinetByRole[role] }))
   }, [session.isAuthenticated, session.user.role, session.user.roles])
 

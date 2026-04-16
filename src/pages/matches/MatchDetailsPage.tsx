@@ -6,6 +6,7 @@ import { useMatchDetails } from '../../hooks/data/useMatchDetails'
 import { useMatches } from '../../hooks/data/useMatches'
 import { useTeams } from '../../hooks/data/useTeams'
 import { usePlayers } from '../../hooks/data/usePlayers'
+import { useEvents } from '../../hooks/data/useEvents'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { TeamAvatar } from '../../components/ui/TeamAvatar'
 import { CommentsSection } from '../../components/comments'
@@ -124,6 +125,7 @@ export const MatchDetailsPage = () => {
   const { data: allMatches } = useMatches()
   const { data: teams } = useTeams()
   const { data: players } = usePlayers()
+  const { data: matchFeedEvents } = useEvents(matchId ? { entityType: 'match', entityId: matchId, limit: 3 } : undefined)
   const { session } = useSession()
   const { isMatchMuted, toggleMatchMuted } = useUserPreferences()
   const { matchesRepository, playoffGridRepository, cabinetRepository, eventsRepository } = useRepositories()
@@ -297,7 +299,16 @@ export const MatchDetailsPage = () => {
     const elapsed = Math.max(0, Math.floor((nowTs - anchorTs) / 60_000))
     return Math.min(120, baseMinute + elapsed)
   })()
-  const latestEvents = localEvents.slice().sort((a, b) => (b.minute ?? 0) - (a.minute ?? 0)).slice(0, 3)
+  const latestEvents = (matchFeedEvents?.length
+    ? matchFeedEvents
+      .slice()
+      .sort((a, b) => String(b.timestamp ?? '').localeCompare(String(a.timestamp ?? '')))
+      .map((event) => ({ id: event.id, label: event.summary?.trim() || event.title?.trim() || 'Событие' }))
+    : localEvents
+      .slice()
+      .sort((a, b) => (b.minute ?? 0) - (a.minute ?? 0))
+      .map((event) => ({ id: event.id, label: event.note?.trim() || event.type }))
+  ).slice(0, 3)
   const playersById = Object.fromEntries(players.map((player) => [player.id, player]))
   const historyEvents = localEvents
     .filter((event) => (event.type === 'goal' || event.type === 'yellow_card' || event.type === 'red_card') && event.teamId)
@@ -973,7 +984,7 @@ export const MatchDetailsPage = () => {
           <div className="space-y-2">
             {latestEvents.map((event) => (
               <div key={event.id} className="flex items-center gap-3 rounded-xl border border-borderSubtle bg-mutedBg px-3 py-2 text-sm">
-                <span className="truncate text-textPrimary">{event.note?.trim() || event.type}</span>
+                <span className="truncate text-textPrimary">{event.label}</span>
               </div>
             ))}
           </div>

@@ -119,6 +119,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 
 		r.With(sessionMW.RequireSession).Get("/me/profile", h.GetMyProfile)
 		r.With(sessionMW.RequireSession).Get("/me/actions", h.GetMyActions)
+		r.With(sessionMW.RequireSession).Get("/me/notifications", h.GetMyNotifications)
 		r.With(sessionMW.RequireSession).Patch("/me/profile", h.UpdateMyProfile)
 		r.With(sessionMW.RequireSession).Post("/captain/teams/{id}/invite", h.CaptainInviteByUsername)
 		r.With(sessionMW.RequireSession).Patch("/captain/teams/{id}/socials", h.CaptainUpdateTeamSocials)
@@ -1373,29 +1374,51 @@ func (h Handler) notifyTelegramAboutEvent(ctx context.Context, item domain.Event
 	if item.ScopeType == domain.EventScopeGlobal {
 		notificationType = domain.NotificationGlobalEvent
 	}
-	chatIDs, err := h.notifications.ListTelegramChatIDs(ctx, notificationType, string(item.ScopeType), item.ScopeID)
+	recipients, err := h.notifications.ListTelegramRecipients(ctx, notificationType, string(item.ScopeType), item.ScopeID)
 	if err != nil {
 		slog.Warn("event_notifications_list_failed", "err", err, "event_id", item.ID)
 		return
 	}
-	if len(chatIDs) == 0 {
+	if len(recipients) == 0 {
 		return
 	}
-	scopeLabel := map[domain.EventScope]string{
-		domain.EventScopeGlobal: "Турнир",
-		domain.EventScopeTeam:   "Команда",
-		domain.EventScopePlayer: "Игрок",
-		domain.EventScopeMatch:  "Матч",
-	}[item.ScopeType]
-	body := strings.TrimSpace(item.Body)
-	if len(body) > 180 {
-		body = strings.TrimSpace(body[:180]) + "…"
-	}
-	message := fmt.Sprintf("🔔 Новое событие\n\n%s\n%s\n\nИсточник: %s", item.Title, body, scopeLabel)
-	for _, chatID := range chatIDs {
-		if sendErr := h.sendTelegramMessage(ctx, chatID, message); sendErr != nil {
-			slog.Warn("event_notification_send_failed", "err", sendErr, "chat_id", chatID, "event_id", item.ID)
+	location := h.eventScopeNotificationLocation(ctx, item)
+	messageTitle := fmt.Sprintf("🔔 Новое событие на странице %s", location)
+	message := fmt.Sprintf("%s\n\n%s", messageTitle, strings.TrimSpace(item.Title))
+	for _, recipient := range recipients {
+		if sendErr := h.sendTelegramMessage(ctx, recipient.ChatID, message); sendErr != nil {
+			slog.Warn("event_notification_send_failed", "err", sendErr, "chat_id", recipient.ChatID, "event_id", item.ID)
+			continue
 		}
+		_ = h.notifications.Enqueue(ctx, recipient.UserID, notificationType, map[string]any{
+			"title": messageTitle,
+			"body":  strings.TrimSpace(item.Title),
+			"route": "/events/" + strconv.FormatInt(item.ID, 10),
+		})
+	}
+}
+func (h Handler) eventScopeNotificationLocation(ctx context.Context, item domain.EventFeedItem) string {
+	switch item.ScopeType {
+	case domain.EventScopeTeam:
+		if item.ScopeID != nil {
+			if team, err := h.tournament.GetTeam(ctx, *item.ScopeID); err == nil && strings.TrimSpace(team.Name) != "" {
+				return "команды " + strings.TrimSpace(team.Name)
+			}
+		}
+		return "команды"
+	case domain.EventScopePlayer:
+		if item.ScopeID != nil {
+			if player, err := h.tournament.GetPlayer(ctx, *item.ScopeID); err == nil && strings.TrimSpace(player.FullName) != "" {
+				return "игрока " + strings.TrimSpace(player.FullName)
+			}
+		}
+		return "игрока"
+	case domain.EventScopeGlobal:
+		return "турнира"
+	case domain.EventScopeMatch:
+		return "матча"
+	default:
+		return "турнира"
 	}
 }
 func (h Handler) UpdateEvent(w http.ResponseWriter, r *http.Request) {
@@ -1525,10 +1548,37 @@ func (h Handler) ReplyComment(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", 400)
 		return
 	}
+	parent, parentErr := h.comments.GetByID(r.Context(), id)
+	if parentErr != nil {
+		http.Error(w, "failed", 400)
+		return
+	}
 	item, err := h.comments.Reply(r.Context(), current.User, id, req)
 	if err != nil {
 		handleDomainErr(w, err)
 		return
+	}
+	if parent.AuthorUserID != current.User.ID {
+		recipients, listErr := h.notifications.ListTelegramRecipients(r.Context(), domain.NotificationCommentReply, "", nil)
+		if listErr != nil {
+			slog.Warn("comment_reply_notifications_list_failed", "err", listErr, "comment_id", id)
+		} else {
+			for _, recipient := range recipients {
+				if recipient.UserID != parent.AuthorUserID {
+					continue
+				}
+				title := fmt.Sprintf("🔔 %s ответил на ваш комментарий", strings.TrimSpace(current.User.DisplayName))
+				if sendErr := h.sendTelegramMessage(r.Context(), recipient.ChatID, title); sendErr != nil {
+					slog.Warn("comment_reply_notification_send_failed", "err", sendErr, "chat_id", recipient.ChatID, "comment_id", id)
+					continue
+				}
+				_ = h.notifications.Enqueue(r.Context(), recipient.UserID, domain.NotificationCommentReply, map[string]any{
+					"title": title,
+					"body":  "",
+					"route": "/users/" + strconv.FormatInt(current.User.ID, 10),
+				})
+			}
+		}
 	}
 	writeJSON(w, 201, item)
 }
@@ -1622,6 +1672,25 @@ func (h Handler) GetMyActions(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	items, err := h.cabinet.GetMyActions(r.Context(), current.User, limit)
+	if err != nil {
+		http.Error(w, "failed", 400)
+		return
+	}
+	writeJSON(w, 200, items)
+}
+func (h Handler) GetMyNotifications(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	limit := 50
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			limit = parsed
+		}
+	}
+	items, err := h.notifications.ListUserNotifications(r.Context(), current.User.ID, limit)
 	if err != nil {
 		http.Error(w, "failed", 400)
 		return

@@ -913,6 +913,18 @@ export const cabinetRepository: CabinetRepository = {
       metadata: (item.metadata ?? {}) as Record<string, unknown>,
     }))
   },
+  async getMyNotifications() {
+    const rows = await api<any[]>(`/api/me/notifications`)
+    return rows.map((item) => ({
+      id: String(item.id),
+      notificationType: String(item.notification_type ?? ''),
+      title: String(item.title ?? ''),
+      body: String(item.body ?? ''),
+      route: String(item.route ?? '/'),
+      status: String(item.status ?? ''),
+      createdAt: item.created_at ? new Date(Number(item.created_at) * 1000).toISOString() : new Date().toISOString(),
+    }))
+  },
   async getTournamentCycles() {
     const payload = await api<any[]>('/api/tournament/cycles')
     return payload.map((item) => ({

@@ -31,6 +31,9 @@ func (s Service) EnqueueCommentReply(ctx context.Context, userID int64, payload 
 func (s Service) EnqueuePlayerCommentNew(ctx context.Context, userID int64, payload map[string]any) error {
 	return s.repo.Enqueue(ctx, userID, domain.NotificationPlayerCommentNew, payload)
 }
+func (s Service) Enqueue(ctx context.Context, userID int64, nt domain.NotificationType, payload map[string]any) error {
+	return s.repo.Enqueue(ctx, userID, nt, payload)
+}
 
 func (s Service) EnsureDefaultTelegramSubscriptions(ctx context.Context, userID int64, chatID int64) error {
 	return s.repo.EnsureDefaultTelegramSubscriptions(ctx, userID, chatID)
@@ -40,8 +43,16 @@ func (s Service) ListTelegramChatIDs(ctx context.Context, nt domain.Notification
 	return s.repo.ListTelegramChatIDs(ctx, nt, scopeType, scopeID)
 }
 
+func (s Service) ListTelegramRecipients(ctx context.Context, nt domain.NotificationType, scopeType string, scopeID *int64) ([]domain.TelegramRecipient, error) {
+	return s.repo.ListTelegramRecipients(ctx, nt, scopeType, scopeID)
+}
+
 func (s Service) ClaimPending(ctx context.Context, limit int) ([]domain.NotificationJob, error) {
 	return s.repo.ClaimPending(ctx, limit)
+}
+
+func (s Service) ListUserNotifications(ctx context.Context, userID int64, limit int) ([]domain.UserNotificationItem, error) {
+	return s.repo.ListUserNotifications(ctx, userID, limit)
 }
 
 type TelegramDeliveryAdapter interface {
