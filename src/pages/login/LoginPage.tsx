@@ -4,13 +4,6 @@ import { useNavigate } from 'react-router-dom'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useSession } from '../../app/providers/use-session'
 
-const devAccounts = [
-  { code: 'UFL-SUPERADMIN-2026', label: 'Superadmin (seeded)' },
-  { code: 'UFL-ADMIN-2026', label: 'Admin (seeded)' },
-  { code: 'UFL-CAPTAIN-2026', label: 'Captain Alpha (seeded)' },
-  { code: 'UFL-PLAYER-2026', label: 'Player Test (seeded)' },
-]
-
 export const LoginPage = () => {
   const { isLoading, startTelegramLogin, completeTelegramLoginWithCode } = useSession()
   const persistedRequestId = window.sessionStorage.getItem('tg_login_request_id') ?? ''
@@ -38,7 +31,7 @@ export const LoginPage = () => {
     <PageContainer>
       <section className="rounded-2xl border border-borderStrong bg-panelBg p-4 shadow-matte">
         <h2 className="text-xl font-bold text-textPrimary">Вход в UFL через Telegram</h2>
-        <p className="mt-2 text-sm text-textSecondary">Dev-safe login flow: backend проверяет code и создает реальную session cookie.</p>
+        <p className="mt-2 text-sm text-textSecondary">Вход выполняется по одноразовому коду из Telegram.</p>
 
         {step === 'start' && (
           <button
@@ -80,26 +73,13 @@ export const LoginPage = () => {
             >
               ← Назад
             </button>
-            <p className="text-xs text-textMuted">Введите mock code для seeded dev account:</p>
+            <p className="text-xs text-textMuted">Введите код подтверждения:</p>
             <input
               value={code}
               onChange={(event) => setCode(event.target.value)}
-              placeholder="0000 или UFL-SUPERADMIN-2026"
+              placeholder="Введите код из Telegram"
               className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary outline-none"
             />
-            <div className="flex flex-wrap gap-2">
-              {devAccounts.map((item) => (
-                <button
-                  key={item.code}
-                  type="button"
-                  disabled={isLoading}
-                  onClick={() => setCode(item.code)}
-                  className="rounded-lg border border-borderSubtle px-2 py-1 text-[11px] text-textSecondary"
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
             <button
               type="button"
               onClick={async () => {
@@ -126,9 +106,9 @@ export const LoginPage = () => {
       </section>
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary shadow-soft">
-        <p className="flex items-center gap-2"><MessageCircle size={14} className="text-accentYellow" /> После старта login пользователь сразу редиректится в Telegram бота и получает одноразовый 4-значный код (TTL 30 минут).</p>
-        <p className="mt-1 flex items-center gap-2"><ShieldCheck size={14} className="text-accentYellow" /> Логин проходит только через backend endpoint и session cookie.</p>
-        <p className="mt-1 flex items-center gap-2"><Lock size={14} className="text-accentYellow" /> После reload/auth refresh источник истины — только /api/auth/me.</p>
+        <p className="flex items-center gap-2"><MessageCircle size={14} className="text-accentYellow" /> После старта входа открывается Telegram-бот, где вы получаете одноразовый код.</p>
+        <p className="mt-1 flex items-center gap-2"><ShieldCheck size={14} className="text-accentYellow" /> Код подтверждается на сервере, после чего создаётся защищённая сессия.</p>
+        <p className="mt-1 flex items-center gap-2"><Lock size={14} className="text-accentYellow" /> Статус входа автоматически восстанавливается при обновлении страницы.</p>
       </section>
     </PageContainer>
   )

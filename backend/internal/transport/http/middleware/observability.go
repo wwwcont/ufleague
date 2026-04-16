@@ -180,8 +180,6 @@ func detectBusinessCase(method, path string) string {
 		return "telegram_auth_start"
 	case method == http.MethodPost && normalized == "/api/auth/telegram/complete-code":
 		return "telegram_auth_complete_code"
-	case method == http.MethodPost && normalized == "/api/auth/telegram/mock-code-login":
-		return "telegram_auth_mock_code_login"
 	case method == http.MethodPost && strings.HasPrefix(normalized, "/api/comments"):
 		return "comment_write"
 	case strings.HasPrefix(normalized, "/api/admin/"):

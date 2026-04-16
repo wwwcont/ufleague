@@ -2,23 +2,20 @@ package config
 
 import "testing"
 
-func TestValidateProductionRejectsDevAuthFlags(t *testing.T) {
+func TestValidateProductionRequiresSecureSession(t *testing.T) {
 	cfg := Config{
 		AppEnv: "production",
 		Session: SessionConfig{
-			Secure: true,
+			Secure: false,
 		},
 		Security: SecurityConfig{
 			CORSAllowedOrigins: "https://ufleague.example",
 			BodyLimitBytes:     1024,
 			RateLimitPerMinute: 60,
 		},
-		Features: FeaturesConfig{
-			DevLoginEnabled: true,
-		},
 	}
 	if err := cfg.Validate(); err == nil {
-		t.Fatalf("expected validation error for production dev-login")
+		t.Fatalf("expected validation error for insecure production config")
 	}
 }
 
@@ -39,7 +36,7 @@ func TestValidateProductionRequiresSecureSessionAndOrigins(t *testing.T) {
 	}
 }
 
-func TestValidateDevelopmentAllowsMockFlags(t *testing.T) {
+func TestValidateDevelopmentAllowsBasicConfig(t *testing.T) {
 	cfg := Config{
 		AppEnv: "development",
 		Session: SessionConfig{
@@ -49,10 +46,6 @@ func TestValidateDevelopmentAllowsMockFlags(t *testing.T) {
 			CORSAllowedOrigins: "http://localhost:5173",
 			BodyLimitBytes:     1024,
 			RateLimitPerMinute: 60,
-		},
-		Features: FeaturesConfig{
-			DevLoginEnabled:          true,
-			TelegramMockLoginEnabled: true,
 		},
 	}
 	if err := cfg.Validate(); err != nil {

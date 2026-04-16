@@ -27,19 +27,15 @@ type Service struct {
 	baseBotURL   string
 	sessionTTL   time.Duration
 	codeTTL      time.Duration
-	mockEnabled  bool
-	mockCode     string
 	defaultRoles []domain.Role
 }
 
-func NewService(authRepo *repository.AuthRepository, baseBotURL string, mockEnabled bool, mockCode string) Service {
+func NewService(authRepo *repository.AuthRepository, baseBotURL string) Service {
 	return Service{
 		authRepo:     authRepo,
 		baseBotURL:   baseBotURL,
 		sessionTTL:   10 * time.Minute,
 		codeTTL:      30 * time.Minute,
-		mockEnabled:  mockEnabled,
-		mockCode:     strings.TrimSpace(mockCode),
 		defaultRoles: []domain.Role{domain.RolePlayer, domain.RoleCaptain, domain.RoleAdmin, domain.RoleSuperadmin},
 	}
 }
@@ -79,7 +75,7 @@ func (s Service) IssueCode(ctx context.Context, req domain.TelegramIssueCodeRequ
 	return domain.TelegramIssueCodeResponse{Code: code, ExpiresAt: expiresAt}, nil
 }
 
-func (s Service) Start(ctx context.Context, req domain.TelegramAuthStartRequest) (domain.TelegramAuthStartResponse, error) {
+func (s Service) Start(ctx context.Context, _ domain.TelegramAuthStartRequest) (domain.TelegramAuthStartResponse, error) {
 	requestID, err := randomHex(16)
 	if err != nil {
 		return domain.TelegramAuthStartResponse{}, err
@@ -87,30 +83,6 @@ func (s Service) Start(ctx context.Context, req domain.TelegramAuthStartRequest)
 	expiresAt := time.Now().UTC().Add(s.sessionTTL)
 	if err = s.authRepo.CreateTelegramLoginSession(ctx, requestID, expiresAt); err != nil {
 		return domain.TelegramAuthStartResponse{}, err
-	}
-
-	role := domain.RoleGuest
-	if req.Role != nil {
-		role = *req.Role
-	}
-	if s.mockEnabled && s.mockCode != "" && isRoleAllowed(role) {
-		mockIdentity := domain.TelegramIdentity{
-			TelegramID: int64(9_000_000_000 + roleToInt(role)),
-			Username:   fmt.Sprintf("mock_%s", role),
-			FirstName:  "Mock",
-			LastName:   string(role),
-		}
-		if err = s.authRepo.StoreTelegramLoginCode(ctx, domain.TelegramLoginCode{
-			SessionID:        requestID,
-			CodeHash:         hashCode(s.mockCode),
-			TelegramUserID:   mockIdentity.TelegramID,
-			TelegramUsername: mockIdentity.Username,
-			Role:             role,
-			ExpiresAt:        time.Now().UTC().Add(s.codeTTL),
-			IssuedBy:         "mock_adapter",
-		}); err != nil {
-			return domain.TelegramAuthStartResponse{}, err
-		}
 	}
 
 	return domain.TelegramAuthStartResponse{

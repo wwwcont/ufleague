@@ -31,10 +31,6 @@ type TelegramIssueCodeResponse struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 
-type TelegramMockCodeLoginRequest struct {
-	Code string `json:"code"`
-}
-
 type TelegramIdentity struct {
 	TelegramID int64
 	Username   string

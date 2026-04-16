@@ -1,3 +1,2 @@
-UPDATE players
-SET user_id = NULL
-WHERE id BETWEEN 2001 AND 2016;
+-- no-op (mapping for removed dev seed users).
+SELECT 1;
