@@ -26,6 +26,55 @@ let inMemoryPlayers = players.map((player) => ({ ...player, socials: { ...(playe
 
 let inMemorySession = defaultSession
 
+const STORAGE_KEY = 'ufleague.mock.repositories.v1'
+
+type PersistedMockState = {
+  teams?: typeof inMemoryTeams
+  players?: typeof inMemoryPlayers
+  session?: typeof inMemorySession
+  profile?: typeof mockProfile
+  tournamentCycles?: typeof mockTournamentCycles
+}
+
+const canUseStorage = () => typeof window !== 'undefined' && !!window.localStorage
+
+const saveState = () => {
+  if (!canUseStorage()) return
+  const payload: PersistedMockState = {
+    teams: inMemoryTeams,
+    players: inMemoryPlayers,
+    session: inMemorySession,
+    profile: mockProfile,
+    tournamentCycles: mockTournamentCycles,
+  }
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
+}
+
+const loadState = (): PersistedMockState | null => {
+  if (!canUseStorage()) return null
+  const raw = window.localStorage.getItem(STORAGE_KEY)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as PersistedMockState
+  } catch {
+    return null
+  }
+}
+
+const fileToDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
+  const reader = new FileReader()
+  reader.onerror = () => reject(new Error('Не удалось прочитать файл'))
+  reader.onload = () => {
+    const result = reader.result
+    if (typeof result === 'string' && result.trim()) {
+      resolve(result)
+      return
+    }
+    reject(new Error('Пустой результат чтения файла'))
+  }
+  reader.readAsDataURL(file)
+})
+
 const userDirectory = new Map<string, { id: string; displayName: string; telegramUsername: string }>()
 const bootstrapUsers = () => {
   for (const player of inMemoryPlayers) {
@@ -119,6 +168,7 @@ export const teamsRepository: TeamsRepository = {
       }
     }
 
+    saveState()
     return { id: nextId }
   },
   async updateTeam(teamId, patch) {
@@ -138,6 +188,7 @@ export const teamsRepository: TeamsRepository = {
         },
       }
     })
+    saveState()
   },
   async captainInviteByUsername(teamId, username) {
     const normalized = username.trim().replace(/^@/, '')
@@ -145,6 +196,7 @@ export const teamsRepository: TeamsRepository = {
     if (!target) return
     ensurePlayerForUser(target.id, teamId, target.displayName)
     syncSessionLinks()
+    saveState()
   },
 }
 
@@ -158,6 +210,7 @@ export const playersRepository: PlayersRepository = {
   async createPlayer(input) {
     ensurePlayerForUser(input.userId, input.teamId, input.fullName)
     syncSessionLinks()
+    saveState()
   },
 }
 
@@ -325,15 +378,18 @@ export const sessionRepository: SessionRepository = {
   async completeTelegramLoginWithCode() {
     inMemorySession = makeSessionByRole('superadmin')
     syncSessionLinks()
+    saveState()
     return inMemorySession
   },
   async loginAsDevRole(role) {
     inMemorySession = makeSessionByRole(role)
     syncSessionLinks()
+    saveState()
     return inMemorySession
   },
   async logout() {
     inMemorySession = makeSessionByRole('guest')
+    saveState()
   },
 }
 
@@ -375,12 +431,24 @@ let mockTournamentCycles: Array<{ id: string; name: string; bracketTeamCapacity:
   { id: 'cycle_2026', name: 'Сезон 2026', bracketTeamCapacity: 16 as const, isActive: true },
 ]
 
+const persisted = loadState()
+if (persisted) {
+  inMemoryTeams = Array.isArray(persisted.teams) ? persisted.teams : inMemoryTeams
+  inMemoryPlayers = Array.isArray(persisted.players) ? persisted.players : inMemoryPlayers
+  inMemorySession = persisted.session ?? inMemorySession
+  mockProfile = persisted.profile ?? mockProfile
+  mockTournamentCycles = Array.isArray(persisted.tournamentCycles) ? persisted.tournamentCycles : mockTournamentCycles
+}
+userDirectory.clear()
+bootstrapUsers()
+
 export const cabinetRepository: CabinetRepository = {
   async getMyProfile() {
     return mockProfile
   },
   async updateMyProfile(input) {
     mockProfile = { ...mockProfile, ...input }
+    saveState()
   },
   async createTeamEvent() {
     return
@@ -417,12 +485,15 @@ export const cabinetRepository: CabinetRepository = {
       ...mockTournamentCycles.map((cycle) => ({ ...cycle, isActive: input.isActive ? false : cycle.isActive })),
       { id: `cycle_${mockTournamentCycles.length + 1}`, name: input.name, bracketTeamCapacity: input.bracketTeamCapacity, isActive: Boolean(input.isActive) },
     ]
+    saveState()
   },
   async setActiveTournamentCycle(cycleId) {
     mockTournamentCycles = mockTournamentCycles.map((cycle) => ({ ...cycle, isActive: cycle.id === cycleId }))
+    saveState()
   },
   async updateTournamentBracketSettings(cycleId, settings) {
     mockTournamentCycles = mockTournamentCycles.map((cycle) => (cycle.id === cycleId ? { ...cycle, bracketTeamCapacity: settings.teamCapacity } : cycle))
+    saveState()
   },
 }
 
@@ -479,14 +550,30 @@ export const usersRepository: UsersRepository = {
       socials: {},
     }
   },
-  async updateUserProfile() {
+  async updateUserProfile(userId, input) {
+    const fullName = `${input.firstName} ${input.lastName}`.trim() || input.displayName
+    const existing = userDirectory.get(userId)
+    userDirectory.set(userId, {
+      id: userId,
+      displayName: input.displayName,
+      telegramUsername: (existing?.telegramUsername ?? userId).replace(/^@/, ''),
+    })
+    inMemoryPlayers = inMemoryPlayers.map((player) => (
+      player.userId === userId
+        ? { ...player, displayName: fullName, bio: input.bio, avatar: input.avatarUrl || player.avatar }
+        : player
+    ))
+    if (mockProfile.userId === userId) {
+      mockProfile = { ...mockProfile, ...input, displayName: input.displayName }
+    }
+    saveState()
     return
   },
 }
 
 export const uploadsRepository: UploadsRepository = {
   async uploadImage(file) {
-    return { url: URL.createObjectURL(file) }
+    return { url: await fileToDataUrl(file) }
   },
 }
 
