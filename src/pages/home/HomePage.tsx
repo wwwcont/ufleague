@@ -9,6 +9,28 @@ import { useTeams } from '../../hooks/data/useTeams'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { useEvents } from '../../hooks/data/useEvents'
 import { formatTimeOnlyMsk } from '../../lib/date-time'
+import type { Team } from '../../domain/entities/types'
+
+const fallbackTeam = (id: string): Team => ({
+  id,
+  name: 'Команда',
+  shortName: 'TBD',
+  logoUrl: null,
+  city: '',
+  coach: '',
+  group: '',
+  form: [],
+  statsSummary: {
+    played: 0,
+    won: 0,
+    drawn: 0,
+    lost: 0,
+    goalsFor: 0,
+    goalsAgainst: 0,
+    goalDiff: 0,
+    points: 0,
+  },
+})
 
 export const HomePage = () => {
   const { data: matchList } = useMatches()
@@ -43,7 +65,7 @@ export const HomePage = () => {
       ) : (
         <div className="space-y-2">
           {liveAndUpcoming.map((match) => (
-            <MatchCard key={match.id} match={match} home={teamMap[match.homeTeamId]} away={teamMap[match.awayTeamId]} />
+            <MatchCard key={match.id} match={match} home={teamMap[match.homeTeamId] ?? fallbackTeam(match.homeTeamId)} away={teamMap[match.awayTeamId] ?? fallbackTeam(match.awayTeamId)} />
           ))}
         </div>
       )}
