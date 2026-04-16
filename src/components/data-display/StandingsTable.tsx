@@ -19,6 +19,7 @@ export const StandingsTable = ({ rows, teamMap }: { rows: StandingRow[]; teamMap
       <tbody>
         {rows.map((row) => {
           const team = teamMap[row.teamId]
+          if (!team) return null
 
           return (
             <Fragment key={row.teamId}>
@@ -26,8 +27,8 @@ export const StandingsTable = ({ rows, teamMap }: { rows: StandingRow[]; teamMap
                 <td className="rounded-l-lg px-2 py-3 font-medium text-textSecondary">{row.position}</td>
                 <td className="px-2 py-3">
                   <Link className="flex items-center gap-2 font-medium text-textPrimary transition hover:text-accentYellow" to={`/teams/${row.teamId}`}>
-                    {team ? <TeamAvatar team={team} size="sm" /> : <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-panelSoft text-[10px]">?</span>}
-                    <span>{team?.shortName ?? row.teamId}</span>
+                    <TeamAvatar team={team} size="sm" />
+                    <span>{team.shortName}</span>
                   </Link>
                 </td>
                 <td className="px-2 py-3 text-center tabular-nums text-textSecondary">{row.played}</td>
