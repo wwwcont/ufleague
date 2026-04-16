@@ -18,7 +18,7 @@ import type {
 } from '../entities/types'
 
 export interface TeamsRepository {
-  getTeams(): Promise<Team[]>
+  getTeams(options?: { includeArchived?: boolean }): Promise<Team[]>
   getTeamById(teamId: string): Promise<Team | null>
   createTeam?(input: { name: string; shortName?: string; slug?: string; description: string; logoUrl?: string }): Promise<{ id: string } | void>
   updateTeam?(teamId: string, patch: Partial<Pick<Team, 'name' | 'shortName' | 'logoUrl' | 'description' | 'slogan' | 'socials'>>): Promise<void>
@@ -26,6 +26,7 @@ export interface TeamsRepository {
   captainUpdateSocials?(teamId: string, socials: Record<string, string>): Promise<void>
   captainSetRosterVisibility?(teamId: string, playerId: string, isVisible: boolean): Promise<void>
   adminTransferCaptain?(teamId: string, newCaptainUserId: string): Promise<void>
+  adminArchiveTeam?(teamId: string, archived: boolean): Promise<void>
 }
 
 export interface PlayersRepository {

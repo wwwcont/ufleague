@@ -9,6 +9,7 @@ type Team struct {
 	Slug          string            `json:"slug"`
 	Description   string            `json:"description,omitempty"`
 	LogoURL       string            `json:"logo_url,omitempty"`
+	Archived      bool              `json:"archived"`
 	Socials       map[string]string `json:"socials"`
 	CaptainUserID *int64            `json:"captain_user_id,omitempty"`
 	CreatedAt     time.Time         `json:"created_at"`

@@ -41,7 +41,7 @@ const writeStore = (store: UserPreferenceStore) => {
 export const useUserPreferences = () => {
   const { session } = useSession()
   const userId = session.isAuthenticated ? session.user.id : null
-  const [, setRevision] = useState(0)
+  const [revision, setRevision] = useState(0)
   const state = useMemo<UserPreferenceState>(() => {
     if (!userId) return defaultState
     const raw = readStore()[userId]
@@ -52,7 +52,7 @@ export const useUserPreferences = () => {
       enabledFeedKeys: Array.isArray((raw as Partial<UserPreferenceState>).enabledFeedKeys) ? (raw as Partial<UserPreferenceState>).enabledFeedKeys ?? [] : [],
       favoriteEntityKeys: Array.isArray(raw.favoriteEntityKeys) ? raw.favoriteEntityKeys : [],
     }
-  }, [userId])
+  }, [revision, userId])
 
   const updateState = useCallback((updater: (prev: UserPreferenceState) => UserPreferenceState) => {
     if (!userId) return

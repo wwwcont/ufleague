@@ -10,8 +10,18 @@ import (
 
 type fakeRepo struct {
 	player             *domain.Player
+	roles              []domain.Role
+	team               domain.Team
+	countTeams         int
 	created            bool
 	reassigned         bool
+	detached           bool
+	revokedPlayer      bool
+	clearedCaptains    bool
+	archivedTeamID     int64
+	archivedValue      bool
+	transferredTeamID  int64
+	transferredCaptain *int64
 	createdUserID      int64
 	createdTeamID      int64
 	reassignedPlayerID int64
@@ -27,18 +37,22 @@ func (f *fakeRepo) UpdateProfile(context.Context, int64, domain.UpdateProfileReq
 	return domain.UserProfile{}, nil
 }
 func (f *fakeRepo) GetTeamByID(context.Context, int64) (domain.Team, error) {
-	return domain.Team{}, nil
+	return f.team, nil
 }
 func (f *fakeRepo) FindUserByUsername(context.Context, string) (int64, error)         { return 0, nil }
 func (f *fakeRepo) CreateTeamInvite(context.Context, int64, int64, int64) error       { return nil }
 func (f *fakeRepo) EnsureUserRole(context.Context, int64, domain.Role) error          { return nil }
 func (f *fakeRepo) UpdateTeamSocials(context.Context, int64, map[string]string) error { return nil }
 func (f *fakeRepo) SetPlayerVisible(context.Context, int64, bool) error               { return nil }
-func (f *fakeRepo) TransferCaptain(context.Context, int64, *int64) error              { return nil }
-func (f *fakeRepo) ModerateDeleteComment(context.Context, int64) error                { return nil }
-func (f *fakeRepo) ReplaceUserRoles(context.Context, int64, []domain.Role) error      { return nil }
-func (f *fakeRepo) ReplaceUserPermissions(context.Context, int64, []string) error     { return nil }
-func (f *fakeRepo) ReplaceUserRestrictions(context.Context, int64, []string) error    { return nil }
+func (f *fakeRepo) TransferCaptain(_ context.Context, teamID int64, newCaptain *int64) error {
+	f.transferredTeamID = teamID
+	f.transferredCaptain = newCaptain
+	return nil
+}
+func (f *fakeRepo) ModerateDeleteComment(context.Context, int64) error             { return nil }
+func (f *fakeRepo) ReplaceUserRoles(context.Context, int64, []domain.Role) error   { return nil }
+func (f *fakeRepo) ReplaceUserPermissions(context.Context, int64, []string) error  { return nil }
+func (f *fakeRepo) ReplaceUserRestrictions(context.Context, int64, []string) error { return nil }
 func (f *fakeRepo) UpsertGlobalSetting(context.Context, string, map[string]any, int64) error {
 	return nil
 }
@@ -61,9 +75,27 @@ func (f *fakeRepo) ReassignPlayerTeam(_ context.Context, playerID, teamID int64)
 	f.reassignedTeamID = teamID
 	return nil
 }
-func (f *fakeRepo) RevokeUserRole(context.Context, int64, domain.Role) error { return nil }
-func (f *fakeRepo) DetachPlayerFromUser(context.Context, int64) error        { return nil }
-func (f *fakeRepo) CountTeamsByCaptain(context.Context, int64) (int, error)  { return 0, nil }
+func (f *fakeRepo) RevokeUserRole(_ context.Context, _ int64, role domain.Role) error {
+	if role == domain.RolePlayer {
+		f.revokedPlayer = true
+	}
+	return nil
+}
+func (f *fakeRepo) DetachPlayerFromUser(context.Context, int64) error {
+	f.detached = true
+	return nil
+}
+func (f *fakeRepo) CountTeamsByCaptain(context.Context, int64) (int, error) { return f.countTeams, nil }
+func (f *fakeRepo) ClearCaptainFromTeams(context.Context, int64) error {
+	f.clearedCaptains = true
+	return nil
+}
+func (f *fakeRepo) GetUserRoles(context.Context, int64) ([]domain.Role, error) { return f.roles, nil }
+func (f *fakeRepo) SetTeamArchived(_ context.Context, teamID int64, archived bool) error {
+	f.archivedTeamID = teamID
+	f.archivedValue = archived
+	return nil
+}
 func (f *fakeRepo) ListAuditActionsByActor(context.Context, int64, int) ([]domain.UserActionItem, error) {
 	return nil, nil
 }
@@ -121,6 +153,72 @@ func TestAdminUpdateUserProfileReturnsAuditError(t *testing.T) {
 	_, err := svc.AdminUpdateUserProfile(context.Background(), admin, 77, domain.UpdateProfileRequest{DisplayName: "New Name"})
 	if err == nil {
 		t.Fatalf("expected error when audit log fails")
+	}
+}
+
+func TestAdminAssignCaptainRoleRejectsExistingCaptain(t *testing.T) {
+	repo := &fakeRepo{roles: []domain.Role{domain.RoleCaptain}}
+	svc := NewService(repo)
+	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+
+	err := svc.AdminAssignCaptainRole(context.Background(), admin, 77)
+	if !errors.Is(err, ErrUserAlreadyCaptain) {
+		t.Fatalf("expected ErrUserAlreadyCaptain, got %v", err)
+	}
+}
+
+func TestAdminAssignCaptainRoleDetachesPlayerWhenNoTeam(t *testing.T) {
+	repo := &fakeRepo{}
+	svc := NewService(repo)
+	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+
+	if err := svc.AdminAssignCaptainRole(context.Background(), admin, 77); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !repo.detached {
+		t.Fatalf("expected player to be detached")
+	}
+	if !repo.revokedPlayer {
+		t.Fatalf("expected player role to be revoked")
+	}
+}
+
+func TestAdminTransferCaptainRejectsWhenTeamHasAnotherCaptain(t *testing.T) {
+	currentCaptain := int64(15)
+	newCaptain := int64(20)
+	repo := &fakeRepo{team: domain.Team{ID: 5, CaptainUserID: &currentCaptain}}
+	svc := NewService(repo)
+	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+
+	err := svc.AdminTransferCaptain(context.Background(), admin, 5, &newCaptain)
+	if !errors.Is(err, ErrTeamAlreadyHasCaptain) {
+		t.Fatalf("expected ErrTeamAlreadyHasCaptain, got %v", err)
+	}
+}
+
+func TestAdminRevokeCaptainRoleClearsTeams(t *testing.T) {
+	repo := &fakeRepo{countTeams: 2}
+	svc := NewService(repo)
+	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+
+	if err := svc.AdminRevokeCaptainRole(context.Background(), admin, 77); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !repo.clearedCaptains {
+		t.Fatalf("expected captain to be cleared from teams")
+	}
+}
+
+func TestAdminArchiveTeam(t *testing.T) {
+	repo := &fakeRepo{}
+	svc := NewService(repo)
+	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+
+	if err := svc.AdminArchiveTeam(context.Background(), admin, 55, true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if repo.archivedTeamID != 55 || !repo.archivedValue {
+		t.Fatalf("unexpected archive payload: team=%d archived=%v", repo.archivedTeamID, repo.archivedValue)
 	}
 }
 
