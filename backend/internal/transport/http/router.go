@@ -297,22 +297,7 @@ func (h Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to save file", 500)
 		return
 	}
-	writeJSON(w, 201, map[string]string{"url": fmt.Sprintf("%s/uploads/%d", requestOrigin(r), imageID)})
-}
-
-func requestOrigin(r *http.Request) string {
-	scheme := "http"
-	if forwardedProto := strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")); forwardedProto != "" {
-		scheme = forwardedProto
-	} else if r.TLS != nil {
-		scheme = "https"
-	}
-
-	host := strings.TrimSpace(r.Header.Get("X-Forwarded-Host"))
-	if host == "" {
-		host = strings.TrimSpace(r.Host)
-	}
-	return fmt.Sprintf("%s://%s", scheme, host)
+	writeJSON(w, 201, map[string]string{"url": fmt.Sprintf("/uploads/%d", imageID)})
 }
 
 func (h Handler) GetUploadedImage(w http.ResponseWriter, r *http.Request) {
