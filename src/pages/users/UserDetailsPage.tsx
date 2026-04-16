@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Pencil } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
@@ -19,7 +19,8 @@ export const UserDetailsPage = () => {
   const { userId } = useParams()
   const { usersRepository, uploadsRepository, playersRepository } = useRepositories()
   const { session } = useSession()
-  const { data: user, isLoading } = useQueryState(() => (userId ? usersRepository.getUserCard(userId) : Promise.resolve(null)), (value) => !value)
+  const userLoader = useCallback(() => (userId ? usersRepository.getUserCard(userId) : Promise.resolve(null)), [userId, usersRepository])
+  const { data: user, isLoading } = useQueryState(userLoader, (value) => !value)
   const [profile, setProfile] = useState<{ userId: string; username: string; telegramId?: string; telegramUsername?: string; displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> } | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [displayName, setDisplayName] = useState('')

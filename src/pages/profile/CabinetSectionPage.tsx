@@ -424,10 +424,16 @@ export const CabinetSectionPage = () => {
       setUserLookupResults(merged)
       if (!merged.length) {
         setSelectedUser(null)
+        setSelectedUserTeamId('')
+        setMembershipTeamId('')
+        setGrantTeamCreate(false)
         setStatus('error: пользователь не найден')
         return null
       }
       setSelectedUser(merged[0])
+      setSelectedUserTeamId('')
+      setMembershipTeamId('')
+      setGrantTeamCreate(false)
       setStatus(merged.length > 1
         ? `ok: найдено пользователей: ${merged.length}. Выберите нужного.`
         : `ok: выбран пользователь ${merged[0].displayName}`)
@@ -763,6 +769,9 @@ export const CabinetSectionPage = () => {
                     type="button"
                     onClick={() => {
                       setSelectedUser(item)
+                      setSelectedUserTeamId('')
+                      setMembershipTeamId('')
+                      setGrantTeamCreate(false)
                       setStatus(`ok: выбран пользователь ${item.displayName}`)
                     }}
                     className={`w-full rounded-lg border px-2 py-1 text-left text-xs ${selectedUser?.id === item.id ? 'border-accentYellow text-accentYellow' : 'border-borderSubtle text-textSecondary'}`}
@@ -780,7 +789,7 @@ export const CabinetSectionPage = () => {
 
               {section !== 'revoke-access' && (
                 <div className="space-y-2 rounded-lg border border-borderSubtle bg-panelBg p-3">
-                  <p className="text-xs text-textMuted">Сделать капитаном (выберите команду)</p>
+                  <p className="text-xs text-textMuted">Назначить капитаном команды (передаёт капитанство выбранной команды)</p>
                   <select value={selectedUserTeamId} onChange={(e) => setSelectedUserTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
                     <option value="">Выберите команду</option>
                     {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
@@ -803,6 +812,9 @@ export const CabinetSectionPage = () => {
                   <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary" onClick={async () => {
                     try {
                       await cabinetRepository.adminAssignCaptainRole?.(selectedUser.id)
+                      if (grantTeamCreate && currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)) {
+                        await cabinetRepository.superadminAssignPermissions({ userId: selectedUser.id, permissions: ['tournament.team.create'] })
+                      }
                       setStatus('ok: captain role assigned without team')
                     } catch (error) {
                       setStatus(`error: ${(error as Error).message}`)
