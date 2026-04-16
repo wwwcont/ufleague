@@ -31,7 +31,7 @@ export const canManageTeam = (session: AuthSession, team: Team | null | undefine
 export const canManagePlayer = (session: AuthSession, player: Player | null | undefined, playerTeam: Team | null | undefined) => {
   if (!player) return false
   if (isAdmin(session)) return true
-  if (isOwnPlayerProfile(session, player)) return true
+  if (isOwnPlayerProfile(session, player)) return isAtLeastRole(session, 'player')
   return isTeamCaptain(session, playerTeam)
 }
 

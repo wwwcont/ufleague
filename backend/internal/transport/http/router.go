@@ -564,7 +564,7 @@ func (h Handler) TelegramWebhook(w http.ResponseWriter, r *http.Request) {
 		h.writeTelegramWebhookStatus(w, "issue_failed", sendErr)
 		return
 	}
-	sendErr := h.sendTelegramMessage(r.Context(), msg.Chat.ID, fmt.Sprintf("Код входа: %s\nДействует до: %s UTC", resp.Code, resp.ExpiresAt.UTC().Format("2006-01-02 15:04")))
+	sendErr := h.sendTelegramMessage(r.Context(), msg.Chat.ID, fmt.Sprintf("Код входа: %s\nДействует до: %s UTC\n\nПоддержка проекта: @UFL_help", resp.Code, resp.ExpiresAt.UTC().Format("2006-01-02 15:04")))
 	h.writeTelegramWebhookStatus(w, "ok", sendErr)
 }
 
@@ -1364,7 +1364,39 @@ func (h Handler) CreateEvent(w http.ResponseWriter, r *http.Request) {
 		handleDomainErr(w, err)
 		return
 	}
+	h.notifyTelegramAboutEvent(r.Context(), item)
 	writeJSON(w, 201, item)
+}
+
+func (h Handler) notifyTelegramAboutEvent(ctx context.Context, item domain.EventFeedItem) {
+	notificationType := domain.NotificationTeamEvent
+	if item.ScopeType == domain.EventScopeGlobal {
+		notificationType = domain.NotificationGlobalEvent
+	}
+	chatIDs, err := h.notifications.ListTelegramChatIDs(ctx, notificationType, string(item.ScopeType), item.ScopeID)
+	if err != nil {
+		slog.Warn("event_notifications_list_failed", "err", err, "event_id", item.ID)
+		return
+	}
+	if len(chatIDs) == 0 {
+		return
+	}
+	scopeLabel := map[domain.EventScope]string{
+		domain.EventScopeGlobal: "Турнир",
+		domain.EventScopeTeam:   "Команда",
+		domain.EventScopePlayer: "Игрок",
+		domain.EventScopeMatch:  "Матч",
+	}[item.ScopeType]
+	body := strings.TrimSpace(item.Body)
+	if len(body) > 180 {
+		body = strings.TrimSpace(body[:180]) + "…"
+	}
+	message := fmt.Sprintf("🔔 Новое событие\n\n%s\n%s\n\nИсточник: %s", item.Title, body, scopeLabel)
+	for _, chatID := range chatIDs {
+		if sendErr := h.sendTelegramMessage(ctx, chatID, message); sendErr != nil {
+			slog.Warn("event_notification_send_failed", "err", sendErr, "chat_id", chatID, "event_id", item.ID)
+		}
+	}
 }
 func (h Handler) UpdateEvent(w http.ResponseWriter, r *http.Request) {
 	current, ok := middleware.CurrentSession(r.Context())

@@ -121,8 +121,8 @@ const mapMatchEvents = (raw: unknown): Match['events'] => {
   return raw.reduce<Match['events']>((acc, item, index) => {
     if (!item || typeof item !== 'object') return acc
     const payload = item as Record<string, unknown>
-    const minute = Number(payload.minute ?? 0)
-    if (!Number.isFinite(minute) || minute < 0) return acc
+    const parsedMinute = payload.minute === undefined || payload.minute === null ? undefined : Number(payload.minute)
+    const minute = Number.isFinite(parsedMinute) && Number(parsedMinute) >= 0 ? Number(parsedMinute) : undefined
     const rawType = String(payload.type ?? 'goal')
     const normalizedType: Match['events'][number]['type'] = rawType === 'yellow_card' || rawType === 'red_card' || rawType === 'substitution' ? rawType : 'goal'
     acc.push({
@@ -228,7 +228,7 @@ const serializeMatchEvents = (events: Match['events']) => events
   .map((event) => ({
     id: event.id,
     type: event.type,
-    minute: event.minute,
+    minute: event.minute ?? null,
     team_id: event.teamId,
     player_id: event.playerId,
     assist_player_id: event.assistPlayerId,
@@ -616,7 +616,7 @@ export const eventsRepository: EventsRepository = {
   async getEventById(id) { try { return mapEvent(await api<any>(`/api/events/${id}`)) } catch { return null } },
   async createEventForScope(input) {
     const contentBlocks = input.contentBlocks ?? normalizeEventBlocks(undefined, { text: input.body, imageUrl: input.imageUrl })
-    await api('/api/events', {
+    const created = await api<any>('/api/events', {
       method: 'POST',
       body: JSON.stringify({
         scope_type: input.scopeType,
@@ -632,6 +632,7 @@ export const eventsRepository: EventsRepository = {
         is_pinned: false,
       }),
     })
+    return mapEvent(created)
   },
   async updateEventForScope(input) {
     const contentBlocks = input.contentBlocks ?? normalizeEventBlocks(undefined, { text: input.body, imageUrl: input.imageUrl })
@@ -952,6 +953,16 @@ export const usersRepository: UsersRepository = {
       } catch {
         return null
       }
+    }
+  },
+  async searchByTelegramUsername(username) {
+    const normalized = username.trim().replace(/^@/, '')
+    if (!normalized) return []
+    try {
+      const list = await api<any[]>(`/api/users/search?telegram=${encodeURIComponent(normalized)}`)
+      return list.map(mapUserCard)
+    } catch {
+      return []
     }
   },
   async getUserProfile(userId) {

@@ -19,7 +19,7 @@ export const UserDetailsPage = () => {
   const { userId } = useParams()
   const { usersRepository, uploadsRepository, playersRepository } = useRepositories()
   const { session } = useSession()
-  const { data: user } = useQueryState(() => (userId ? usersRepository.getUserCard(userId) : Promise.resolve(null)), (value) => !value)
+  const { data: user, isLoading } = useQueryState(() => (userId ? usersRepository.getUserCard(userId) : Promise.resolve(null)), (value) => !value)
   const [profile, setProfile] = useState<{ userId: string; username: string; telegramId?: string; telegramUsername?: string; displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> } | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [displayName, setDisplayName] = useState('')
@@ -60,6 +60,14 @@ export const UserDetailsPage = () => {
     setAvatarUrl('')
     setAvatarFile(null)
   }, [canEditUser])
+
+  if (isLoading) {
+    return (
+      <PageContainer>
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4">Загрузка пользователя…</section>
+      </PageContainer>
+    )
+  }
 
   if (!user) {
     return (
