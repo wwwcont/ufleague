@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math/rand"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -31,6 +30,7 @@ import (
 	"football_ui/backend/internal/transport/http/middleware"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Handler struct {
@@ -63,8 +63,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 	r.Get("/metricsz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, obs.Snapshot())
 	})
-	_ = os.MkdirAll("uploads", 0o755)
-	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir("uploads"))))
+	r.Get("/uploads/{id}", h.GetUploadedImage)
 	sessionMW := middleware.NewSessionMiddleware(authRepo, sessionManager)
 
 	r.Route("/api/auth", func(r chi.Router) {
@@ -261,6 +260,11 @@ func (h Handler) SearchUsersByTelegramUsername(w http.ResponseWriter, r *http.Re
 }
 
 func (h Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
+	pool, ok := h.healthRepo.(*pgxpool.Pool)
+	if !ok {
+		http.Error(w, "storage unavailable", 500)
+		return
+	}
 	if err := r.ParseMultipartForm(8 << 20); err != nil {
 		http.Error(w, "invalid multipart form", 400)
 		return
@@ -287,26 +291,13 @@ func (h Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ext := extensionByContentType(contentType)
-	filename := fmt.Sprintf("%d_%06d%s", time.Now().UnixMilli(), rand.Intn(1000000), ext)
-	if err = os.MkdirAll("uploads", 0o755); err != nil {
-		http.Error(w, "failed to prepare upload dir", 500)
-		return
-	}
-	targetPath := filepath.Join("uploads", filename)
-
-	dst, err := os.Create(targetPath)
-	if err != nil {
-		http.Error(w, "failed to create file", 500)
-		return
-	}
-	defer dst.Close()
-	if _, err = io.Copy(dst, bytes.NewReader(raw)); err != nil {
+	var imageID int64
+	if err = pool.QueryRow(r.Context(), `INSERT INTO uploaded_images (mime_type, file_data) VALUES ($1,$2) RETURNING id`, contentType, raw).Scan(&imageID); err != nil {
+		slog.Error("upload_image_insert_failed", "err", err)
 		http.Error(w, "failed to save file", 500)
 		return
 	}
-
-	writeJSON(w, 201, map[string]string{"url": fmt.Sprintf("%s/uploads/%s", requestOrigin(r), filename)})
+	writeJSON(w, 201, map[string]string{"url": fmt.Sprintf("%s/uploads/%d", requestOrigin(r), imageID)})
 }
 
 func requestOrigin(r *http.Request) string {
@@ -322,6 +313,31 @@ func requestOrigin(r *http.Request) string {
 		host = strings.TrimSpace(r.Host)
 	}
 	return fmt.Sprintf("%s://%s", scheme, host)
+}
+
+func (h Handler) GetUploadedImage(w http.ResponseWriter, r *http.Request) {
+	pool, ok := h.healthRepo.(*pgxpool.Pool)
+	if !ok {
+		http.Error(w, "storage unavailable", 500)
+		return
+	}
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.NotFound(w, r)
+		return
+	}
+	var mimeType string
+	var raw []byte
+	if err = pool.QueryRow(r.Context(), `SELECT mime_type, file_data FROM uploaded_images WHERE id=$1`, id).Scan(&mimeType, &raw); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(mimeType)), "image/") {
+		mimeType = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", mimeType)
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(raw))
 }
 
 func detectImageContentType(raw []byte, headerContentType, filename string) string {
@@ -358,28 +374,6 @@ func detectImageContentType(raw []byte, headerContentType, filename string) stri
 	}
 }
 
-func extensionByContentType(contentType string) string {
-	switch strings.ToLower(strings.TrimSpace(contentType)) {
-	case "image/jpeg", "image/jpg":
-		return ".jpg"
-	case "image/png":
-		return ".png"
-	case "image/gif":
-		return ".gif"
-	case "image/webp":
-		return ".webp"
-	case "image/svg+xml":
-		return ".svg"
-	case "image/heic":
-		return ".heic"
-	case "image/heif":
-		return ".heif"
-	case "image/avif":
-		return ".avif"
-	default:
-		return ".jpg"
-	}
-}
 func (h Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(h.session.CookieName())
 	if err == nil && cookie.Value != "" {
