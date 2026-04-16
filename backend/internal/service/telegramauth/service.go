@@ -143,10 +143,36 @@ func (s Service) CompleteCode(ctx context.Context, req domain.TelegramCodeLoginR
 	if err != nil {
 		return domain.User{}, err
 	}
-	if err = s.authRepo.ReplaceUserRoles(ctx, user.ID, []domain.Role{code.Role}); err != nil {
+	rolesToAssign := mergeLoginRoles(user.Roles, code.Role)
+	if err = s.authRepo.ReplaceUserRoles(ctx, user.ID, rolesToAssign); err != nil {
 		return domain.User{}, err
 	}
 	return s.authRepo.GetUserByID(ctx, user.ID)
+}
+
+func mergeLoginRoles(existing []domain.Role, requested domain.Role) []domain.Role {
+	seen := make(map[domain.Role]struct{}, len(existing)+1)
+	merged := make([]domain.Role, 0, len(existing)+1)
+
+	for _, role := range existing {
+		if _, ok := seen[role]; ok {
+			continue
+		}
+		seen[role] = struct{}{}
+		merged = append(merged, role)
+	}
+
+	if requested != domain.RoleGuest || len(merged) == 0 {
+		if _, ok := seen[requested]; !ok {
+			seen[requested] = struct{}{}
+			merged = append(merged, requested)
+		}
+	}
+
+	if len(merged) == 0 {
+		return []domain.Role{domain.RoleGuest}
+	}
+	return merged
 }
 
 func hashCode(code string) []byte {
