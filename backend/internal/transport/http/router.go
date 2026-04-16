@@ -64,6 +64,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		writeJSON(w, 200, obs.Snapshot())
 	})
 	r.Get("/uploads/{id}", h.GetUploadedImage)
+	r.Get("/api/uploads/{id}", h.GetUploadedImage)
 	sessionMW := middleware.NewSessionMiddleware(authRepo, sessionManager)
 
 	r.Route("/api/auth", func(r chi.Router) {
@@ -297,7 +298,7 @@ func (h Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to save file", 500)
 		return
 	}
-	writeJSON(w, 201, map[string]string{"url": fmt.Sprintf("/uploads/%d", imageID)})
+	writeJSON(w, 201, map[string]string{"url": fmt.Sprintf("/api/uploads/%d", imageID)})
 }
 
 func (h Handler) GetUploadedImage(w http.ResponseWriter, r *http.Request) {

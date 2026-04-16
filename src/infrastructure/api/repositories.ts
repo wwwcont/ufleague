@@ -32,7 +32,7 @@ const normalizeMediaUrl = (rawUrl?: string | null): string | null => {
   if (!value) return null
 
   const apiOrigin = getApiOrigin()
-  if (value.startsWith('/uploads/')) {
+  if (value.startsWith('/')) {
     return apiOrigin ? `${apiOrigin}${value}` : value
   }
   if (!/^https?:\/\//i.test(value)) {
