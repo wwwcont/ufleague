@@ -82,7 +82,7 @@ export const ProfilePage = () => {
     const activeRoles = new Set<UserRole>(session.user.roles?.length ? session.user.roles : [session.user.role])
     if (!session.isAuthenticated) activeRoles.add('guest')
     return (Object.keys(cabinetByRole) as UserRole[])
-      .filter((role) => activeRoles.has(role))
+      .filter((role) => role !== 'guest' && activeRoles.has(role))
       .map((role) => ({ role, entries: cabinetByRole[role] }))
   }, [session.isAuthenticated, session.user.role, session.user.roles])
 
