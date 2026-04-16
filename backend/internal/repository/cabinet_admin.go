@@ -301,12 +301,60 @@ func (r *CabinetAdminRepository) DeleteTeamWithDependencies(ctx context.Context,
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
+	playerIDs := make([]int64, 0, 16)
+	playerRows, err := tx.Query(ctx, `SELECT id FROM players WHERE team_id=$1`, teamID)
+	if err != nil {
+		return nil, err
+	}
+	for playerRows.Next() {
+		var playerID int64
+		if err = playerRows.Scan(&playerID); err != nil {
+			playerRows.Close()
+			return nil, err
+		}
+		playerIDs = append(playerIDs, playerID)
+	}
+	playerRows.Close()
+	if err = playerRows.Err(); err != nil {
+		return nil, err
+	}
+
+	matchIDs := make([]int64, 0, 16)
+	matchRows, err := tx.Query(ctx, `SELECT id FROM matches WHERE home_team_id=$1 OR away_team_id=$1`, teamID)
+	if err != nil {
+		return nil, err
+	}
+	for matchRows.Next() {
+		var matchID int64
+		if err = matchRows.Scan(&matchID); err != nil {
+			matchRows.Close()
+			return nil, err
+		}
+		matchIDs = append(matchIDs, matchID)
+	}
+	matchRows.Close()
+	if err = matchRows.Err(); err != nil {
+		return nil, err
+	}
 
 	if _, err = tx.Exec(ctx, `DELETE FROM matches WHERE home_team_id=$1 OR away_team_id=$1`, teamID); err != nil {
 		return nil, err
 	}
 	if _, err = tx.Exec(ctx, `DELETE FROM players WHERE team_id=$1`, teamID); err != nil {
 		return nil, err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE event_feed_items SET deleted_at=NOW(), updated_at=NOW() WHERE scope_type='team' AND scope_id=$1`, teamID); err != nil {
+		return nil, err
+	}
+	if len(playerIDs) > 0 {
+		if _, err = tx.Exec(ctx, `UPDATE event_feed_items SET deleted_at=NOW(), updated_at=NOW() WHERE scope_type='player' AND scope_id=ANY($1)`, playerIDs); err != nil {
+			return nil, err
+		}
+	}
+	if len(matchIDs) > 0 {
+		if _, err = tx.Exec(ctx, `UPDATE event_feed_items SET deleted_at=NOW(), updated_at=NOW() WHERE scope_type='match' AND scope_id=ANY($1)`, matchIDs); err != nil {
+			return nil, err
+		}
 	}
 	tag, err := tx.Exec(ctx, `DELETE FROM teams WHERE id=$1`, teamID)
 	if err != nil {

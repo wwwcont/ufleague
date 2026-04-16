@@ -344,6 +344,7 @@ export const playersRepository: PlayersRepository = {
     await api(`/api/players/${playerId}`, {
       method: 'PATCH',
       body: JSON.stringify({
+        user_id: current.user_id,
         team_id: current.team_id,
         full_name: patch.displayName ?? current.full_name,
         nickname: current.nickname ?? '',

@@ -15,7 +15,7 @@ func NewEventsRepository(pool *pgxpool.Pool) *EventsRepository { return &EventsR
 
 func (r *EventsRepository) ListEvents(ctx context.Context) ([]domain.EventFeedItem, error) {
 	rows, err := r.pool.Query(ctx, `
-	SELECT id, scope_type, scope_id, author_user_id, title, body, metadata, visibility, is_pinned, created_at, updated_at, deleted_at
+	SELECT id, COALESCE(scope_type, 'global'), scope_id, COALESCE(author_user_id, 0), COALESCE(title, ''), COALESCE(body, ''), COALESCE(metadata, '{}'::jsonb), COALESCE(visibility, 'public'), COALESCE(is_pinned, false), created_at, updated_at, deleted_at
 	FROM event_feed_items
 	WHERE deleted_at IS NULL
 	ORDER BY is_pinned DESC, created_at DESC`)
@@ -36,7 +36,7 @@ func (r *EventsRepository) ListEvents(ctx context.Context) ([]domain.EventFeedIt
 
 func (r *EventsRepository) GetEvent(ctx context.Context, id int64) (domain.EventFeedItem, error) {
 	row := r.pool.QueryRow(ctx, `
-	SELECT id, scope_type, scope_id, author_user_id, title, body, metadata, visibility, is_pinned, created_at, updated_at, deleted_at
+	SELECT id, COALESCE(scope_type, 'global'), scope_id, COALESCE(author_user_id, 0), COALESCE(title, ''), COALESCE(body, ''), COALESCE(metadata, '{}'::jsonb), COALESCE(visibility, 'public'), COALESCE(is_pinned, false), created_at, updated_at, deleted_at
 	FROM event_feed_items
 	WHERE id=$1 AND deleted_at IS NULL`, id)
 	return scanEvent(row)
@@ -47,7 +47,7 @@ func (r *EventsRepository) CreateEvent(ctx context.Context, ev domain.EventFeedI
 	row := r.pool.QueryRow(ctx, `
 	INSERT INTO event_feed_items (scope_type, scope_id, author_user_id, title, body, metadata, visibility, is_pinned)
 	VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-	RETURNING id, scope_type, scope_id, author_user_id, title, body, metadata, visibility, is_pinned, created_at, updated_at, deleted_at`,
+	RETURNING id, COALESCE(scope_type, 'global'), scope_id, COALESCE(author_user_id, 0), COALESCE(title, ''), COALESCE(body, ''), COALESCE(metadata, '{}'::jsonb), COALESCE(visibility, 'public'), COALESCE(is_pinned, false), created_at, updated_at, deleted_at`,
 		ev.ScopeType, ev.ScopeID, ev.AuthorUserID, ev.Title, ev.Body, meta, ev.Visibility, ev.IsPinned)
 	return scanEvent(row)
 }
@@ -58,7 +58,7 @@ func (r *EventsRepository) UpdateEvent(ctx context.Context, id int64, ev domain.
 	UPDATE event_feed_items
 	SET scope_type=$2, scope_id=$3, title=$4, body=$5, metadata=$6, visibility=$7, is_pinned=$8, updated_at=NOW()
 	WHERE id=$1 AND deleted_at IS NULL
-	RETURNING id, scope_type, scope_id, author_user_id, title, body, metadata, visibility, is_pinned, created_at, updated_at, deleted_at`,
+	RETURNING id, COALESCE(scope_type, 'global'), scope_id, COALESCE(author_user_id, 0), COALESCE(title, ''), COALESCE(body, ''), COALESCE(metadata, '{}'::jsonb), COALESCE(visibility, 'public'), COALESCE(is_pinned, false), created_at, updated_at, deleted_at`,
 		id, ev.ScopeType, ev.ScopeID, ev.Title, ev.Body, meta, ev.Visibility, ev.IsPinned)
 	return scanEvent(row)
 }
