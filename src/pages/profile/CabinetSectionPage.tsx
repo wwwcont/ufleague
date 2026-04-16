@@ -193,6 +193,7 @@ export const CabinetSectionPage = () => {
   const [username, setUsername] = useState('')
   const [userLookupUsername, setUserLookupUsername] = useState('')
   const [selectedUser, setSelectedUser] = useState<PublicUserCard | null>(null)
+  const [userLookupResults, setUserLookupResults] = useState<PublicUserCard[]>([])
   const [selectedUserTeamId, setSelectedUserTeamId] = useState('')
   const [grantTeamCreate, setGrantTeamCreate] = useState(false)
   const [membershipTeamId, setMembershipTeamId] = useState('')
@@ -373,21 +374,28 @@ export const CabinetSectionPage = () => {
   }, [cabinetRepository, navigate, section, session.isAuthenticated])
 
   const lookupUserByTelegram = async () => {
-    const login = userLookupUsername.trim()
-    if (!login.startsWith('@')) {
-      setStatus('error: укажите Telegram логин в формате @username')
+    const login = userLookupUsername.trim().replace(/^@/, '')
+    if (!login) {
+      setStatus('error: укажите Telegram логин')
       return null
     }
     try {
-      const found = await usersRepository.findByTelegramUsername?.(login)
-      if (!found) {
+      const exact = await usersRepository.findByTelegramUsername?.(login)
+      const list = await usersRepository.searchByTelegramUsername?.(login)
+      const merged = exact
+        ? [exact, ...(list ?? []).filter((item) => item.id !== exact.id)]
+        : (list ?? [])
+      setUserLookupResults(merged)
+      if (!merged.length) {
         setSelectedUser(null)
         setStatus('error: пользователь не найден')
         return null
       }
-      setSelectedUser(found)
-      setStatus(`ok: выбран пользователь ${found.displayName}`)
-      return found
+      setSelectedUser(merged[0])
+      setStatus(merged.length > 1
+        ? `ok: найдено пользователей: ${merged.length}. Выберите нужного.`
+        : `ok: выбран пользователь ${merged[0].displayName}`)
+      return merged[0]
     } catch (error) {
       setStatus(`error: ${(error as Error).message}`)
       return null
@@ -681,9 +689,30 @@ export const CabinetSectionPage = () => {
 
       {(section === 'users' || section === 'grant-access' || section === 'revoke-access') && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-3">
-          <p className="text-xs text-textMuted">Поиск пользователя (обязателен Telegram @username)</p>
+          <p className="text-xs text-textMuted">Поиск пользователя по Telegram логину (поддерживается частичное совпадение, @ необязателен)</p>
           <input value={userLookupUsername} onChange={(e) => setUserLookupUsername(e.target.value)} placeholder="@telegram_username" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <button type="button" disabled={!userLookupUsername.trim().startsWith('@')} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={lookupUserByTelegram}>Найти пользователя</button>
+          <button type="button" disabled={!userLookupUsername.trim()} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={lookupUserByTelegram}>Найти пользователя</button>
+
+          {userLookupResults.length > 1 && (
+            <div className="space-y-2 rounded-lg border border-borderSubtle bg-mutedBg p-2">
+              <p className="text-xs text-textMuted">Совпадения по Telegram:</p>
+              <div className="max-h-40 space-y-1 overflow-y-auto">
+                {userLookupResults.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedUser(item)
+                      setStatus(`ok: выбран пользователь ${item.displayName}`)
+                    }}
+                    className={`w-full rounded-lg border px-2 py-1 text-left text-xs ${selectedUser?.id === item.id ? 'border-accentYellow text-accentYellow' : 'border-borderSubtle text-textSecondary'}`}
+                  >
+                    {item.displayName} {item.telegramUsername ? `(@${item.telegramUsername})` : ''}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {selectedUser && (
             <div className="space-y-3 rounded-xl border border-borderSubtle bg-mutedBg p-3">
@@ -731,9 +760,12 @@ export const CabinetSectionPage = () => {
                   </select>
                   <button type="button" disabled={!membershipTeamId || !selectedUser.telegramUsername} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
                     try {
+                      if (selectedUser.teamId === membershipTeamId) {
+                        setStatus('ok: пользователь уже состоит в выбранной команде')
+                        return
+                      }
                       await teamsRepository.captainInviteByUsername?.(membershipTeamId, selectedUser.telegramUsername ?? userLookupUsername.replace(/^@/, ''))
-                      await playersRepository.createPlayer?.({ userId: selectedUser.id, teamId: membershipTeamId, fullName: selectedUser.displayName, position: 'MF', shirtNumber: 0 })
-                      setStatus('ok: player role assigned and linked to team')
+                      setStatus('ok: приглашение игроку отправлено')
                     } catch (error) {
                       setStatus(`error: ${(error as Error).message}`)
                     }

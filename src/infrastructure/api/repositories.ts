@@ -616,7 +616,7 @@ export const eventsRepository: EventsRepository = {
   async getEventById(id) { try { return mapEvent(await api<any>(`/api/events/${id}`)) } catch { return null } },
   async createEventForScope(input) {
     const contentBlocks = input.contentBlocks ?? normalizeEventBlocks(undefined, { text: input.body, imageUrl: input.imageUrl })
-    await api('/api/events', {
+    const created = await api<any>('/api/events', {
       method: 'POST',
       body: JSON.stringify({
         scope_type: input.scopeType,
@@ -632,6 +632,7 @@ export const eventsRepository: EventsRepository = {
         is_pinned: false,
       }),
     })
+    return mapEvent(created)
   },
   async updateEventForScope(input) {
     const contentBlocks = input.contentBlocks ?? normalizeEventBlocks(undefined, { text: input.body, imageUrl: input.imageUrl })
@@ -952,6 +953,16 @@ export const usersRepository: UsersRepository = {
       } catch {
         return null
       }
+    }
+  },
+  async searchByTelegramUsername(username) {
+    const normalized = username.trim().replace(/^@/, '')
+    if (!normalized) return []
+    try {
+      const list = await api<any[]>(`/api/users/search?telegram=${encodeURIComponent(normalized)}`)
+      return list.map(mapUserCard)
+    } catch {
+      return []
     }
   },
   async getUserProfile(userId) {

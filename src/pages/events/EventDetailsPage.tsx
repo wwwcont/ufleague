@@ -28,7 +28,7 @@ export const EventDetailsPage = () => {
   const { data: teams } = useTeams()
   const { data: players } = usePlayers()
   const { data: matches } = useMatches()
-  const { eventsRepository, uploadsRepository } = useRepositories()
+  const { eventsRepository, uploadsRepository, matchesRepository } = useRepositories()
   const navigate = useNavigate()
 
   const [isEditing, setIsEditing] = useState(false)
@@ -102,6 +102,19 @@ export const EventDetailsPage = () => {
                 if (!window.confirm('Удалить событие?')) return
                 try {
                   await eventsRepository.deleteEvent?.(event.id)
+                  if (event.entityType === 'match' && event.entityId) {
+                    const targetMatch = matches?.find((item) => item.id === event.entityId)
+                    if (targetMatch) {
+                      const nextMatchEvents = targetMatch.events.filter((item) => item.linkedEventId !== event.id)
+                      if (nextMatchEvents.length !== targetMatch.events.length) {
+                        await matchesRepository.updateMatch?.(targetMatch.id, {
+                          homeScore: targetMatch.score.home,
+                          awayScore: targetMatch.score.away,
+                          matchEvents: nextMatchEvents,
+                        })
+                      }
+                    }
+                  }
                   navigate('/events')
                 } catch (err) {
                   setStatus(actionError(err))
