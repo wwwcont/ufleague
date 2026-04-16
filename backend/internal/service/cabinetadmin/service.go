@@ -119,14 +119,23 @@ func (s Service) CaptainInviteByUsername(ctx context.Context, actor domain.User,
 	if err != nil {
 		return err
 	}
-	if err = s.repo.CreateTeamInvite(ctx, teamID, uid, actor.ID); err != nil {
+
+	existingPlayer, err := s.repo.GetPlayerByUserID(ctx, uid)
+	if err != nil {
 		return err
 	}
+	alreadyInTeam := existingPlayer != nil && existingPlayer.TeamID != nil && *existingPlayer.TeamID == teamID
+
 	if err = s.EnsureCaptainPlayerProfile(ctx, uid, teamID, username); err != nil {
 		return err
 	}
 	if err = s.repo.EnsureUserRole(ctx, uid, domain.RolePlayer); err != nil {
 		return err
+	}
+	if !alreadyInTeam {
+		if err = s.repo.CreateTeamInvite(ctx, teamID, uid, actor.ID); err != nil {
+			return err
+		}
 	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "captain.invite", "team", strconv.FormatInt(teamID, 10), map[string]any{"username": username})
 }

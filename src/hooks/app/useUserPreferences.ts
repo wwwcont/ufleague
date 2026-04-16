@@ -34,10 +34,6 @@ const writeStore = (store: UserPreferenceStore) => {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
 }
 
-const toggleValue = (list: string[], value: string) => (
-  list.includes(value) ? list.filter((item) => item !== value) : [...list, value]
-)
-
 export const useUserPreferences = () => {
   const { session } = useSession()
   const userId = session.isAuthenticated ? session.user.id : null
@@ -53,19 +49,58 @@ export const useUserPreferences = () => {
     setRevision((value) => value + 1)
   }, [userId])
 
-  const isMatchMuted = useCallback((matchId: string) => state.mutedMatchIds.includes(matchId), [state.mutedMatchIds])
+  const isMatchMuted = useCallback((matchId: string) => {
+    if (state.mutedMatchIds.includes(matchId)) return true
+    return !state.favoriteEntityKeys.includes(`match:${matchId}`)
+  }, [state.favoriteEntityKeys, state.mutedMatchIds])
   const toggleMatchMuted = useCallback((matchId: string) => {
-    updateState((prev) => ({ ...prev, mutedMatchIds: toggleValue(prev.mutedMatchIds, matchId) }))
+    updateState((prev) => {
+      const entityKey = `match:${matchId}`
+      const mutedNow = prev.mutedMatchIds.includes(matchId) || !prev.favoriteEntityKeys.includes(entityKey)
+      if (mutedNow) {
+        return {
+          ...prev,
+          mutedMatchIds: prev.mutedMatchIds.filter((item) => item !== matchId),
+          favoriteEntityKeys: prev.favoriteEntityKeys.includes(entityKey) ? prev.favoriteEntityKeys : [...prev.favoriteEntityKeys, entityKey],
+        }
+      }
+      return {
+        ...prev,
+        mutedMatchIds: prev.mutedMatchIds.includes(matchId) ? prev.mutedMatchIds : [...prev.mutedMatchIds, matchId],
+      }
+    })
   }, [updateState])
 
-  const isFeedMuted = useCallback((feedKey: string) => state.mutedFeedKeys.includes(feedKey), [state.mutedFeedKeys])
+  const isFeedMuted = useCallback((feedKey: string) => {
+    if (state.mutedFeedKeys.includes(feedKey)) return true
+    return !state.favoriteEntityKeys.includes(`feed:${feedKey}`)
+  }, [state.favoriteEntityKeys, state.mutedFeedKeys])
   const toggleFeedMuted = useCallback((feedKey: string) => {
-    updateState((prev) => ({ ...prev, mutedFeedKeys: toggleValue(prev.mutedFeedKeys, feedKey) }))
+    updateState((prev) => {
+      const entityKey = `feed:${feedKey}`
+      const mutedNow = prev.mutedFeedKeys.includes(feedKey) || !prev.favoriteEntityKeys.includes(entityKey)
+      if (mutedNow) {
+        return {
+          ...prev,
+          mutedFeedKeys: prev.mutedFeedKeys.filter((item) => item !== feedKey),
+          favoriteEntityKeys: prev.favoriteEntityKeys.includes(entityKey) ? prev.favoriteEntityKeys : [...prev.favoriteEntityKeys, entityKey],
+        }
+      }
+      return {
+        ...prev,
+        mutedFeedKeys: prev.mutedFeedKeys.includes(feedKey) ? prev.mutedFeedKeys : [...prev.mutedFeedKeys, feedKey],
+      }
+    })
   }, [updateState])
 
   const isFavorite = useCallback((entityKey: string) => state.favoriteEntityKeys.includes(entityKey), [state.favoriteEntityKeys])
   const toggleFavorite = useCallback((entityKey: string) => {
-    updateState((prev) => ({ ...prev, favoriteEntityKeys: toggleValue(prev.favoriteEntityKeys, entityKey) }))
+    updateState((prev) => ({
+      ...prev,
+      favoriteEntityKeys: prev.favoriteEntityKeys.includes(entityKey)
+        ? prev.favoriteEntityKeys.filter((item) => item !== entityKey)
+        : [...prev.favoriteEntityKeys, entityKey],
+    }))
   }, [updateState])
 
   return useMemo(() => ({

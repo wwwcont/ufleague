@@ -36,6 +36,10 @@ func (s Service) EnsureDefaultTelegramSubscriptions(ctx context.Context, userID 
 	return s.repo.EnsureDefaultTelegramSubscriptions(ctx, userID, chatID)
 }
 
+func (s Service) ListTelegramChatIDs(ctx context.Context, nt domain.NotificationType, scopeType string, scopeID *int64) ([]int64, error) {
+	return s.repo.ListTelegramChatIDs(ctx, nt, scopeType, scopeID)
+}
+
 func (s Service) ClaimPending(ctx context.Context, limit int) ([]domain.NotificationJob, error) {
 	return s.repo.ClaimPending(ctx, limit)
 }

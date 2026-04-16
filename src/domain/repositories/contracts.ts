@@ -80,7 +80,7 @@ export interface CommentsRepository {
 export interface EventsRepository {
   getEvents(): Promise<PublicEvent[]>
   getEventById(eventId: string): Promise<PublicEvent | null>
-  createEventForScope?(input: { scopeType: 'team' | 'player' | 'match' | 'global'; scopeId?: string; title: string; body: string; imageUrl?: string; summary?: string; contentBlocks?: PublicEvent['contentBlocks'] }): Promise<void>
+  createEventForScope?(input: { scopeType: 'team' | 'player' | 'match' | 'global'; scopeId?: string; title: string; body: string; imageUrl?: string; summary?: string; contentBlocks?: PublicEvent['contentBlocks'] }): Promise<PublicEvent | null>
   updateEventForScope?(input: { eventId: string; scopeType: 'team' | 'player' | 'match' | 'global'; scopeId?: string; title: string; body: string; imageUrl?: string; summary?: string; contentBlocks?: PublicEvent['contentBlocks'] }): Promise<void>
   deleteEvent?(eventId: string): Promise<void>
 }
@@ -98,6 +98,7 @@ export interface UsersRepository {
   getUserProfile?(userId: string): Promise<{ userId: string; username: string; telegramId?: string; telegramUsername?: string; displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> } | null>
   updateUserProfile?(userId: string, input: { displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> }): Promise<void>
   findByTelegramUsername?(username: string): Promise<PublicUserCard | null>
+  searchByTelegramUsername?(username: string): Promise<PublicUserCard[]>
 }
 
 export interface UploadsRepository {

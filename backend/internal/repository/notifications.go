@@ -51,6 +51,33 @@ func (r *NotificationsRepository) EnsureDefaultTelegramSubscriptions(ctx context
 	return nil
 }
 
+func (r *NotificationsRepository) ListTelegramChatIDs(ctx context.Context, nt domain.NotificationType, scopeType string, scopeID *int64) ([]int64, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT DISTINCT telegram_chat_id
+		FROM notification_subscriptions
+		WHERE notification_type = $1
+		  AND is_enabled = TRUE
+		  AND telegram_chat_id IS NOT NULL
+		  AND (
+			(scope_type IS NULL AND scope_id IS NULL)
+			OR (scope_type = NULLIF($2, '') AND (scope_id IS NULL OR scope_id = $3))
+		  )
+	`, nt, scopeType, scopeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make([]int64, 0)
+	for rows.Next() {
+		var chatID int64
+		if err = rows.Scan(&chatID); err != nil {
+			return nil, err
+		}
+		out = append(out, chatID)
+	}
+	return out, rows.Err()
+}
+
 func (r *NotificationsRepository) Enqueue(ctx context.Context, userID int64, nt domain.NotificationType, payload map[string]any) error {
 	data, _ := json.Marshal(payload)
 	_, err := r.pool.Exec(ctx, `
