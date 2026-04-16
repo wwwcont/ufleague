@@ -37,6 +37,7 @@ type Repository interface {
 	ClearCaptainFromTeams(ctx context.Context, userID int64) error
 	GetUserRoles(ctx context.Context, userID int64) ([]domain.Role, error)
 	SetTeamArchived(ctx context.Context, teamID int64, archived bool) error
+	DeleteTeamWithDependencies(ctx context.Context, teamID int64) ([]int64, error)
 	ListAuditActionsByActor(ctx context.Context, userID int64, limit int) ([]domain.UserActionItem, error)
 }
 
@@ -315,6 +316,22 @@ func (s Service) AdminArchiveTeam(ctx context.Context, actor domain.User, teamID
 		return err
 	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "admin.archive_team", "team", strconv.FormatInt(teamID, 10), map[string]any{"archived": archived})
+}
+
+func (s Service) AdminDeleteTeam(ctx context.Context, actor domain.User, teamID int64) error {
+	if !s.policy.CanAdminModerate(actor) {
+		return fmt.Errorf("forbidden")
+	}
+	affectedUsers, err := s.repo.DeleteTeamWithDependencies(ctx, teamID)
+	if err != nil {
+		return err
+	}
+	for _, userID := range affectedUsers {
+		if replaceErr := s.repo.ReplaceUserRoles(ctx, userID, []domain.Role{domain.RoleGuest}); replaceErr != nil {
+			return replaceErr
+		}
+	}
+	return s.repo.AddAuditLog(ctx, actor.ID, "admin.delete_team", "team", strconv.FormatInt(teamID, 10), map[string]any{"affected_user_ids": affectedUsers})
 }
 
 func (s Service) AdminBlockComments(ctx context.Context, actor domain.User, userID int64, req domain.CommentBlockRequest) error {

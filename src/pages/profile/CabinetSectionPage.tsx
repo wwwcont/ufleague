@@ -965,23 +965,52 @@ export const CabinetSectionPage = () => {
                     <div className="flex items-center gap-2">
                       {cycle.isActive && <span className="rounded-full border border-emerald-700/40 px-2 py-0.5 text-[10px] text-emerald-300">active</span>}
                       {!cycle.isActive && (
-                        <button
-                          type="button"
-                          className="rounded border border-borderSubtle px-2 py-1"
-                          onClick={async () => {
-                            try {
-                              await cabinetRepository.setActiveTournamentCycle?.(cycle.id)
-                              const refreshed = await cabinetRepository.getTournamentCycles?.()
-                              if (refreshed?.length) setTournamentCycles(refreshed)
-                              setSelectedCycleId(cycle.id)
-                              setStatus('ok: active tournament switched')
-                            } catch (error) {
-                              setStatus(`error: ${(error as Error).message}`)
-                            }
-                          }}
-                        >
-                          Сделать активным
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            className="rounded border border-borderSubtle px-2 py-1"
+                            onClick={async () => {
+                              try {
+                                await cabinetRepository.setActiveTournamentCycle?.(cycle.id)
+                                const refreshed = await cabinetRepository.getTournamentCycles?.()
+                                if (refreshed?.length) setTournamentCycles(refreshed)
+                                setSelectedCycleId(cycle.id)
+                                setStatus('ok: active tournament switched')
+                              } catch (error) {
+                                setStatus(`error: ${(error as Error).message}`)
+                              }
+                            }}
+                          >
+                            Сделать активным
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded border border-red-700/40 px-2 py-1 text-red-300"
+                            onClick={async () => {
+                              if (!window.confirm(`Удалить турнир «${cycle.name}»? Его матчи будут перенесены в другой турнир.`)) return
+                              try {
+                                await cabinetRepository.deleteTournamentCycle?.(cycle.id)
+                                const refreshed = await cabinetRepository.getTournamentCycles?.()
+                                if (refreshed?.length) {
+                                  setTournamentCycles(refreshed)
+                                  const active = refreshed.find((item) => item.isActive) ?? refreshed[0]
+                                  if (active) {
+                                    setSelectedCycleId(active.id)
+                                    setBracketCapacityDraft(active.bracketTeamCapacity)
+                                  }
+                                } else {
+                                  setTournamentCycles([])
+                                  setSelectedCycleId('')
+                                }
+                                setStatus('ok: tournament cycle deleted')
+                              } catch (error) {
+                                setStatus(`error: ${(error as Error).message}`)
+                              }
+                            }}
+                          >
+                            Удалить
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -998,7 +1027,8 @@ export const CabinetSectionPage = () => {
             </select>
             <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
               try {
-                await cabinetRepository.createTournamentCycle?.({ name: newCycleName || `Сезон ${new Date().getFullYear()}`, bracketTeamCapacity: newCycleCapacity, isActive: false })
+                const trimmedName = newCycleName.trim()
+                await cabinetRepository.createTournamentCycle?.({ name: trimmedName || `Сезон ${new Date().getFullYear()}`, bracketTeamCapacity: newCycleCapacity, isActive: false })
                 const refreshed = await cabinetRepository.getTournamentCycles?.()
                 if (refreshed?.length) setTournamentCycles(refreshed)
                 setStatus('ok: tournament cycle created')
@@ -1212,6 +1242,17 @@ export const CabinetSectionPage = () => {
                       setStatus(`error: ${(error as Error).message}`)
                     }
                   }}>Вернуть команду и связанные матчи</button>
+                  <button type="button" className="mt-2 ml-2 rounded-lg border border-red-700/50 px-3 py-1.5 text-xs text-red-300" onClick={async () => {
+                    if (!window.confirm('Безопасно удалить команду, всех игроков команды и понизить связанных пользователей до роли guest?')) return
+                    try {
+                      await teamsRepository.adminDeleteTeam?.(item.id)
+                      setStatus('ok: team deleted with dependencies')
+                      setArchivedTeams((prev) => prev.filter((team) => team.id !== item.id))
+                      setArchivedMatches((prev) => prev.filter((match) => match.homeTeamId !== item.id && match.awayTeamId !== item.id))
+                    } catch (error) {
+                      setStatus(`error: ${(error as Error).message}`)
+                    }
+                  }}>Удалить команду безопасно</button>
                 </div>
               ))}
             </div>
