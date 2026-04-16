@@ -202,6 +202,39 @@ func (r *TournamentRepository) CreateTournamentCycle(ctx context.Context, req do
 	return out, nil
 }
 
+func (r *TournamentRepository) DeleteTournamentCycle(ctx context.Context, cycleID int64) error {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var isActive bool
+	if err = tx.QueryRow(ctx, `SELECT is_active FROM tournament_cycles WHERE id=$1 FOR UPDATE`, cycleID).Scan(&isActive); err != nil {
+		return err
+	}
+	if isActive {
+		return fmt.Errorf("cannot delete active tournament cycle")
+	}
+
+	var fallbackID int64
+	if err = tx.QueryRow(ctx, `SELECT id FROM tournament_cycles WHERE id<>$1 ORDER BY is_active DESC, id DESC LIMIT 1`, cycleID).Scan(&fallbackID); err != nil {
+		return err
+	}
+
+	if _, err = tx.Exec(ctx, `UPDATE matches SET tournament_cycle_id=$2, updated_at=NOW() WHERE tournament_cycle_id=$1`, cycleID, fallbackID); err != nil {
+		return err
+	}
+	tag, err := tx.Exec(ctx, `DELETE FROM tournament_cycles WHERE id=$1`, cycleID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return tx.Commit(ctx)
+}
+
 func (r *TournamentRepository) ActivateTournamentCycle(ctx context.Context, cycleID int64) error {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {

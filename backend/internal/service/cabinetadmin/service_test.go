@@ -96,6 +96,9 @@ func (f *fakeRepo) SetTeamArchived(_ context.Context, teamID int64, archived boo
 	f.archivedValue = archived
 	return nil
 }
+func (f *fakeRepo) DeleteTeamWithDependencies(context.Context, int64) ([]int64, error) {
+	return nil, nil
+}
 func (f *fakeRepo) ListAuditActionsByActor(context.Context, int64, int) ([]domain.UserActionItem, error) {
 	return nil, nil
 }

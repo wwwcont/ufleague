@@ -300,6 +300,9 @@ export const teamsRepository: TeamsRepository = {
   async adminArchiveTeam(teamId, archived) {
     await api(`/api/admin/teams/${teamId}/archive`, { method: 'POST', body: JSON.stringify({ archived }) })
   },
+  async adminDeleteTeam(teamId) {
+    await api(`/api/admin/teams/${teamId}`, { method: 'DELETE' })
+  },
 }
 export const playersRepository: PlayersRepository = {
   async getPlayers(teamId) {
@@ -942,7 +945,10 @@ export const cabinetRepository: CabinetRepository = {
     }))
   },
   async createTournamentCycle(input) {
-    await api('/api/admin/tournament/cycles', { method: 'POST', body: JSON.stringify({ name: input.name, bracket_team_capacity: input.bracketTeamCapacity, is_active: Boolean(input.isActive) }) })
+    await api('/api/admin/tournament/cycles', { method: 'POST', body: JSON.stringify({ name: input.name.trim(), bracket_team_capacity: input.bracketTeamCapacity, is_active: Boolean(input.isActive) }) })
+  },
+  async deleteTournamentCycle(cycleId) {
+    await api(`/api/admin/tournament/cycles/${cycleId}`, { method: 'DELETE' })
   },
   async setActiveTournamentCycle(cycleId) {
     await api(`/api/admin/tournament/cycles/${cycleId}/activate`, { method: 'POST' })
