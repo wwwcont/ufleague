@@ -6,6 +6,8 @@ import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { useTeams } from '../../hooks/data/useTeams'
+import { usePlayers } from '../../hooks/data/usePlayers'
+import { useUserPreferences } from '../../hooks/app/useUserPreferences'
 
 const roleRank: Record<UserRole, number> = {
   guest: 0,
@@ -23,6 +25,7 @@ const sectionRoles: Record<string, UserRole> = {
   'my-user': 'player',
   'my-actions': 'player',
   'my-notifications': 'player',
+  favorites: 'player',
   'user-settings': 'player',
   reactions: 'guest',
   'player-profile': 'player',
@@ -58,6 +61,7 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   'my-user': { title: 'Профиль пользователя', description: 'Быстрый переход в карточку пользователя.', tips: ['Открывается ваш user-профиль.', 'Редактирование доступно владельцу.'] },
   'my-actions': { title: 'Мои действия', description: 'Лента действий пользователя.', tips: ['События сортируются по времени.', 'Каждый элемент ведет к месту действия.'] },
   'my-notifications': { title: 'Мои уведомления', description: 'Дубли Telegram-уведомлений с переходом к источнику.', tips: ['Уведомления сортируются по времени.', 'Каждый элемент ведет к событию или пользователю.'] },
+  favorites: { title: 'Избранное', description: 'Список любимых команд и игроков.', tips: ['Элементы идут единым списком.', 'Оформление соответствует карточкам поиска.'] },
   'user-settings': { title: 'Настройки', description: 'Персональные настройки пользователя.', tips: ['Секция подготовлена под будущий функционал.'] },
   'player-profile': { title: 'Профиль игрока', description: 'Игровой профиль пользователя (отдельно от user-профиля).', tips: ['Переходите в user-профиль для ФИО/био.', 'Проверяйте связь user ↔ player profile.'] },
   'my-player': { title: 'Профиль игрока', description: 'Мгновенный переход в профиль игрока.', tips: ['Используется playerProfileId из сессии.', 'Если profile не привязан — показывается сообщение.'] },
@@ -178,10 +182,27 @@ export const CabinetSectionPage = () => {
   const { session, refreshSession } = useSession()
   const { cabinetRepository, teamsRepository, playersRepository, matchesRepository, uploadsRepository, usersRepository } = useRepositories()
   const { data: teams } = useTeams()
+  const { data: players } = usePlayers()
+  const { favoriteEntityKeys } = useUserPreferences()
 
   const [status, setStatus] = useState('')
   const [myActions, setMyActions] = useState<Array<{ id: string; action: string; targetType: string; targetId: string; route: string; createdAt: string; metadata?: Record<string, unknown> }>>([])
   const [myNotifications, setMyNotifications] = useState<Array<{ id: string; notificationType: string; title: string; body: string; route: string; status: string; createdAt: string }>>([])
+  const favoriteItems = useMemo(() => favoriteEntityKeys.map((key) => {
+    const [type, id] = key.split(':')
+    if (!id) return null
+    if (type === 'team') {
+      const team = (teams ?? []).find((item) => item.id === id)
+      if (!team) return null
+      return { key, title: team.name, subtitle: `${team.city} · ${team.shortName}`, route: `/teams/${team.id}` }
+    }
+    if (type === 'player') {
+      const player = (players ?? []).find((item) => item.id === id)
+      if (!player) return null
+      return { key, title: player.displayName, subtitle: `${player.position} · #${player.number}`, route: `/players/${player.id}` }
+    }
+    return null
+  }).filter((item): item is { key: string; title: string; subtitle: string; route: string } => Boolean(item)), [favoriteEntityKeys, players, teams])
 
   const [displayName, setDisplayName] = useState('')
   const [firstName, setFirstName] = useState('')
@@ -646,6 +667,17 @@ export const CabinetSectionPage = () => {
               <p className="mt-2 text-xs text-accentYellow">Перейти к источнику →</p>
             </Link>
           )) : <p className="text-xs text-textMuted">Пока нет уведомлений.</p>}
+        </section>
+      )}
+
+      {section === 'favorites' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          {favoriteItems.length ? favoriteItems.map((item) => (
+            <Link key={item.key} to={item.route} className="matte-panel block p-3">
+              <p className="text-base font-medium">{item.title}</p>
+              <p className="text-sm text-textMuted">{item.subtitle}</p>
+            </Link>
+          )) : <p className="text-xs text-textMuted">Пока нет избранных команд и игроков.</p>}
         </section>
       )}
 
@@ -1227,7 +1259,7 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'my-notifications', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'create-match', 'matches-archive', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
+      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'my-notifications', 'favorites', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'create-match', 'matches-archive', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
           Раздел синхронизирован по правам доступа и готов к расширению бизнес-формами.
         </section>

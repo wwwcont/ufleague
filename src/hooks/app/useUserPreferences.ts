@@ -4,6 +4,7 @@ import { useSession } from '../../app/providers/use-session'
 type UserPreferenceState = {
   mutedMatchIds: string[]
   mutedFeedKeys: string[]
+  enabledFeedKeys: string[]
   favoriteEntityKeys: string[]
 }
 
@@ -14,8 +15,11 @@ const STORAGE_KEY = 'ufl_user_preferences_v2'
 const defaultState: UserPreferenceState = {
   mutedMatchIds: [],
   mutedFeedKeys: [],
+  enabledFeedKeys: [],
   favoriteEntityKeys: [],
 }
+
+const isFeedMutedByDefault = (feedKey: string) => feedKey.startsWith('events:team:') || feedKey.startsWith('events:player:')
 
 const readStore = (): UserPreferenceStore => {
   if (typeof window === 'undefined') return {}
@@ -38,7 +42,17 @@ export const useUserPreferences = () => {
   const { session } = useSession()
   const userId = session.isAuthenticated ? session.user.id : null
   const [, setRevision] = useState(0)
-  const state = !userId ? defaultState : (readStore()[userId] ?? defaultState)
+  const state = useMemo<UserPreferenceState>(() => {
+    if (!userId) return defaultState
+    const raw = readStore()[userId]
+    if (!raw) return defaultState
+    return {
+      mutedMatchIds: Array.isArray(raw.mutedMatchIds) ? raw.mutedMatchIds : [],
+      mutedFeedKeys: Array.isArray(raw.mutedFeedKeys) ? raw.mutedFeedKeys : [],
+      enabledFeedKeys: Array.isArray((raw as Partial<UserPreferenceState>).enabledFeedKeys) ? (raw as Partial<UserPreferenceState>).enabledFeedKeys ?? [] : [],
+      favoriteEntityKeys: Array.isArray(raw.favoriteEntityKeys) ? raw.favoriteEntityKeys : [],
+    }
+  }, [userId])
 
   const updateState = useCallback((updater: (prev: UserPreferenceState) => UserPreferenceState) => {
     if (!userId) return
@@ -69,10 +83,25 @@ export const useUserPreferences = () => {
   }, [updateState])
 
   const isFeedMuted = useCallback((feedKey: string) => {
+    if (isFeedMutedByDefault(feedKey)) return !state.enabledFeedKeys.includes(feedKey)
     return state.mutedFeedKeys.includes(feedKey)
-  }, [state.mutedFeedKeys])
+  }, [state.enabledFeedKeys, state.mutedFeedKeys])
   const toggleFeedMuted = useCallback((feedKey: string) => {
     updateState((prev) => {
+      const defaultMuted = isFeedMutedByDefault(feedKey)
+      if (defaultMuted) {
+        const mutedNow = !prev.enabledFeedKeys.includes(feedKey)
+        if (mutedNow) {
+          return {
+            ...prev,
+            enabledFeedKeys: prev.enabledFeedKeys.includes(feedKey) ? prev.enabledFeedKeys : [...prev.enabledFeedKeys, feedKey],
+          }
+        }
+        return {
+          ...prev,
+          enabledFeedKeys: prev.enabledFeedKeys.filter((item) => item !== feedKey),
+        }
+      }
       const mutedNow = prev.mutedFeedKeys.includes(feedKey)
       if (mutedNow) {
         return {
@@ -104,5 +133,6 @@ export const useUserPreferences = () => {
     toggleFeedMuted,
     isFavorite,
     toggleFavorite,
-  }), [isFavorite, isFeedMuted, isMatchMuted, toggleFavorite, toggleFeedMuted, toggleMatchMuted])
+    favoriteEntityKeys: state.favoriteEntityKeys,
+  }), [isFavorite, isFeedMuted, isMatchMuted, state.favoriteEntityKeys, toggleFavorite, toggleFeedMuted, toggleMatchMuted])
 }
