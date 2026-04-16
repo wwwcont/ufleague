@@ -2,6 +2,7 @@ package cabinetadmin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -33,6 +34,8 @@ type Repository interface {
 	RevokeUserRole(ctx context.Context, userID int64, role domain.Role) error
 	DetachPlayerFromUser(ctx context.Context, userID int64) error
 	CountTeamsByCaptain(ctx context.Context, userID int64) (int, error)
+	ClearCaptainFromTeams(ctx context.Context, userID int64) error
+	GetUserRoles(ctx context.Context, userID int64) ([]domain.Role, error)
 	ListAuditActionsByActor(ctx context.Context, userID int64, limit int) ([]domain.UserActionItem, error)
 }
 
@@ -40,6 +43,11 @@ type Service struct {
 	repo   Repository
 	policy policy.Engine
 }
+
+var (
+	ErrUserAlreadyCaptain    = errors.New("user already captain")
+	ErrTeamAlreadyHasCaptain = errors.New("team already has captain")
+)
 
 func NewService(repo Repository) Service {
 	return Service{repo: repo, policy: policy.New()}
@@ -196,8 +204,22 @@ func (s Service) AdminTransferCaptain(ctx context.Context, actor domain.User, te
 	if err != nil {
 		return err
 	}
-	prevCaptain := team.CaptainUserID
-	if err := s.repo.TransferCaptain(ctx, teamID, newCaptain); err != nil {
+	if newCaptain != nil {
+		if team.CaptainUserID != nil {
+			if *team.CaptainUserID == *newCaptain {
+				return nil
+			}
+			return ErrTeamAlreadyHasCaptain
+		}
+		teams, countErr := s.repo.CountTeamsByCaptain(ctx, *newCaptain)
+		if countErr != nil {
+			return countErr
+		}
+		if teams > 0 {
+			return ErrUserAlreadyCaptain
+		}
+	}
+	if err = s.repo.TransferCaptain(ctx, teamID, newCaptain); err != nil {
 		return err
 	}
 	if newCaptain != nil {
@@ -211,14 +233,6 @@ func (s Service) AdminTransferCaptain(ctx context.Context, actor domain.User, te
 			return err
 		}
 	}
-	if prevCaptain != nil && (newCaptain == nil || *newCaptain != *prevCaptain) {
-		if err := s.repo.RevokeUserRole(ctx, *prevCaptain, domain.RoleCaptain); err != nil {
-			return err
-		}
-		if err := s.repo.EnsureUserRole(ctx, *prevCaptain, domain.RolePlayer); err != nil {
-			return err
-		}
-	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "admin.transfer_captain", "team", strconv.FormatInt(teamID, 10), map[string]any{"new_captain": newCaptain})
 }
 
@@ -226,11 +240,29 @@ func (s Service) AdminAssignCaptainRole(ctx context.Context, actor domain.User, 
 	if !s.policy.CanAdminModerate(actor) {
 		return fmt.Errorf("forbidden")
 	}
+	roles, err := s.repo.GetUserRoles(ctx, userID)
+	if err != nil {
+		return err
+	}
+	for _, role := range roles {
+		if role == domain.RoleCaptain {
+			return ErrUserAlreadyCaptain
+		}
+	}
 	if err := s.repo.EnsureUserRole(ctx, userID, domain.RoleCaptain); err != nil {
 		return err
 	}
-	if err := s.repo.EnsureUserRole(ctx, userID, domain.RolePlayer); err != nil {
+	teams, err := s.repo.CountTeamsByCaptain(ctx, userID)
+	if err != nil {
 		return err
+	}
+	if teams == 0 {
+		if err = s.repo.DetachPlayerFromUser(ctx, userID); err != nil {
+			return err
+		}
+		if err = s.repo.RevokeUserRole(ctx, userID, domain.RolePlayer); err != nil {
+			return err
+		}
 	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "admin.assign_captain_role", "user", strconv.FormatInt(userID, 10), map[string]any{"without_team": true})
 }
@@ -244,7 +276,9 @@ func (s Service) AdminRevokeCaptainRole(ctx context.Context, actor domain.User, 
 		return err
 	}
 	if teams > 0 {
-		return fmt.Errorf("forbidden")
+		if err = s.repo.ClearCaptainFromTeams(ctx, userID); err != nil {
+			return err
+		}
 	}
 	if err = s.repo.RevokeUserRole(ctx, userID, domain.RoleCaptain); err != nil {
 		return err

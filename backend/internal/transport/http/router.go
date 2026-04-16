@@ -2043,6 +2043,14 @@ func handleDomainErr(w http.ResponseWriter, err error) {
 		http.Error(w, "rate limited", 429)
 		return
 	}
+	if errors.Is(err, cabinetadmin.ErrUserAlreadyCaptain) {
+		http.Error(w, "user already captain", 409)
+		return
+	}
+	if errors.Is(err, cabinetadmin.ErrTeamAlreadyHasCaptain) {
+		http.Error(w, "team already has captain; revoke current captain first", 409)
+		return
+	}
 	http.Error(w, "failed", 400)
 }
 

@@ -213,6 +213,35 @@ func (r *CabinetAdminRepository) CountTeamsByCaptain(ctx context.Context, userID
 	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM teams WHERE captain_user_id=$1`, userID).Scan(&total)
 	return total, err
 }
+func (r *CabinetAdminRepository) ClearCaptainFromTeams(ctx context.Context, userID int64) error {
+	_, err := r.pool.Exec(ctx, `UPDATE teams SET captain_user_id=NULL, updated_at=NOW() WHERE captain_user_id=$1`, userID)
+	return err
+}
+func (r *CabinetAdminRepository) GetUserRoles(ctx context.Context, userID int64) ([]domain.Role, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT r.code
+		FROM user_roles ur
+		JOIN roles r ON r.id = ur.role_id
+		WHERE ur.user_id = $1
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	roles := make([]domain.Role, 0, 4)
+	for rows.Next() {
+		var role domain.Role
+		if scanErr := rows.Scan(&role); scanErr != nil {
+			return nil, scanErr
+		}
+		roles = append(roles, role)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return roles, nil
+}
 func (r *CabinetAdminRepository) ListAuditActionsByActor(ctx context.Context, userID int64, limit int) ([]domain.UserActionItem, error) {
 	type actionRecord struct {
 		id        int64
