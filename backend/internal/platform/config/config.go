@@ -51,7 +51,7 @@ type SessionConfig struct {
 type SecurityConfig struct {
 	CORSAllowedOrigins string `env:"CORS_ALLOWED_ORIGINS" envDefault:"http://localhost:5173,http://127.0.0.1:5173"`
 	TrustedProxies     string `env:"TRUSTED_PROXIES" envDefault:"127.0.0.1/32,::1/128"`
-	BodyLimitBytes     int64  `env:"BODY_LIMIT_BYTES" envDefault:"1048576"`
+	BodyLimitBytes     int64  `env:"BODY_LIMIT_BYTES" envDefault:"10485760"`
 	RateLimitPerMinute int    `env:"RATE_LIMIT_PER_MINUTE" envDefault:"240"`
 }
 
