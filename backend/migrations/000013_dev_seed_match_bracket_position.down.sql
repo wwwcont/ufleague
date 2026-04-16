@@ -1,5 +1,2 @@
-UPDATE matches
-SET
-  stage_slot_column = NULL,
-  stage_slot_row = NULL
-WHERE id BETWEEN 3001 AND 3015;
+-- no-op (bracket positions for removed dev seed matches).
+SELECT 1;

@@ -43,7 +43,7 @@ func Run(ctx context.Context, cfg config.Config) error {
 	cabinetSvc := cabinetadmin.NewService(cabinetRepo)
 	notificationsRepo := repository.NewNotificationsRepository(dbPool)
 	notificationsSvc := notifservice.NewService(notificationsRepo)
-	telegramAuthSvc := telegramauth.NewService(authRepo, cfg.Telegram.MiniAppAuthURL, cfg.Features.TelegramMockLoginEnabled, cfg.Features.TelegramMockCode)
+	telegramAuthSvc := telegramauth.NewService(authRepo, cfg.Telegram.MiniAppAuthURL)
 	sessionManager := session.NewManager(cfg.Session.CookieName, cfg.Session.TTL, cfg.Session.Secure, cfg.Session.Domain)
 
 	srv := &http.Server{

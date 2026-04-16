@@ -70,17 +70,11 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 	r.Route("/api/auth", func(r chi.Router) {
 		r.With(sessionMW.RequireSession).Get("/me", h.Me)
 		r.With(sessionMW.RequireSession).Post("/logout", h.Logout)
-		if cfg.Features.DevLoginEnabled {
-			r.Post("/dev-login", h.DevLogin)
-		}
 		r.Post("/telegram/start", h.TelegramAuthStart)
 		r.Post("/telegram/bot/issue-code", h.TelegramIssueCode)
 		r.Post("/telegram/webhook", h.TelegramWebhook)
 		r.Post("/telegram/webhook/{secret}", h.TelegramWebhook)
 		r.Post("/telegram/complete-code", h.TelegramCodeLogin)
-		if cfg.Features.TelegramMockLoginEnabled {
-			r.Post("/telegram/mock-code-login", h.TelegramMockCodeLogin)
-		}
 	})
 
 	r.Route("/api", func(r chi.Router) {
@@ -372,43 +366,6 @@ func (h Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{Name: h.session.CookieName(), Value: "", Path: "/", HttpOnly: true, Secure: h.session.Secure(), SameSite: http.SameSiteLaxMode, Expires: time.Unix(0, 0), MaxAge: -1})
 	writeJSON(w, 200, map[string]string{"status": "ok"})
 }
-func (h Handler) DevLogin(w http.ResponseWriter, r *http.Request) {
-	if !h.cfg.Features.DevLoginEnabled || h.cfg.IsProduction() {
-		http.NotFound(w, r)
-		return
-	}
-	var req domain.DevLoginRequest
-	if err := decodeJSONStrict(r, &req); err != nil {
-		http.Error(w, "invalid json body", 400)
-		return
-	}
-	req.Username, req.DisplayName = strings.TrimSpace(req.Username), strings.TrimSpace(req.DisplayName)
-	if req.Username == "" || req.DisplayName == "" {
-		http.Error(w, "username and display_name are required", 400)
-		return
-	}
-	if len(req.Roles) == 0 {
-		req.Roles = []domain.Role{domain.RoleGuest}
-	}
-	user, err := h.authRepo.UpsertDevUser(r.Context(), req)
-	if err != nil {
-		http.Error(w, "failed to upsert user", 500)
-		return
-	}
-	rawToken, tokenHash, err := h.session.GenerateToken()
-	if err != nil {
-		http.Error(w, "failed to create session token", 500)
-		return
-	}
-	sess, err := h.authRepo.CreateSession(r.Context(), repository.CreateSessionParams{UserID: user.ID, TokenHash: tokenHash, UserAgent: r.UserAgent(), IPAddress: clientIP(r), ExpiresAt: time.Now().UTC().Add(h.session.TTL()).Format(time.RFC3339)})
-	if err != nil {
-		http.Error(w, "failed to create session", 500)
-		return
-	}
-	setSessionCookie(w, h.session, rawToken, sess.ExpiresAt)
-	writeJSON(w, 200, domain.MeResponse{User: user, Session: sess})
-}
-
 func (h Handler) TelegramCodeLogin(w http.ResponseWriter, r *http.Request) {
 	var req domain.TelegramCodeLoginRequest
 	if err := decodeJSONStrict(r, &req); err != nil {
@@ -418,21 +375,11 @@ func (h Handler) TelegramCodeLogin(w http.ResponseWriter, r *http.Request) {
 	req.Code = strings.TrimSpace(req.Code)
 	req.RequestID = strings.TrimSpace(req.RequestID)
 	if req.Code == "" || req.RequestID == "" {
-		if h.cfg.Features.TelegramMockLoginEnabled && !h.cfg.IsProduction() && req.Code != "" {
-			if h.loginAsTelegramMockCodeUser(w, r, req.Code) {
-				return
-			}
-		}
 		http.Error(w, "request_id and code are required", 400)
 		return
 	}
 	user, err := h.telegramAuth.CompleteCode(r.Context(), req)
 	if err != nil {
-		if h.cfg.Features.TelegramMockLoginEnabled && !h.cfg.IsProduction() {
-			if h.loginAsTelegramMockCodeUser(w, r, req.Code) {
-				return
-			}
-		}
 		if errors.Is(err, telegramauth.ErrExpiredCode) {
 			http.Error(w, "expired code", 410)
 			return
@@ -461,36 +408,6 @@ func (h Handler) TelegramCodeLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	setSessionCookie(w, h.session, rawToken, sess.ExpiresAt)
 	writeJSON(w, 200, domain.MeResponse{User: user, Session: sess})
-}
-
-func (h Handler) loginAsTelegramMockCodeUser(w http.ResponseWriter, r *http.Request, code string) bool {
-	username, ok := telegramMockSeedUsersByCode(h.cfg.Features.TelegramMockCode)[strings.TrimSpace(code)]
-	if !ok {
-		return false
-	}
-	user, err := h.authRepo.GetUserByUsername(r.Context(), username)
-	if err != nil {
-		return false
-	}
-	rawToken, tokenHash, err := h.session.GenerateToken()
-	if err != nil {
-		http.Error(w, "failed to create session token", 500)
-		return true
-	}
-	sess, err := h.authRepo.CreateSession(r.Context(), repository.CreateSessionParams{
-		UserID:    user.ID,
-		TokenHash: tokenHash,
-		UserAgent: r.UserAgent(),
-		IPAddress: clientIP(r),
-		ExpiresAt: time.Now().UTC().Add(h.session.TTL()).Format(time.RFC3339),
-	})
-	if err != nil {
-		http.Error(w, "failed to create session", 500)
-		return true
-	}
-	setSessionCookie(w, h.session, rawToken, sess.ExpiresAt)
-	writeJSON(w, 200, domain.MeResponse{User: user, Session: sess})
-	return true
 }
 
 func (h Handler) TelegramIssueCode(w http.ResponseWriter, r *http.Request) {
@@ -685,73 +602,6 @@ type telegramUser struct {
 	Username  string `json:"username"`
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
-}
-
-func (h Handler) TelegramMockCodeLogin(w http.ResponseWriter, r *http.Request) {
-	if !h.cfg.Features.TelegramMockLoginEnabled || h.cfg.IsProduction() {
-		http.NotFound(w, r)
-		return
-	}
-	var req domain.TelegramMockCodeLoginRequest
-	if err := decodeJSONStrict(r, &req); err != nil {
-		http.Error(w, "bad request", 400)
-		return
-	}
-	code := strings.TrimSpace(req.Code)
-	if code == "" {
-		http.Error(w, "code is required", 400)
-		return
-	}
-
-	seedByCode := telegramMockSeedUsersByCode(h.cfg.Features.TelegramMockCode)
-
-	username, ok := seedByCode[code]
-	if !ok {
-		http.Error(w, "invalid code", 401)
-		return
-	}
-	user, err := h.authRepo.GetUserByUsername(r.Context(), username)
-	if err != nil {
-		http.Error(w, "seed user not found", 404)
-		return
-	}
-
-	rawToken, tokenHash, err := h.session.GenerateToken()
-	if err != nil {
-		http.Error(w, "failed to create session token", 500)
-		return
-	}
-	sess, err := h.authRepo.CreateSession(r.Context(), repository.CreateSessionParams{
-		UserID:    user.ID,
-		TokenHash: tokenHash,
-		UserAgent: r.UserAgent(),
-		IPAddress: clientIP(r),
-		ExpiresAt: time.Now().UTC().Add(h.session.TTL()).Format(time.RFC3339),
-	})
-	if err != nil {
-		http.Error(w, "failed to create session", 500)
-		return
-	}
-	setSessionCookie(w, h.session, rawToken, sess.ExpiresAt)
-	writeJSON(w, 200, domain.MeResponse{User: user, Session: sess})
-}
-
-func telegramMockSeedUsersByCode(configuredMockCode string) map[string]string {
-	seedByCode := map[string]string{
-		"1111": "superadmin",
-		"2222": "admin_test",
-		"3333": "captain_alpha",
-		"4444": "player_test",
-
-		"UFL-SUPERADMIN-2026": "superadmin",
-		"UFL-ADMIN-2026":      "admin_test",
-		"UFL-CAPTAIN-2026":    "captain_alpha",
-		"UFL-PLAYER-2026":     "player_test",
-	}
-	if configuredMockCode = strings.TrimSpace(configuredMockCode); configuredMockCode != "" {
-		seedByCode[configuredMockCode] = "superadmin"
-	}
-	return seedByCode
 }
 
 func (h Handler) TelegramAuthStart(w http.ResponseWriter, r *http.Request) {

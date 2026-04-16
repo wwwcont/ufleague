@@ -141,62 +141,6 @@ func NewAuthRepository(pool *pgxpool.Pool) *AuthRepository {
 	return &AuthRepository{pool: pool}
 }
 
-func (r *AuthRepository) UpsertDevUser(ctx context.Context, req domain.DevLoginRequest) (domain.User, error) {
-	tx, err := r.pool.Begin(ctx)
-	if err != nil {
-		return domain.User{}, err
-	}
-	defer tx.Rollback(ctx)
-
-	var user domain.User
-	err = tx.QueryRow(ctx, `
-		INSERT INTO users (username, display_name)
-		VALUES ($1, $2)
-		ON CONFLICT (username)
-		DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW()
-		RETURNING id, telegram_id, COALESCE(telegram_username,''), username, display_name, is_active, created_at
-	`, req.Username, req.DisplayName).Scan(&user.ID, &user.TelegramID, &user.TelegramName, &user.Username, &user.DisplayName, &user.IsActive, &user.CreatedAt)
-	if err != nil {
-		return domain.User{}, err
-	}
-
-	if err = replaceUserRolesTx(ctx, tx, user.ID, req.Roles); err != nil {
-		return domain.User{}, err
-	}
-
-	if _, err = tx.Exec(ctx, `DELETE FROM user_permissions WHERE user_id = $1`, user.ID); err != nil {
-		return domain.User{}, err
-	}
-	for _, permission := range req.Permissions {
-		if _, err = tx.Exec(ctx, `
-			INSERT INTO user_permissions (user_id, permission)
-			VALUES ($1, $2)
-			ON CONFLICT (user_id, permission) DO NOTHING
-		`, user.ID, permission); err != nil {
-			return domain.User{}, err
-		}
-	}
-
-	if _, err = tx.Exec(ctx, `DELETE FROM user_restrictions WHERE user_id = $1`, user.ID); err != nil {
-		return domain.User{}, err
-	}
-	for _, restriction := range req.Restrictions {
-		if _, err = tx.Exec(ctx, `
-			INSERT INTO user_restrictions (user_id, restriction)
-			VALUES ($1, $2)
-			ON CONFLICT (user_id, restriction) DO NOTHING
-		`, user.ID, restriction); err != nil {
-			return domain.User{}, err
-		}
-	}
-
-	if err = tx.Commit(ctx); err != nil {
-		return domain.User{}, err
-	}
-
-	return r.GetUserByID(ctx, user.ID)
-}
-
 func (r *AuthRepository) ReplaceUserRoles(ctx context.Context, userID int64, roles []domain.Role) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {

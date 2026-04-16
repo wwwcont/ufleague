@@ -56,10 +56,7 @@ type SecurityConfig struct {
 }
 
 type FeaturesConfig struct {
-	DevLoginEnabled          bool          `env:"DEV_LOGIN_ENABLED" envDefault:"false"`
-	TelegramMockLoginEnabled bool          `env:"TELEGRAM_MOCK_LOGIN_ENABLED" envDefault:"false"`
-	TelegramMockCode         string        `env:"TELEGRAM_MOCK_CODE" envDefault:"UFL-SUPERADMIN-2026"`
-	CommentsCooldown         time.Duration `env:"COMMENTS_COOLDOWN" envDefault:"3s"`
+	CommentsCooldown time.Duration `env:"COMMENTS_COOLDOWN" envDefault:"3s"`
 }
 
 func (h HTTPConfig) Address() string {
@@ -106,12 +103,6 @@ func (c Config) TrustedProxyCIDRs() []string {
 
 func (c Config) Validate() error {
 	if c.IsProduction() {
-		if c.Features.DevLoginEnabled {
-			return errors.New("DEV_LOGIN_ENABLED must be false in production")
-		}
-		if c.Features.TelegramMockLoginEnabled {
-			return errors.New("TELEGRAM_MOCK_LOGIN_ENABLED must be false in production")
-		}
 		if !c.Session.Secure {
 			return errors.New("SESSION_SECURE must be true in production")
 		}
