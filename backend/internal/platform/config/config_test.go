@@ -59,3 +59,42 @@ func TestValidateDevelopmentAllowsMockFlags(t *testing.T) {
 		t.Fatalf("unexpected validation error in development: %v", err)
 	}
 }
+
+func TestFirstNonEmptyEnvReturnsFirstPresentValue(t *testing.T) {
+	t.Setenv("BOT_TOKEN", "")
+	t.Setenv("TELEGRAM_TOKEN", "legacy-token")
+	if got := firstNonEmptyEnv("BOT_TOKEN", "TELEGRAM_TOKEN"); got != "legacy-token" {
+		t.Fatalf("expected legacy token fallback, got %q", got)
+	}
+}
+
+func TestNormalizeTelegramBotToken(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		out  string
+	}{
+		{
+			name: "raw token untouched",
+			in:   "123456:ABCDEF",
+			out:  "123456:ABCDEF",
+		},
+		{
+			name: "bot prefix removed",
+			in:   "bot123456:ABCDEF",
+			out:  "123456:ABCDEF",
+		},
+		{
+			name: "full api url token extracted",
+			in:   "https://api.telegram.org/bot123456:ABCDEF/sendMessage",
+			out:  "123456:ABCDEF",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := normalizeTelegramBotToken(tt.in); got != tt.out {
+				t.Fatalf("normalizeTelegramBotToken(%q) = %q, want %q", tt.in, got, tt.out)
+			}
+		})
+	}
+}

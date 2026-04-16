@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -66,17 +67,50 @@ func (h HTTPConfig) Address() string {
 }
 
 func Load() (Config, error) {
-	_ = godotenv.Load()
+	_ = godotenv.Load(".env", "backend/.env")
 
 	cfg := Config{}
 	if err := env.Parse(&cfg); err != nil {
 		return Config{}, err
 	}
+	if strings.TrimSpace(cfg.Telegram.BotToken) == "" {
+		cfg.Telegram.BotToken = firstNonEmptyEnv("BOT_TOKEN", "TELEGRAM_TOKEN")
+	}
+	cfg.Telegram.BotToken = normalizeTelegramBotToken(cfg.Telegram.BotToken)
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
 
 	return cfg, nil
+}
+
+func firstNonEmptyEnv(keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func normalizeTelegramBotToken(raw string) string {
+	token := strings.TrimSpace(raw)
+	if token == "" {
+		return ""
+	}
+	if strings.Contains(token, "://") {
+		if idx := strings.Index(token, "/bot"); idx >= 0 {
+			rest := token[idx+len("/bot"):]
+			parts := strings.Split(strings.TrimSpace(rest), "/")
+			if len(parts) > 0 {
+				token = strings.TrimSpace(parts[0])
+			}
+		}
+	}
+	if strings.HasPrefix(token, "bot") {
+		token = strings.TrimPrefix(token, "bot")
+	}
+	return strings.TrimSpace(token)
 }
 
 func (c Config) IsProduction() bool {
