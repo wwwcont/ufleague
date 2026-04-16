@@ -267,6 +267,67 @@ func (r *CabinetAdminRepository) SetTeamArchived(ctx context.Context, teamID int
 	}
 	return tx.Commit(ctx)
 }
+
+func (r *CabinetAdminRepository) DeleteTeamWithDependencies(ctx context.Context, teamID int64) ([]int64, error) {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var captainUserID *int64
+	if err = tx.QueryRow(ctx, `SELECT captain_user_id FROM teams WHERE id=$1 FOR UPDATE`, teamID).Scan(&captainUserID); err != nil {
+		return nil, err
+	}
+
+	userSet := make(map[int64]struct{}, 8)
+	if captainUserID != nil {
+		userSet[*captainUserID] = struct{}{}
+	}
+
+	rows, err := tx.Query(ctx, `SELECT DISTINCT user_id FROM players WHERE team_id=$1 AND user_id IS NOT NULL`, teamID)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var userID int64
+		if err = rows.Scan(&userID); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		userSet[userID] = struct{}{}
+	}
+	rows.Close()
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if _, err = tx.Exec(ctx, `DELETE FROM matches WHERE home_team_id=$1 OR away_team_id=$1`, teamID); err != nil {
+		return nil, err
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM players WHERE team_id=$1`, teamID); err != nil {
+		return nil, err
+	}
+	tag, err := tx.Exec(ctx, `DELETE FROM teams WHERE id=$1`, teamID)
+	if err != nil {
+		return nil, err
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, pgx.ErrNoRows
+	}
+
+	affected := make([]int64, 0, len(userSet))
+	for userID := range userSet {
+		affected = append(affected, userID)
+	}
+	sort.Slice(affected, func(i, j int) bool { return affected[i] < affected[j] })
+
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return affected, nil
+}
+
 func (r *CabinetAdminRepository) ListAuditActionsByActor(ctx context.Context, userID int64, limit int) ([]domain.UserActionItem, error) {
 	type actionRecord struct {
 		id        int64

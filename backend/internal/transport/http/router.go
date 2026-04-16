@@ -127,6 +127,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Post("/admin/comments/{id}/moderate-delete", h.AdminModerateComment)
 		r.With(sessionMW.RequireSession).Post("/admin/teams/{id}/transfer-captain", h.AdminTransferCaptain)
 		r.With(sessionMW.RequireSession).Post("/admin/teams/{id}/archive", h.AdminArchiveTeam)
+		r.With(sessionMW.RequireSession).Delete("/admin/teams/{id}", h.AdminDeleteTeam)
 		r.With(sessionMW.RequireSession).Get("/admin/users/{id}/profile", h.AdminGetUserProfile)
 		r.With(sessionMW.RequireSession).Patch("/admin/users/{id}/profile", h.AdminUpdateUserProfile)
 		r.With(sessionMW.RequireSession).Post("/admin/users/{id}/comment-block", h.AdminBlockComments)
@@ -144,6 +145,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Post("/admin/playoff-grid/attach-match", h.AttachPlayoffMatch)
 		r.With(sessionMW.RequireSession).Post("/admin/playoff-grid/detach-match", h.DetachPlayoffMatch)
 		r.With(sessionMW.RequireSession).Post("/admin/tournament/cycles", h.CreateTournamentCycle)
+		r.With(sessionMW.RequireSession).Delete("/admin/tournament/cycles/{id}", h.DeleteTournamentCycle)
 		r.With(sessionMW.RequireSession).Post("/admin/tournament/cycles/{id}/activate", h.ActivateTournamentCycle)
 		r.With(sessionMW.RequireSession).Patch("/admin/tournament/cycles/{id}/settings", h.UpdateTournamentBracketSettings)
 	})
@@ -947,6 +949,9 @@ func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
 
 	stats := make(map[int64]*domain.StandingRow, len(teams))
 	for _, team := range teams {
+		if team.Archived {
+			continue
+		}
 		stats[team.ID] = &domain.StandingRow{TeamID: team.ID}
 	}
 
@@ -1038,6 +1043,24 @@ func (h Handler) CreateTournamentCycle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 201, item)
+}
+
+func (h Handler) DeleteTournamentCycle(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	id, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	if err = h.tournament.DeleteTournamentCycle(r.Context(), current.User, id); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ok"})
 }
 
 func (h Handler) ActivateTournamentCycle(w http.ResponseWriter, r *http.Request) {
@@ -1849,6 +1872,23 @@ func (h Handler) AdminArchiveTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err = h.cabinet.AdminArchiveTeam(r.Context(), current.User, teamID, req.Archived); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+func (h Handler) AdminDeleteTeam(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	teamID, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	if err = h.cabinet.AdminDeleteTeam(r.Context(), current.User, teamID); err != nil {
 		handleDomainErr(w, err)
 		return
 	}

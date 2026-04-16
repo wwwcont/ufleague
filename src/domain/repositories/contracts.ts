@@ -27,6 +27,7 @@ export interface TeamsRepository {
   captainSetRosterVisibility?(teamId: string, playerId: string, isVisible: boolean): Promise<void>
   adminTransferCaptain?(teamId: string, newCaptainUserId: string): Promise<void>
   adminArchiveTeam?(teamId: string, archived: boolean): Promise<void>
+  adminDeleteTeam?(teamId: string): Promise<void>
 }
 
 export interface PlayersRepository {
@@ -123,6 +124,7 @@ export interface CabinetRepository {
   getMyNotifications?(): Promise<Array<{ id: string; notificationType: string; title: string; body: string; route: string; status: string; createdAt: string }>>
   getTournamentCycles?(): Promise<Array<{ id: string; name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive: boolean }>>
   createTournamentCycle?(input: { name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive?: boolean }): Promise<void>
+  deleteTournamentCycle?(cycleId: string): Promise<void>
   setActiveTournamentCycle?(cycleId: string): Promise<void>
   updateTournamentBracketSettings?(cycleId: string, settings: { teamCapacity: 4 | 8 | 16 | 32 }): Promise<void>
 }

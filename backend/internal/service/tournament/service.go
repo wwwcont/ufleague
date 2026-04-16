@@ -38,6 +38,7 @@ type Repository interface {
 	UpdateMatch(ctx context.Context, id int64, match domain.Match) (domain.Match, error)
 	ListTournamentCycles(ctx context.Context) ([]domain.TournamentCycle, error)
 	CreateTournamentCycle(ctx context.Context, req domain.CreateTournamentCycleRequest) (domain.TournamentCycle, error)
+	DeleteTournamentCycle(ctx context.Context, cycleID int64) error
 	ActivateTournamentCycle(ctx context.Context, cycleID int64) error
 	UpdateTournamentCycleBracketSettings(ctx context.Context, cycleID int64, teamCapacity int) error
 	GetActiveTournamentCycle(ctx context.Context) (domain.TournamentCycle, error)
@@ -327,6 +328,10 @@ func (s Service) CreateTournamentCycle(ctx context.Context, actor domain.User, r
 	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
 		return domain.TournamentCycle{}, ErrForbidden
 	}
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
+		return domain.TournamentCycle{}, fmt.Errorf("invalid tournament name")
+	}
 	if req.BracketTeamCapacity != 4 && req.BracketTeamCapacity != 8 && req.BracketTeamCapacity != 16 && req.BracketTeamCapacity != 32 {
 		return domain.TournamentCycle{}, fmt.Errorf("invalid bracket_team_capacity")
 	}
@@ -335,6 +340,13 @@ func (s Service) CreateTournamentCycle(ctx context.Context, actor domain.User, r
 		req.Name = "Tournament " + strconv.FormatInt(time.Now().UTC().Unix(), 10)
 	}
 	return s.repo.CreateTournamentCycle(ctx, req)
+}
+
+func (s Service) DeleteTournamentCycle(ctx context.Context, actor domain.User, cycleID int64) error {
+	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+		return ErrForbidden
+	}
+	return s.repo.DeleteTournamentCycle(ctx, cycleID)
 }
 
 func (s Service) ActivateTournamentCycle(ctx context.Context, actor domain.User, cycleID int64) error {
