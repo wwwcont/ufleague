@@ -150,6 +150,7 @@ export const MatchDetailsPage = () => {
   const [goalAssistId, setGoalAssistId] = useState('')
   const [goalMinuteDraft, setGoalMinuteDraft] = useState('0')
   const [goalMinuteAuto, setGoalMinuteAuto] = useState(false)
+  const [goalCreateEvent, setGoalCreateEvent] = useState(true)
   const [goalStatus, setGoalStatus] = useState<string | null>(null)
   const [goalAction, setGoalAction] = useState<'add' | 'remove_selected' | 'remove_last'>('add')
   const [goalConfirmOpen, setGoalConfirmOpen] = useState(false)
@@ -363,12 +364,12 @@ export const MatchDetailsPage = () => {
 
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-y-0 left-0 w-1/2 overflow-hidden">
-            {home.logoUrl && <img src={home.logoUrl} alt="" className="h-full w-full scale-[1.12] object-cover blur-lg opacity-20" />}
+            {home.logoUrl && <img src={home.logoUrl} alt="" className="h-full w-full scale-[1.1] object-cover blur-md opacity-28" />}
           </div>
           <div className="absolute inset-y-0 right-0 w-1/2 overflow-hidden">
-            {away.logoUrl && <img src={away.logoUrl} alt="" className="h-full w-full scale-[1.12] object-cover blur-lg opacity-20" />}
+            {away.logoUrl && <img src={away.logoUrl} alt="" className="h-full w-full scale-[1.1] object-cover blur-md opacity-28" />}
           </div>
-          <div className="absolute inset-0 bg-gradient-to-r from-black/35 via-black/82 to-black/35" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/28 via-zinc-700/72 to-black/28" />
         </div>
 
         <div className="relative z-10">
@@ -403,12 +404,13 @@ export const MatchDetailsPage = () => {
                 <p className="hidden max-w-[120px] truncate text-xs text-textMuted sm:block">{home.name}</p>
               </div>
             </div>
-            <div className="flex gap-1">
+            <div className="flex min-h-5 gap-1">
               {homeFormChips.map((chip, index) => (
-                <span key={`${home.id}_${index}`} className={`inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[10px] font-semibold ${chip.upcoming ? 'border border-accentYellow/60 bg-accentYellow/15 text-accentYellow' : formTone[chip.value]}`}>
-                  {chip.upcoming ? 'Бл' : chip.value === 'W' ? 'В' : chip.value === 'L' ? 'П' : chip.value === 'D' ? 'Н' : '-'}
+                <span key={`${home.id}_${index}`} className={`inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[10px] font-semibold ${chip.upcoming ? formTone['-'] : formTone[chip.value]}`}>
+                  {chip.upcoming ? '-' : chip.value === 'W' ? 'В' : chip.value === 'L' ? 'П' : chip.value === 'D' ? 'Н' : '-'}
                 </span>
               ))}
+              {homeFormChips.length === 0 && <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-zinc-700/85 px-1 text-[10px] font-semibold text-white">-</span>}
             </div>
           </Link>
 
@@ -426,12 +428,13 @@ export const MatchDetailsPage = () => {
                 <TeamAvatar team={away} size="xl" fit="cover" fallbackLogoUrl={tournamentFallbackLogo} className="h-full w-full" />
               </div>
             </div>
-            <div className="flex gap-1">
+            <div className="flex min-h-5 gap-1">
               {awayFormChips.map((chip, index) => (
-                <span key={`${away.id}_${index}`} className={`inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[10px] font-semibold ${chip.upcoming ? 'border border-accentYellow/60 bg-accentYellow/15 text-accentYellow' : formTone[chip.value]}`}>
-                  {chip.upcoming ? 'Бл' : chip.value === 'W' ? 'В' : chip.value === 'L' ? 'П' : chip.value === 'D' ? 'Н' : '-'}
+                <span key={`${away.id}_${index}`} className={`inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[10px] font-semibold ${chip.upcoming ? formTone['-'] : formTone[chip.value]}`}>
+                  {chip.upcoming ? '-' : chip.value === 'W' ? 'В' : chip.value === 'L' ? 'П' : chip.value === 'D' ? 'Н' : '-'}
                 </span>
               ))}
+              {awayFormChips.length === 0 && <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-zinc-700/85 px-1 text-[10px] font-semibold text-white">-</span>}
             </div>
           </Link>
         </div>
@@ -506,6 +509,12 @@ export const MatchDetailsPage = () => {
               {goalAction === 'remove_selected' && 'Убрать гол у выбранной команды и выбранного игрока?'}
               {goalAction === 'remove_last' && `Убрать последний гол (${lastGoalTeamShortName})?`}
             </p>
+            {goalAction === 'add' && (
+              <label className="mt-3 flex items-center justify-between rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-xs text-textSecondary">
+                Создать событие в ленте матча
+                <input type="checkbox" checked={goalCreateEvent} onChange={(event) => setGoalCreateEvent(event.target.checked)} />
+              </label>
+            )}
             <div className="mt-3 flex gap-2">
               <button type="button" className="rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app" onClick={async () => {
                 const applyScoreDelta = (baseScore: { home: number; away: number }, teamId: string, delta: 1 | -1) => (
@@ -533,6 +542,7 @@ export const MatchDetailsPage = () => {
                       nextEvents: [...localEvents, createdEvent],
                       nextScore: applyScoreDelta(effectiveScore, goalTeamId, 1),
                       notFoundMessage: null,
+                      createdEvent,
                     }
                   }
 
@@ -547,6 +557,7 @@ export const MatchDetailsPage = () => {
                       notFoundMessage: goalAction === 'remove_last'
                         ? 'Не найден последний гол для удаления.'
                         : 'Не найден гол выбранного игрока для удаления.',
+                      createdEvent: null,
                     }
                   }
 
@@ -556,6 +567,7 @@ export const MatchDetailsPage = () => {
                     nextEvents: trimmedEvents,
                     nextScore: applyScoreDelta(effectiveScore, targetEvent.teamId, -1),
                     notFoundMessage: null,
+                    createdEvent: null,
                   }
                 })()
 
@@ -568,9 +580,29 @@ export const MatchDetailsPage = () => {
                 const nextEvents = result.nextEvents
                 const nextScore = result.nextScore
                 setScoreDraft(nextScore)
-                setLocalEvents(nextEvents)
+                let persistedEvents = nextEvents
                 try {
-                  await matchesRepository.updateMatch?.(match.id, { homeScore: nextScore.home, awayScore: nextScore.away, matchEvents: nextEvents })
+                  if (goalCreateEvent && result.createdEvent) {
+                    const scorer = players.find((player) => player.id === goalScorerId)?.displayName ?? `Игрок #${goalScorerId}`
+                    const createdFeed = await eventsRepository.createEventForScope?.({
+                      scopeType: 'match',
+                      scopeId: match.id,
+                      title: 'Гол',
+                      summary: `${scorer} • ${result.createdEvent.minute}′`,
+                      body: goalAssistId
+                        ? `${scorer} забил на ${result.createdEvent.minute}-й минуте. Ассист: ${goalAssistId}.`
+                        : `${scorer} забил на ${result.createdEvent.minute}-й минуте.`,
+                    })
+                    if (createdFeed?.id) {
+                      persistedEvents = nextEvents.map((event) => (
+                        event.id === result.createdEvent?.id
+                          ? { ...event, linkedEventId: createdFeed.id }
+                          : event
+                      ))
+                    }
+                  }
+                  await matchesRepository.updateMatch?.(match.id, { homeScore: nextScore.home, awayScore: nextScore.away, matchEvents: persistedEvents })
+                  setLocalEvents(persistedEvents)
                   setGoalStatus('Счет сохранен.')
                 } catch (error) {
                   setGoalStatus(actionError(error))

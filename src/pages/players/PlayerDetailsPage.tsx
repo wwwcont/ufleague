@@ -134,7 +134,7 @@ export const PlayerDetailsPage = () => {
             <img
               src={avatarPreview || team?.logoUrl || ''}
               alt=""
-              className="h-full w-full scale-[1.12] object-cover blur-md opacity-[0.18]"
+              className="h-full w-full scale-[1.08] object-cover blur-[5px] opacity-[0.24]"
             />
           )}
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/65 to-black/80" />

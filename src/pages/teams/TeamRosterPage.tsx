@@ -17,6 +17,8 @@ export const TeamRosterPage = () => {
   const { session } = useSession()
   const { teamsRepository, playersRepository, usersRepository } = useRepositories()
   const [inviteUsername, setInviteUsername] = useState('')
+  const [inviteCandidates, setInviteCandidates] = useState<Array<{ id: string; displayName: string; telegramUsername?: string }>>([])
+  const [selectedInviteUserId, setSelectedInviteUserId] = useState('')
   const [status, setStatus] = useState<string | null>(null)
   const [hiddenIds, setHiddenIds] = useState<string[]>([])
   const [removedIds, setRemovedIds] = useState<string[]>([])
@@ -48,13 +50,31 @@ export const TeamRosterPage = () => {
             <p className="mb-2 text-xs text-textMuted">@юзер + пригласить</p>
             <div className="flex flex-wrap items-center gap-2">
               <input value={inviteUsername} onChange={(event) => setInviteUsername(event.target.value)} placeholder="@telegram_username" className="min-w-[220px] flex-1 rounded-lg border border-borderSubtle bg-panelBg px-3 py-2 text-sm" />
-              <button type="button" disabled={!inviteUsername.trim().startsWith('@')} className="inline-flex items-center gap-1 rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
+              <button type="button" disabled={!inviteUsername.trim()} className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50" onClick={async () => {
                 try {
-                  const found = await usersRepository.findByTelegramUsername?.(inviteUsername)
-                  if (!found) throw new Error('Пользователь не найден')
+                  const normalized = inviteUsername.trim().replace(/^@/, '')
+                  const exact = await usersRepository.findByTelegramUsername?.(normalized)
+                  const list = await usersRepository.searchByTelegramUsername?.(normalized)
+                  const merged = exact ? [exact, ...(list ?? []).filter((item) => item.id !== exact.id)] : (list ?? [])
+                  setInviteCandidates(merged)
+                  setSelectedInviteUserId(merged[0]?.id ?? '')
+                  if (!merged.length) throw new Error('Пользователь не найден')
+                  setStatus(merged.length > 1 ? `Найдено ${merged.length} пользователей. Выберите нужного и нажмите «Пригласить».` : 'Пользователь найден, можно приглашать')
+                } catch (error) {
+                  setStatus((error as Error).message)
+                }
+              }}>
+                Найти
+              </button>
+              <button type="button" disabled={!selectedInviteUserId} className="inline-flex items-center gap-1 rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
+                try {
+                  const found = inviteCandidates.find((item) => item.id === selectedInviteUserId)
+                  if (!found) throw new Error('Выберите пользователя из списка')
                   await teamsRepository.captainInviteByUsername?.(team.id, found.telegramUsername ?? inviteUsername.replace(/^@/, ''))
                   await playersRepository.createPlayer?.({ userId: found.id, teamId: team.id, fullName: found.displayName, position: 'MF', shirtNumber: 0 })
                   setInviteUsername('')
+                  setInviteCandidates([])
+                  setSelectedInviteUserId('')
                   setStatus('Игрок приглашен в команду')
                 } catch (error) {
                   setStatus((error as Error).message)
@@ -63,6 +83,15 @@ export const TeamRosterPage = () => {
                 <UserPlus size={12} /> Пригласить
               </button>
             </div>
+            {inviteCandidates.length > 0 && (
+              <div className="mt-2 rounded-lg border border-borderSubtle bg-panelBg p-2">
+                <select value={selectedInviteUserId} onChange={(event) => setSelectedInviteUserId(event.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-xs">
+                  {inviteCandidates.map((item) => (
+                    <option key={item.id} value={item.id}>{item.displayName}{item.telegramUsername ? ` (@${item.telegramUsername})` : ''}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         )}
 

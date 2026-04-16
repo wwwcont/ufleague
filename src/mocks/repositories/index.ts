@@ -12,7 +12,7 @@ import type {
   UsersRepository,
   UploadsRepository,
 } from '../../domain/repositories/contracts'
-import type { FormResult, PublicUserCard, UserRole } from '../../domain/entities/types'
+import type { FormResult, PublicEvent, PublicUserCard, UserRole } from '../../domain/entities/types'
 import { comments, currentCommentAuthor } from '../data/comments'
 import { events } from '../data/events'
 import { matches } from '../data/matches'
@@ -327,8 +327,23 @@ export const eventsRepository: EventsRepository = {
   async getEventById(eventId) {
     return events.find((event) => event.id === eventId) ?? null
   },
-  async createEventForScope() {
-    return
+  async createEventForScope(input) {
+    return {
+      id: `event_${Date.now()}`,
+      title: input.title,
+      summary: input.summary ?? input.body,
+      text: input.body,
+      imageUrl: input.imageUrl,
+      contentBlocks: input.contentBlocks ?? [],
+      timestamp: new Date().toISOString(),
+      source: 'captain',
+      category: 'announcement',
+      entityType: input.scopeType,
+      entityId: input.scopeId,
+      authorName: mockProfile.displayName,
+      canEdit: true,
+      canDelete: true,
+    } satisfies PublicEvent
   },
   async updateEventForScope() {
     return
@@ -533,6 +548,14 @@ export const usersRepository: UsersRepository = {
     if (!normalized) return null
     const user = [...userDirectory.values()].find((item) => item.telegramUsername === normalized)
     return user ? buildUserCard(user) : null
+  },
+  async searchByTelegramUsername(username) {
+    const normalized = username.trim().replace(/^@/, '').toLowerCase()
+    if (!normalized) return []
+    return [...userDirectory.values()]
+      .filter((item) => item.telegramUsername.toLowerCase().includes(normalized))
+      .slice(0, 20)
+      .map(buildUserCard)
   },
   async getUserProfile(userId) {
     const user = userDirectory.get(userId)
