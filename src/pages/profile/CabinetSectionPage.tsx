@@ -256,6 +256,7 @@ export const CabinetSectionPage = () => {
   const [matchStage, setMatchStage] = useState('')
   const [archivedMatches, setArchivedMatches] = useState<Match[]>([])
   const [archivedTeams, setArchivedTeams] = useState<Team[]>([])
+  const [locallyArchivedTeamIds, setLocallyArchivedTeamIds] = useState<string[]>([])
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileLoaded, setProfileLoaded] = useState<null | { displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> }>(null)
   const [tournamentCycles, setTournamentCycles] = useState<Array<{ id: string; name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive: boolean }>>([])
@@ -278,6 +279,10 @@ export const CabinetSectionPage = () => {
   }, [session.user.id, session.user.teamId, teams])
 
   const isAdminScope = currentRoles.some((role) => roleRank[role] >= roleRank.admin)
+  const activeTeamsForArchive = useMemo(
+    () => (teams ?? []).filter((item) => !item.archived && !locallyArchivedTeamIds.includes(item.id)),
+    [locallyArchivedTeamIds, teams],
+  )
 
   useEffect(() => {
     if (section !== 'tournament') return
@@ -306,6 +311,12 @@ export const CabinetSectionPage = () => {
       .then((list) => setArchivedTeams(list.filter((team) => team.archived)))
       .catch(() => setArchivedTeams([]))
   }, [section, status, teamsRepository])
+
+  useEffect(() => {
+    if (!status) return
+    const timeoutId = window.setTimeout(() => setStatus(''), 2600)
+    return () => window.clearTimeout(timeoutId)
+  }, [status])
 
   useEffect(() => {
     if (!(section === 'profile-settings' || section === 'profile' || section === 'edit')) return
@@ -1205,7 +1216,7 @@ export const CabinetSectionPage = () => {
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
           <p className="text-xs text-textMuted">Активные команды:</p>
           <div className="space-y-2">
-            {(teams ?? []).map((item) => (
+            {activeTeamsForArchive.map((item) => (
               <div key={`active:${item.id}`} className="rounded-lg border border-borderSubtle bg-mutedBg p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm text-textPrimary">{item.name} ({item.shortName})</p>
@@ -1213,6 +1224,8 @@ export const CabinetSectionPage = () => {
                     try {
                       await teamsRepository.adminArchiveTeam?.(item.id, true)
                       setStatus('ok: team archived (related matches moved to archive)')
+                      setLocallyArchivedTeamIds((prev) => prev.includes(item.id) ? prev : [...prev, item.id])
+                      setArchivedTeams((prev) => prev.some((team) => team.id === item.id) ? prev : [item, ...prev])
                     } catch (error) {
                       setStatus(`error: ${(error as Error).message}`)
                     }
@@ -1236,6 +1249,7 @@ export const CabinetSectionPage = () => {
                     try {
                       await teamsRepository.adminArchiveTeam?.(item.id, false)
                       setStatus('ok: team restored from archive')
+                      setLocallyArchivedTeamIds((prev) => prev.filter((id) => id !== item.id))
                       setArchivedTeams((prev) => prev.filter((team) => team.id !== item.id))
                       setArchivedMatches((prev) => prev.filter((match) => match.homeTeamId !== item.id && match.awayTeamId !== item.id))
                     } catch (error) {
@@ -1370,9 +1384,11 @@ export const CabinetSectionPage = () => {
       )}
 
       {status && (
-        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm">
-          <p className={`flex items-center gap-2 ${statusTone(status)}`}><CheckCircle2 size={14} /> {status}</p>
-          <Link to="/profile" className="mt-2 inline-flex text-sm text-accentYellow">← Назад в кабинет</Link>
+        <section className="fixed left-1/2 top-4 z-50 w-[min(92vw,540px)] -translate-x-1/2 rounded-xl border border-borderSubtle bg-panelBg/95 px-4 py-3 text-sm shadow-soft backdrop-blur">
+          <p className={`flex items-center gap-2 ${statusTone(status)}`}>
+            {status.startsWith('ok:') ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+            {status}
+          </p>
         </section>
       )}
 
