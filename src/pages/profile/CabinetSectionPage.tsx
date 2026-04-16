@@ -760,9 +760,12 @@ export const CabinetSectionPage = () => {
                   </select>
                   <button type="button" disabled={!membershipTeamId || !selectedUser.telegramUsername} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
                     try {
+                      if (selectedUser.teamId === membershipTeamId) {
+                        setStatus('ok: пользователь уже состоит в выбранной команде')
+                        return
+                      }
                       await teamsRepository.captainInviteByUsername?.(membershipTeamId, selectedUser.telegramUsername ?? userLookupUsername.replace(/^@/, ''))
-                      await playersRepository.createPlayer?.({ userId: selectedUser.id, teamId: membershipTeamId, fullName: selectedUser.displayName, position: 'MF', shirtNumber: 0 })
-                      setStatus('ok: player role assigned and linked to team')
+                      setStatus('ok: приглашение игроку отправлено')
                     } catch (error) {
                       setStatus(`error: ${(error as Error).message}`)
                     }

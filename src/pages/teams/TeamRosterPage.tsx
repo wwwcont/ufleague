@@ -9,15 +9,16 @@ import { useRepositories } from '../../app/providers/use-repositories'
 import { canManageTeam } from '../../domain/services/accessControl'
 import { PlayerRow } from '../../components/data-display/PlayerRow'
 import { EmptyState } from '../../components/ui/EmptyState'
+import type { PublicUserCard } from '../../domain/entities/types'
 
 export const TeamRosterPage = () => {
   const { teamId } = useParams()
   const { data: team } = useTeamDetails(teamId)
   const { data: players } = usePlayers(teamId)
   const { session } = useSession()
-  const { teamsRepository, playersRepository, usersRepository } = useRepositories()
+  const { teamsRepository, usersRepository } = useRepositories()
   const [inviteUsername, setInviteUsername] = useState('')
-  const [inviteCandidates, setInviteCandidates] = useState<Array<{ id: string; displayName: string; telegramUsername?: string }>>([])
+  const [inviteCandidates, setInviteCandidates] = useState<PublicUserCard[]>([])
   const [selectedInviteUserId, setSelectedInviteUserId] = useState('')
   const [status, setStatus] = useState<string | null>(null)
   const [hiddenIds, setHiddenIds] = useState<string[]>([])
@@ -70,12 +71,15 @@ export const TeamRosterPage = () => {
                 try {
                   const found = inviteCandidates.find((item) => item.id === selectedInviteUserId)
                   if (!found) throw new Error('Выберите пользователя из списка')
+                  if (found.teamId === team.id) {
+                    setStatus('Пользователь уже состоит в этой команде')
+                    return
+                  }
                   await teamsRepository.captainInviteByUsername?.(team.id, found.telegramUsername ?? inviteUsername.replace(/^@/, ''))
-                  await playersRepository.createPlayer?.({ userId: found.id, teamId: team.id, fullName: found.displayName, position: 'MF', shirtNumber: 0 })
                   setInviteUsername('')
                   setInviteCandidates([])
                   setSelectedInviteUserId('')
-                  setStatus('Игрок приглашен в команду')
+                  setStatus('Приглашение отправлено')
                 } catch (error) {
                   setStatus((error as Error).message)
                 }
