@@ -148,8 +148,6 @@ export const MatchDetailsPage = () => {
   const [goalTeamId, setGoalTeamId] = useState('')
   const [goalScorerId, setGoalScorerId] = useState('')
   const [goalAssistId, setGoalAssistId] = useState('')
-  const [goalMinuteDraft, setGoalMinuteDraft] = useState('0')
-  const [goalMinuteAuto, setGoalMinuteAuto] = useState(false)
   const [goalCreateEvent, setGoalCreateEvent] = useState(true)
   const [goalStatus, setGoalStatus] = useState<string | null>(null)
   const [goalAction, setGoalAction] = useState<'add' | 'remove_selected' | 'remove_last'>('add')
@@ -157,8 +155,6 @@ export const MatchDetailsPage = () => {
   const [cardsEditorOpen, setCardsEditorOpen] = useState(false)
   const [cardsTeamId, setCardsTeamId] = useState('')
   const [cardsPlayerId, setCardsPlayerId] = useState('')
-  const [cardsMinuteDraft, setCardsMinuteDraft] = useState('0')
-  const [cardsMinuteAuto, setCardsMinuteAuto] = useState(false)
   const [cardsAction, setCardsAction] = useState<'add_yellow' | 'add_red' | 'remove_yellow' | 'remove_red'>('add_yellow')
   const [cardsConfirmOpen, setCardsConfirmOpen] = useState(false)
   const [cardsStatus, setCardsStatus] = useState<string | null>(null)
@@ -227,7 +223,7 @@ export const MatchDetailsPage = () => {
     if (!Number.isFinite(kickoffTs)) return
 
     const now = Date.now()
-    const endTs = kickoffTs + 96 * 60 * 1000
+    const endTs = kickoffTs + 150 * 60 * 1000
     const shouldStart = now >= kickoffTs && now < endTs && match.status === 'scheduled'
     const shouldFinish = now >= endTs && (match.status === 'live' || match.status === 'half_time' || match.status === 'scheduled')
     if (!shouldStart && !shouldFinish) return
@@ -238,26 +234,26 @@ export const MatchDetailsPage = () => {
       if (shouldStart && hasStartEvent && !shouldFinish) return
       if (shouldFinish && hasEndEvent) return
 
-      const minuteBase = localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0
+      const minuteBase = localEvents.length ? Math.max(...localEvents.map((event) => event.minute ?? 0)) : 0
       const estimatedLiveMinute = Math.max(match.currentMinute ?? 0, minuteBase)
       const nextEvents = [...localEvents]
       if (shouldStart && !hasStartEvent) {
-        nextEvents.push({ id: `auto_start_${match.id}`, minute: Math.max(1, estimatedLiveMinute || minuteBase + 1), type: 'substitution', note: 'Система: матч начался' })
+        nextEvents.push({ id: `auto_start_${match.id}`, type: 'substitution', note: 'Система: матч начался' })
       }
       if (shouldFinish && !hasEndEvent) {
-        nextEvents.push({ id: `auto_end_${match.id}`, minute: Math.max(96, estimatedLiveMinute || minuteBase + 1), type: 'substitution', note: 'Система: матч завершен (96 минут)' })
+        nextEvents.push({ id: `auto_end_${match.id}`, type: 'substitution', note: 'Система: матч завершен (150 минут)' })
       }
       try {
         await matchesRepository.updateMatch?.(match.id, {
           status: shouldFinish ? 'finished' : 'live',
           homeScore: match.score.home,
           awayScore: match.score.away,
-          currentMinute: shouldFinish ? Math.max(96, estimatedLiveMinute || 96) : Math.max(1, estimatedLiveMinute || 1),
+          currentMinute: shouldFinish ? Math.max(150, estimatedLiveMinute || 150) : Math.max(1, estimatedLiveMinute || 1),
           clockAnchorAt: shouldFinish ? null : new Date().toISOString(),
           matchEvents: nextEvents,
         })
         setLocalEvents(nextEvents)
-        setGoalStatus(shouldFinish ? 'Матч автоматически завершен по таймеру 96 минут.' : 'Матч автоматически переведен в LIVE по времени старта.')
+        setGoalStatus(shouldFinish ? 'Матч автоматически завершен по таймеру 150 минут.' : 'Матч автоматически переведен в LIVE по времени старта.')
       } catch (error) {
         setGoalStatus(error instanceof Error ? error.message : 'Не удалось автоматически обновить статус матча.')
       }
@@ -291,7 +287,7 @@ export const MatchDetailsPage = () => {
   const awayStats = getTeamStats(away.id, allMatches)
   const effectiveScore = scoreDraft ?? match.score
 
-  const eventsMinuteMax = localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0
+  const eventsMinuteMax = localEvents.length ? Math.max(...localEvents.map((event) => event.minute ?? 0)) : 0
   const baseMinute = Math.max(match.currentMinute ?? 0, eventsMinuteMax)
   const liveMinute = (() => {
     if (match.status !== 'live') return baseMinute || null
@@ -301,11 +297,11 @@ export const MatchDetailsPage = () => {
     const elapsed = Math.max(0, Math.floor((nowTs - anchorTs) / 60_000))
     return Math.min(120, baseMinute + elapsed)
   })()
-  const latestEvents = localEvents.slice().sort((a, b) => b.minute - a.minute).slice(0, 3)
+  const latestEvents = localEvents.slice().sort((a, b) => (b.minute ?? 0) - (a.minute ?? 0)).slice(0, 3)
   const playersById = Object.fromEntries(players.map((player) => [player.id, player]))
   const historyEvents = localEvents
     .filter((event) => (event.type === 'goal' || event.type === 'yellow_card' || event.type === 'red_card') && event.teamId)
-    .sort((a, b) => b.minute - a.minute)
+    .sort((a, b) => (b.minute ?? 0) - (a.minute ?? 0))
   const historyHome = historyEvents.filter((event) => event.teamId === home.id)
   const historyAway = historyEvents.filter((event) => event.teamId === away.id)
   const lastGoalEvent = [...localEvents].reverse().find((event) => event.type === 'goal' && event.teamId)
@@ -344,10 +340,10 @@ export const MatchDetailsPage = () => {
       <section className="relative rounded-2xl border border-borderStrong bg-panelBg px-5 py-6 shadow-matte sm:px-7 sm:py-7">
         {canEditScore && (
           <div className="absolute left-1/2 top-0 z-30 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2">
-            <button type="button" onClick={() => { setCardsMinuteDraft(String(liveMinute ?? 0)); setCardsMinuteAuto(false); setCardsEditorOpen(true) }} className="inline-flex items-center rounded-full border border-borderSubtle bg-panelBg px-3 py-1 text-xs font-semibold text-textPrimary shadow-soft">
+            <button type="button" onClick={() => setCardsEditorOpen(true)} className="inline-flex items-center rounded-full border border-borderSubtle bg-panelBg px-3 py-1 text-xs font-semibold text-textPrimary shadow-soft">
               Карточки
             </button>
-            <button type="button" onClick={() => { setGoalMinuteDraft(String(liveMinute ?? 0)); setGoalMinuteAuto(false); setGoalEditorOpen(true) }} className="inline-flex items-center rounded-full bg-accentYellow px-4 py-1 text-xs font-semibold text-app shadow-soft">
+            <button type="button" onClick={() => setGoalEditorOpen(true)} className="inline-flex items-center rounded-full bg-accentYellow px-4 py-1 text-xs font-semibold text-app shadow-soft">
               СЧЕТ
             </button>
             <button
@@ -476,14 +472,6 @@ export const MatchDetailsPage = () => {
                 <option value="">Ассист (необязательно)</option>
                 {candidatePlayers.map((player) => <option key={player.id} value={player.id}>{player.displayName}</option>)}
               </select>
-              <label className="space-y-1 text-xs text-textMuted">
-                Минута гола
-                <input type="number" min={0} max={120} value={goalMinuteDraft} onChange={(event) => setGoalMinuteDraft(event.target.value)} disabled={goalMinuteAuto} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm text-textPrimary disabled:opacity-60" />
-              </label>
-              <label className="flex items-center justify-between rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-xs text-textMuted">
-                Без указания минуты
-                <input type="checkbox" checked={goalMinuteAuto} onChange={(event) => setGoalMinuteAuto(event.target.checked)} />
-              </label>
               <div className="flex gap-2">
                 <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => { setGoalAction('add'); setGoalConfirmOpen(true) }}>Добавить</button>
                 <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50" onClick={() => { setGoalAction('remove_selected'); setGoalConfirmOpen(true) }}>Убавить</button>
@@ -525,13 +513,8 @@ export const MatchDetailsPage = () => {
 
                 const result = (() => {
                   if (goalAction === 'add') {
-                    const manualMinute = Number(goalMinuteDraft)
-                    const selectedMinute = goalMinuteAuto
-                      ? 0
-                      : (Number.isFinite(manualMinute) && manualMinute >= 0 ? manualMinute : (liveMinute ?? 0))
                     const createdEvent = {
                       id: `goal_${Date.now()}`,
-                      minute: Math.max(0, selectedMinute),
                       type: 'goal',
                       teamId: goalTeamId,
                       playerId: goalScorerId,
@@ -588,10 +571,10 @@ export const MatchDetailsPage = () => {
                       scopeType: 'match',
                       scopeId: match.id,
                       title: 'Гол',
-                      summary: `${scorer} • ${result.createdEvent.minute}′`,
+                      summary: goalAssistId ? `${scorer} • ассист ${goalAssistId}` : scorer,
                       body: goalAssistId
-                        ? `${scorer} забил на ${result.createdEvent.minute}-й минуте. Ассист: ${goalAssistId}.`
-                        : `${scorer} забил на ${result.createdEvent.minute}-й минуте.`,
+                        ? `${scorer} забил. Ассист: ${goalAssistId}.`
+                        : `${scorer} забил гол.`,
                     })
                     if (createdFeed?.id) {
                       persistedEvents = nextEvents.map((event) => (
@@ -633,14 +616,6 @@ export const MatchDetailsPage = () => {
                 <option value="">Игрок</option>
                 {cardCandidatePlayers.map((player) => <option key={player.id} value={player.id}>{player.displayName}</option>)}
               </select>
-              <label className="space-y-1 text-xs text-textMuted">
-                Минута карточки
-                <input type="number" min={0} max={120} value={cardsMinuteDraft} onChange={(event) => setCardsMinuteDraft(event.target.value)} disabled={cardsMinuteAuto} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-sm text-textPrimary disabled:opacity-60" />
-              </label>
-              <label className="flex items-center justify-between rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-xs text-textMuted">
-                Без указания минуты
-                <input type="checkbox" checked={cardsMinuteAuto} onChange={(event) => setCardsMinuteAuto(event.target.checked)} />
-              </label>
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" disabled={!cardsTeamId || !cardsPlayerId} className="rounded-lg border border-amber-400/60 bg-amber-400/15 px-3 py-2 text-xs font-semibold text-amber-200 disabled:opacity-50" onClick={() => { setCardsAction('add_yellow'); setCardCreateEvent(true); setCardsConfirmOpen(true) }}>Желтая</button>
                 <button type="button" disabled={!cardsTeamId || !cardsPlayerId} className="rounded-lg border border-rose-400/60 bg-rose-400/15 px-3 py-2 text-xs font-semibold text-rose-200 disabled:opacity-50" onClick={() => { setCardsAction('add_red'); setCardCreateEvent(true); setCardsConfirmOpen(true) }}>Красная</button>
@@ -673,18 +648,12 @@ export const MatchDetailsPage = () => {
               <button type="button" className="rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app" onClick={async () => {
                 const cardType = cardsAction === 'add_yellow' || cardsAction === 'remove_yellow' ? 'yellow_card' : 'red_card'
                 const isAdd = cardsAction === 'add_yellow' || cardsAction === 'add_red'
-                const minuteBase = localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0
                 const linkedEventId = `link_${Date.now()}`
-                const manualMinute = Number(cardsMinuteDraft)
-                const selectedMinute = cardsMinuteAuto
-                  ? 0
-                  : (Number.isFinite(manualMinute) && manualMinute >= 0 ? manualMinute : (liveMinute ?? minuteBase))
 
                 const result = (() => {
                   if (isAdd) {
                     const createdCard = {
                       id: `card_${Date.now()}`,
-                      minute: Math.max(0, selectedMinute),
                       type: cardType,
                       teamId: cardsTeamId,
                       playerId: cardsPlayerId,
@@ -714,8 +683,8 @@ export const MatchDetailsPage = () => {
                       scopeType: 'match',
                       scopeId: match.id,
                       title: cardType === 'yellow_card' ? 'Желтая карточка' : 'Красная карточка',
-                      summary: `${actor} • ${result.createdCard.minute}′`,
-                      body: `${actor} получил ${cardType === 'yellow_card' ? 'желтую' : 'красную'} карточку на ${result.createdCard.minute}-й минуте.`,
+                      summary: actor,
+                      body: `${actor} получил ${cardType === 'yellow_card' ? 'желтую' : 'красную'} карточку.`,
                     })
                   }
                   setCardsStatus('Карточки сохранены.')
@@ -745,17 +714,20 @@ export const MatchDetailsPage = () => {
                   setMatchFlowPending(true)
                   try {
                     const hasStartEvent = localEvents.some((event) => event.id === `auto_start_${match.id}`)
-                    const minuteBase = localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0
-                    const nextEvents = hasStartEvent ? localEvents : [...localEvents, { id: `auto_start_${match.id}`, minute: minuteBase + 1, type: 'substitution', note: 'Система: матч начался' } satisfies Match['events'][number]]
+                    const nextEvents = hasStartEvent ? localEvents : [...localEvents, { id: `auto_start_${match.id}`, type: 'substitution', note: 'Система: матч начался' } satisfies Match['events'][number]]
+                    const forcedStartAt = new Date().toISOString()
                     await matchesRepository.updateMatch?.(match.id, {
                       status: 'live',
                       homeScore: effectiveScore.home,
                       awayScore: effectiveScore.away,
+                      startAt: forcedStartAt,
                       currentMinute: Math.max(1, liveMinute ?? 1),
-                      clockAnchorAt: new Date().toISOString(),
+                      clockAnchorAt: forcedStartAt,
                       matchEvents: nextEvents,
                     })
                     setLocalEvents(nextEvents)
+                    const nextStartInput = toMskDateTimeInput(forcedStartAt.slice(0, 10), forcedStartAt.slice(11, 16))
+                    setEditableStartAt(nextStartInput)
                     setGoalStatus('Матч переведен в LIVE.')
                     setMatchControlOpen(false)
                   } catch (error) {
@@ -775,8 +747,7 @@ export const MatchDetailsPage = () => {
                   setMatchFlowPending(true)
                   try {
                     const hasEndEvent = localEvents.some((event) => event.id === `auto_end_${match.id}`)
-                    const minuteBase = localEvents.length ? Math.max(...localEvents.map((event) => event.minute)) : 0
-                    const nextEvents = hasEndEvent ? localEvents : [...localEvents, { id: `auto_end_${match.id}`, minute: Math.max(90, minuteBase + 1), type: 'substitution', note: 'Система: матч завершен' } satisfies Match['events'][number]]
+                    const nextEvents = hasEndEvent ? localEvents : [...localEvents, { id: `auto_end_${match.id}`, type: 'substitution', note: 'Система: матч завершен' } satisfies Match['events'][number]]
                     await matchesRepository.updateMatch?.(match.id, {
                       status: 'finished',
                       homeScore: effectiveScore.home,
@@ -967,7 +938,6 @@ export const MatchDetailsPage = () => {
               <div key={event.id} className="flex items-center gap-1.5 px-1 text-xs text-textPrimary">
                 <span>{matchHistoryIcon[event.type as 'goal' | 'yellow_card' | 'red_card']}</span>
                 <span>{getPlayerLastName(playersById[event.playerId ?? '']?.displayName)}</span>
-                {event.minute > 0 && <span className="text-textMuted">{event.minute}′</span>}
               </div>
             ))}
           </div>
@@ -977,7 +947,6 @@ export const MatchDetailsPage = () => {
               <p className="px-1 text-right text-xs text-textMuted">—</p>
             ) : historyAway.map((event) => (
               <div key={event.id} className="flex items-center justify-end gap-1.5 px-1 text-xs text-textPrimary">
-                {event.minute > 0 && <span className="text-textMuted">{event.minute}′</span>}
                 <span>{getPlayerLastName(playersById[event.playerId ?? '']?.displayName)}</span>
                 <span>{matchHistoryIcon[event.type as 'goal' | 'yellow_card' | 'red_card']}</span>
               </div>
@@ -1004,7 +973,6 @@ export const MatchDetailsPage = () => {
           <div className="space-y-2">
             {latestEvents.map((event) => (
               <div key={event.id} className="flex items-center gap-3 rounded-xl border border-borderSubtle bg-mutedBg px-3 py-2 text-sm">
-                <span className="shrink-0 rounded-md border border-borderSubtle bg-panelBg px-2 py-1 text-[11px] tabular-nums text-textMuted">{event.minute}′</span>
                 <span className="truncate text-textPrimary">{event.note?.trim() || event.type}</span>
               </div>
             ))}

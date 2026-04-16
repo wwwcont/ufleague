@@ -137,7 +137,7 @@ export interface Player {
 
 export interface MatchEvent {
   id: ID
-  minute: number
+  minute?: number
   type: 'goal' | 'yellow_card' | 'red_card' | 'substitution'
   teamId?: ID
   playerId?: ID
