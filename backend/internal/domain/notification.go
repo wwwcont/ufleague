@@ -41,3 +41,18 @@ const (
 	NotificationJobSent       NotificationJobStatus = "sent"
 	NotificationJobFailed     NotificationJobStatus = "failed"
 )
+
+type TelegramRecipient struct {
+	UserID int64 `json:"user_id"`
+	ChatID int64 `json:"chat_id"`
+}
+
+type UserNotificationItem struct {
+	ID               int64            `json:"id"`
+	NotificationType NotificationType `json:"notification_type"`
+	Title            string           `json:"title"`
+	Body             string           `json:"body"`
+	Route            string           `json:"route"`
+	Status           string           `json:"status"`
+	CreatedAt        int64            `json:"created_at"`
+}

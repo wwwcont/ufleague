@@ -119,6 +119,7 @@ export interface CabinetRepository {
   superadminAssignRestrictions(input: { userId: string; restrictions: string[] }): Promise<void>
   superadminSetGlobalSetting(input: { key: string; value: Record<string, unknown> }): Promise<void>
   getMyActions?(): Promise<Array<{ id: string; action: string; targetType: string; targetId: string; createdAt: string; route: string; metadata?: Record<string, unknown> }>>
+  getMyNotifications?(): Promise<Array<{ id: string; notificationType: string; title: string; body: string; route: string; status: string; createdAt: string }>>
   getTournamentCycles?(): Promise<Array<{ id: string; name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive: boolean }>>
   createTournamentCycle?(input: { name: string; bracketTeamCapacity: 4 | 8 | 16 | 32; isActive?: boolean }): Promise<void>
   setActiveTournamentCycle?(cycleId: string): Promise<void>

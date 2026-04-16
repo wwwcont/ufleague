@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"football_ui/backend/internal/domain"
@@ -78,6 +79,34 @@ func (r *NotificationsRepository) ListTelegramChatIDs(ctx context.Context, nt do
 	return out, rows.Err()
 }
 
+func (r *NotificationsRepository) ListTelegramRecipients(ctx context.Context, nt domain.NotificationType, scopeType string, scopeID *int64) ([]domain.TelegramRecipient, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT DISTINCT user_id, telegram_chat_id
+		FROM notification_subscriptions
+		WHERE notification_type = $1
+		  AND is_enabled = TRUE
+		  AND telegram_chat_id IS NOT NULL
+		  AND (
+			(scope_type IS NULL AND scope_id IS NULL)
+			OR (scope_type = NULLIF($2, '') AND (scope_id IS NULL OR scope_id = $3))
+		  )
+	`, nt, scopeType, scopeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.TelegramRecipient, 0)
+	for rows.Next() {
+		var item domain.TelegramRecipient
+		if err = rows.Scan(&item.UserID, &item.ChatID); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
 func (r *NotificationsRepository) Enqueue(ctx context.Context, userID int64, nt domain.NotificationType, payload map[string]any) error {
 	data, _ := json.Marshal(payload)
 	_, err := r.pool.Exec(ctx, `
@@ -128,4 +157,50 @@ func (r *NotificationsRepository) MarkRetry(ctx context.Context, jobID int64, re
 		WHERE id=$1
 	`, jobID, int64(retryAfter.Seconds()), lastErr)
 	return err
+}
+
+func (r *NotificationsRepository) ListUserNotifications(ctx context.Context, userID int64, limit int) ([]domain.UserNotificationItem, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, notification_type, payload, status, created_at
+		FROM notification_jobs
+		WHERE user_id = $1
+		ORDER BY created_at DESC
+		LIMIT $2
+	`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.UserNotificationItem, 0, limit)
+	for rows.Next() {
+		var (
+			item       domain.UserNotificationItem
+			payloadRaw []byte
+			createdAt  time.Time
+		)
+		if err = rows.Scan(&item.ID, &item.NotificationType, &payloadRaw, &item.Status, &createdAt); err != nil {
+			return nil, err
+		}
+		payload := map[string]any{}
+		_ = json.Unmarshal(payloadRaw, &payload)
+		item.Title = strings.TrimSpace(asString(payload["title"]))
+		item.Body = strings.TrimSpace(asString(payload["body"]))
+		item.Route = strings.TrimSpace(asString(payload["route"]))
+		item.CreatedAt = createdAt.Unix()
+		out = append(out, item)
+	}
+	return out, rows.Err()
+}
+
+func asString(value any) string {
+	if value == nil {
+		return ""
+	}
+	switch typed := value.(type) {
+	case string:
+		return typed
+	default:
+		return ""
+	}
 }

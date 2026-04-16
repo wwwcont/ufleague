@@ -22,6 +22,7 @@ const sectionRoles: Record<string, UserRole> = {
   activity: 'guest',
   'my-user': 'player',
   'my-actions': 'player',
+  'my-notifications': 'player',
   'user-settings': 'player',
   reactions: 'guest',
   'player-profile': 'player',
@@ -56,6 +57,7 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   activity: { title: 'Моя активность', description: 'Работа с комментариями и реакциями.', tips: ['Откройте сущность и оставьте комментарий.', 'Проверьте ограничения доступа в реальном потоке.'] },
   'my-user': { title: 'Профиль пользователя', description: 'Быстрый переход в карточку пользователя.', tips: ['Открывается ваш user-профиль.', 'Редактирование доступно владельцу.'] },
   'my-actions': { title: 'Мои действия', description: 'Лента действий пользователя.', tips: ['События сортируются по времени.', 'Каждый элемент ведет к месту действия.'] },
+  'my-notifications': { title: 'Мои уведомления', description: 'Дубли Telegram-уведомлений с переходом к источнику.', tips: ['Уведомления сортируются по времени.', 'Каждый элемент ведет к событию или пользователю.'] },
   'user-settings': { title: 'Настройки', description: 'Персональные настройки пользователя.', tips: ['Секция подготовлена под будущий функционал.'] },
   'player-profile': { title: 'Профиль игрока', description: 'Игровой профиль пользователя (отдельно от user-профиля).', tips: ['Переходите в user-профиль для ФИО/био.', 'Проверяйте связь user ↔ player profile.'] },
   'my-player': { title: 'Профиль игрока', description: 'Мгновенный переход в профиль игрока.', tips: ['Используется playerProfileId из сессии.', 'Если profile не привязан — показывается сообщение.'] },
@@ -179,6 +181,7 @@ export const CabinetSectionPage = () => {
 
   const [status, setStatus] = useState('')
   const [myActions, setMyActions] = useState<Array<{ id: string; action: string; targetType: string; targetId: string; route: string; createdAt: string; metadata?: Record<string, unknown> }>>([])
+  const [myNotifications, setMyNotifications] = useState<Array<{ id: string; notificationType: string; title: string; body: string; route: string; status: string; createdAt: string }>>([])
 
   const [displayName, setDisplayName] = useState('')
   const [firstName, setFirstName] = useState('')
@@ -371,6 +374,18 @@ export const CabinetSectionPage = () => {
         metadata: item.metadata,
       })))
     }).catch(() => setMyActions([]))
+  }, [cabinetRepository, navigate, section, session.isAuthenticated])
+
+  useEffect(() => {
+    if (section !== 'my-notifications') return
+    if (!session.isAuthenticated) {
+      navigate('/login', { replace: true })
+      return
+    }
+    if (!cabinetRepository.getMyNotifications) return
+    void cabinetRepository.getMyNotifications().then((items) => {
+      setMyNotifications(items)
+    }).catch(() => setMyNotifications([]))
   }, [cabinetRepository, navigate, section, session.isAuthenticated])
 
   const lookupUserByTelegram = async () => {
@@ -618,6 +633,19 @@ export const CabinetSectionPage = () => {
               </Link>
             )
           }) : <p className="text-xs text-textMuted">Пока нет действий.</p>}
+        </section>
+      )}
+
+      {section === 'my-notifications' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          {myNotifications.length ? myNotifications.map((item) => (
+            <Link key={item.id} to={item.route || '/'} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
+              <p className="text-sm font-semibold text-textPrimary">{item.title || 'Уведомление'}</p>
+              {item.body && <p className="mt-1 text-xs text-textSecondary">{item.body}</p>}
+              <p className="mt-1 text-xs text-textMuted">{new Date(item.createdAt).toLocaleString('ru-RU')} · {item.notificationType} · {item.status}</p>
+              <p className="mt-2 text-xs text-accentYellow">Перейти к источнику →</p>
+            </Link>
+          )) : <p className="text-xs text-textMuted">Пока нет уведомлений.</p>}
         </section>
       )}
 
@@ -1199,7 +1227,7 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'create-match', 'matches-archive', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
+      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'my-notifications', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'create-match', 'matches-archive', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
           Раздел синхронизирован по правам доступа и готов к расширению бизнес-формами.
         </section>

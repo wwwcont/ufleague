@@ -9,7 +9,7 @@ type UserPreferenceState = {
 
 type UserPreferenceStore = Record<string, UserPreferenceState>
 
-const STORAGE_KEY = 'ufl_user_preferences_v1'
+const STORAGE_KEY = 'ufl_user_preferences_v2'
 
 const defaultState: UserPreferenceState = {
   mutedMatchIds: [],
@@ -50,18 +50,15 @@ export const useUserPreferences = () => {
   }, [userId])
 
   const isMatchMuted = useCallback((matchId: string) => {
-    if (state.mutedMatchIds.includes(matchId)) return true
-    return !state.favoriteEntityKeys.includes(`match:${matchId}`)
-  }, [state.favoriteEntityKeys, state.mutedMatchIds])
+    return state.mutedMatchIds.includes(matchId)
+  }, [state.mutedMatchIds])
   const toggleMatchMuted = useCallback((matchId: string) => {
     updateState((prev) => {
-      const entityKey = `match:${matchId}`
-      const mutedNow = prev.mutedMatchIds.includes(matchId) || !prev.favoriteEntityKeys.includes(entityKey)
+      const mutedNow = prev.mutedMatchIds.includes(matchId)
       if (mutedNow) {
         return {
           ...prev,
           mutedMatchIds: prev.mutedMatchIds.filter((item) => item !== matchId),
-          favoriteEntityKeys: prev.favoriteEntityKeys.includes(entityKey) ? prev.favoriteEntityKeys : [...prev.favoriteEntityKeys, entityKey],
         }
       }
       return {
@@ -72,18 +69,15 @@ export const useUserPreferences = () => {
   }, [updateState])
 
   const isFeedMuted = useCallback((feedKey: string) => {
-    if (state.mutedFeedKeys.includes(feedKey)) return true
-    return !state.favoriteEntityKeys.includes(`feed:${feedKey}`)
-  }, [state.favoriteEntityKeys, state.mutedFeedKeys])
+    return state.mutedFeedKeys.includes(feedKey)
+  }, [state.mutedFeedKeys])
   const toggleFeedMuted = useCallback((feedKey: string) => {
     updateState((prev) => {
-      const entityKey = `feed:${feedKey}`
-      const mutedNow = prev.mutedFeedKeys.includes(feedKey) || !prev.favoriteEntityKeys.includes(entityKey)
+      const mutedNow = prev.mutedFeedKeys.includes(feedKey)
       if (mutedNow) {
         return {
           ...prev,
           mutedFeedKeys: prev.mutedFeedKeys.filter((item) => item !== feedKey),
-          favoriteEntityKeys: prev.favoriteEntityKeys.includes(entityKey) ? prev.favoriteEntityKeys : [...prev.favoriteEntityKeys, entityKey],
         }
       }
       return {
