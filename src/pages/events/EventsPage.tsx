@@ -1,5 +1,5 @@
 import { Link, useSearchParams } from 'react-router-dom'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { SectionHeader } from '../../components/ui/SectionHeader'
 import { useEvents } from '../../hooks/data/useEvents'
@@ -11,6 +11,7 @@ import { useTeamDetails } from '../../hooks/data/useTeamDetails'
 import { canManageTeam, isAdmin } from '../../domain/services/accessControl'
 import { useRepositories } from '../../app/providers/use-repositories'
 import type { PublicEvent } from '../../domain/entities/types'
+import { notifyInfo, notifySuccess, toRussianMessage } from '../../lib/notifications'
 
 export const EventsPage = () => {
   const [searchParams] = useSearchParams()
@@ -34,6 +35,16 @@ export const EventsPage = () => {
   const [pending, setPending] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
   const [createdLocal, setCreatedLocal] = useState<PublicEvent[]>([])
+
+  useEffect(() => {
+    if (!status) return
+    const message = toRussianMessage(status)
+    if (message === 'Публикуем событие...') {
+      notifyInfo(message, 1800)
+      return
+    }
+    notifySuccess(message)
+  }, [status])
   const events = useMemo(
     () => [...createdLocal, ...((data ?? []).map((event) => (teamId && canManageCurrentTeam ? { ...event, canEdit: true, canDelete: true } : event)))],
     [canManageCurrentTeam, createdLocal, data, teamId],

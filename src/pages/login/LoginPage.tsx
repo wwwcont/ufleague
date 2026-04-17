@@ -1,14 +1,14 @@
 import { useState } from 'react'
-import { Lock, MessageCircle, ShieldCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useSession } from '../../app/providers/use-session'
+import { notifyError, notifySuccess } from '../../lib/notifications'
 
 const devAccounts = [
-  { code: 'UFL-SUPERADMIN-2026', label: 'Superadmin' },
-  { code: 'UFL-ADMIN-2026', label: 'Admin' },
-  { code: 'UFL-CAPTAIN-2026', label: 'Captain' },
-  { code: 'UFL-PLAYER-2026', label: 'Player' },
+  { code: 'UFL-SUPERADMIN-2026', label: 'Суперадмин' },
+  { code: 'UFL-ADMIN-2026', label: 'Админ' },
+  { code: 'UFL-CAPTAIN-2026', label: 'Капитан' },
+  { code: 'UFL-GUEST-2026', label: 'Гость' },
 ]
 
 export const LoginPage = () => {
@@ -37,8 +37,8 @@ export const LoginPage = () => {
   return (
     <PageContainer>
       <section className="rounded-2xl border border-borderStrong bg-panelBg p-4 shadow-matte">
-        <h2 className="text-xl font-bold text-textPrimary">Вход в UFL через Telegram</h2>
-        <p className="mt-2 text-sm text-textSecondary">Вход выполняется через backend и создает session cookie.</p>
+        <h2 className="text-xl font-bold text-textPrimary">Вход в UFL</h2>
+        <p className="mt-2 text-sm text-textSecondary">Войдите через Telegram, чтобы продолжить.</p>
 
         {step === 'start' && (
           <button
@@ -53,8 +53,10 @@ export const LoginPage = () => {
                 setStep('code')
                 openTelegramAuth(login.authUrl)
               } catch (err) {
-                const msg = err instanceof Error ? err.message : 'unknown error'
-                setError(`Не удалось инициировать Telegram login: ${msg}`)
+                const msg = err instanceof Error ? err.message : 'Неизвестная ошибка'
+                const text = `Не удалось начать вход: ${msg}`
+                setError(text)
+                notifyError(text)
               }
             }}
             disabled={isLoading}
@@ -84,7 +86,7 @@ export const LoginPage = () => {
             <input
               value={code}
               onChange={(event) => setCode(event.target.value)}
-              placeholder="UFL-SUPERADMIN-2026"
+              placeholder="Введите код"
               className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary outline-none"
             />
             <div className="flex flex-wrap gap-2">
@@ -108,10 +110,13 @@ export const LoginPage = () => {
                   await completeTelegramLoginWithCode(requestId, code)
                   window.sessionStorage.removeItem('tg_login_request_id')
                   window.sessionStorage.removeItem('tg_login_expires_at')
+                  notifySuccess('Вход выполнен успешно')
                   navigate('/profile')
                 } catch (err) {
-                  const msg = err instanceof Error ? err.message : 'unknown error'
-                  setError(`Не удалось завершить вход: ${msg}`)
+                  const msg = err instanceof Error ? err.message : 'Неизвестная ошибка'
+                  const text = `Не удалось завершить вход: ${msg}`
+                  setError(text)
+                  notifyError(text)
                 }
               }}
               disabled={isLoading || !code.trim()}
@@ -126,9 +131,8 @@ export const LoginPage = () => {
       </section>
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary shadow-soft">
-        <p className="flex items-center gap-2"><MessageCircle size={14} className="text-accentYellow" /> После старта входа пользователь переходит в Telegram и вводит код подтверждения.</p>
-        <p className="mt-1 flex items-center gap-2"><ShieldCheck size={14} className="text-accentYellow" /> Авторизация проходит через backend endpoint и session cookie.</p>
-        <p className="mt-1 flex items-center gap-2"><Lock size={14} className="text-accentYellow" /> После обновления страницы источник истины — /api/auth/me.</p>
+        <p>Откроется Telegram — подтвердите вход и вернитесь на сайт.</p>
+        <p className="mt-1">Если код не пришёл, начните вход заново.</p>
       </section>
     </PageContainer>
   )

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { EyeOff, Pencil, UserPlus, Users, X } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
@@ -10,6 +10,7 @@ import { canManageTeam } from '../../domain/services/accessControl'
 import { PlayerRow } from '../../components/data-display/PlayerRow'
 import { EmptyState } from '../../components/ui/EmptyState'
 import type { PublicUserCard } from '../../domain/entities/types'
+import { notifyInfo, notifySuccess, toRussianMessage } from '../../lib/notifications'
 
 export const TeamRosterPage = () => {
   const { teamId } = useParams()
@@ -23,6 +24,16 @@ export const TeamRosterPage = () => {
   const [status, setStatus] = useState<string | null>(null)
   const [hiddenIds, setHiddenIds] = useState<string[]>([])
   const [removedIds, setRemovedIds] = useState<string[]>([])
+
+  useEffect(() => {
+    if (!status) return
+    const message = toRussianMessage(status)
+    if (message.includes('Найдено') || message.includes('Пользователь найден')) {
+      notifyInfo(message)
+      return
+    }
+    notifySuccess(message)
+  }, [status])
 
   if (!team) return <PageContainer><EmptyState title="Команда не найдена" /></PageContainer>
 

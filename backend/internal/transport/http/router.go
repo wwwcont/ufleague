@@ -741,7 +741,7 @@ func telegramMockSeedUsersByCode(configuredMockCode string) map[string]string {
 		"UFL-SUPERADMIN-2026": "superadmin",
 		"UFL-ADMIN-2026":      "admin_test",
 		"UFL-CAPTAIN-2026":    "captain_alpha",
-		"UFL-PLAYER-2026":     "player_test",
+		"UFL-GUEST-2026":      "guest_test",
 	}
 	if configuredMockCode = strings.TrimSpace(configuredMockCode); configuredMockCode != "" {
 		seedByCode[configuredMockCode] = "superadmin"
@@ -2088,30 +2088,30 @@ func (h Handler) SuperadminSetGlobalSetting(w http.ResponseWriter, r *http.Reque
 }
 func handleDomainErr(w http.ResponseWriter, err error) {
 	if errors.Is(err, tournament.ErrForbidden) || errors.Is(err, eventsservice.ErrForbidden) || errors.Is(err, commentservice.ErrForbidden) || strings.Contains(err.Error(), "forbidden") {
-		http.Error(w, "forbidden", 403)
+		http.Error(w, "Недостаточно прав", 403)
 		return
 	}
 	if errors.Is(err, eventsservice.ErrInvalid) {
-		http.Error(w, "invalid scope", 400)
+		http.Error(w, "Некорректная область действия", 400)
 		return
 	}
 	if errors.Is(err, commentservice.ErrRestricted) {
-		http.Error(w, "comments restricted", 403)
+		http.Error(w, "Комментарии временно недоступны", 403)
 		return
 	}
 	if errors.Is(err, commentservice.ErrRateLimited) {
-		http.Error(w, "rate limited", 429)
+		http.Error(w, "Слишком много запросов, попробуйте позже", 429)
 		return
 	}
 	if errors.Is(err, cabinetadmin.ErrUserAlreadyCaptain) {
-		http.Error(w, "user already captain", 409)
+		http.Error(w, "Пользователь уже капитан", 409)
 		return
 	}
 	if errors.Is(err, cabinetadmin.ErrTeamAlreadyHasCaptain) {
-		http.Error(w, "team already has captain; revoke current captain first", 409)
+		http.Error(w, "У команды уже есть капитан. Сначала снимите текущего капитана", 409)
 		return
 	}
-	http.Error(w, "failed", 400)
+	http.Error(w, "Не удалось выполнить запрос", 400)
 }
 
 func strongestRole(roles []domain.Role) domain.Role {
