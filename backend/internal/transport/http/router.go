@@ -738,11 +738,6 @@ func (h Handler) TelegramMockCodeLogin(w http.ResponseWriter, r *http.Request) {
 
 func telegramMockSeedUsersByCode(configuredMockCode string) map[string]string {
 	seedByCode := map[string]string{
-		"1111": "superadmin",
-		"2222": "admin_test",
-		"3333": "captain_alpha",
-		"4444": "player_test",
-
 		"UFL-SUPERADMIN-2026": "superadmin",
 		"UFL-ADMIN-2026":      "admin_test",
 		"UFL-CAPTAIN-2026":    "captain_alpha",

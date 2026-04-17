@@ -56,15 +56,6 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     applySession(next)
   }, [applySession, sessionRepository])
 
-  const loginAsDevRole = useCallback(async (role: UserRole) => {
-    if (!sessionRepository.loginAsDevRole) {
-      return
-    }
-
-    setStatus('loading')
-    const next = await sessionRepository.loginAsDevRole(role)
-    applySession(next)
-  }, [applySession, sessionRepository])
 
   const logout = useCallback(async () => {
     setStatus('loading')
@@ -80,10 +71,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     isLoading,
     startTelegramLogin,
     completeTelegramLoginWithCode,
-    loginAsDevRole,
     refreshSession,
     logout,
-  }), [completeTelegramLoginWithCode, isLoading, loginAsDevRole, logout, refreshSession, session, startTelegramLogin, status])
+  }), [completeTelegramLoginWithCode, isLoading, logout, refreshSession, session, startTelegramLogin, status])
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
 }
