@@ -6,6 +6,7 @@ import { useRepositories } from '../../app/providers/use-repositories'
 import { useQueryState } from '../../hooks/data/useQueryState'
 import { useSession } from '../../app/providers/use-session'
 import { isAdmin } from '../../domain/services/accessControl'
+import { notifyError, notifySuccess, toRussianMessage } from '../../lib/notifications'
 
 const roleLabel: Record<string, string> = {
   guest: 'Пользователь',
@@ -30,6 +31,16 @@ export const UserDetailsPage = () => {
   const [avatarUrl, setAvatarUrl] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [status, setStatus] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!status) return
+    const message = toRussianMessage(status)
+    if (message.toLowerCase().includes('не удалось') || message.toLowerCase().includes('ошиб')) {
+      notifyError(message)
+      return
+    }
+    notifySuccess(message)
+  }, [status])
 
   const canEditUser = useMemo(() => {
     if (!userId) return false
