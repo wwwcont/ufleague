@@ -407,12 +407,6 @@ export const sessionRepository: SessionRepository = {
     saveState()
     return inMemorySession
   },
-  async loginAsDevRole(role) {
-    inMemorySession = makeSessionByRole(role)
-    syncSessionLinks()
-    saveState()
-    return inMemorySession
-  },
   async logout() {
     inMemorySession = makeSessionByRole('guest')
     saveState()

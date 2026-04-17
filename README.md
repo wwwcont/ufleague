@@ -26,7 +26,7 @@ docker compose up --build -d
 ```
 - либо выставьте одинаковые `POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB` в корневом `.env` перед `docker compose up`.
 
-### Прогнать миграции (включая seed c тестовыми данными)
+### Прогнать миграции
 ```bash
 cd backend
 export $(cat .env | xargs)
@@ -49,24 +49,11 @@ Backend: `http://localhost:8080`
 
 ---
 
-## 2) Seed-данные и тестовый superadmin
+## 2) Тестовые входы
 
-В migration `000008_dev_seed.up.sql` добавлены моковые сущности для просмотра UI:
-- пользователи
-- команды
-- игроки
-- матч
-- события
-- комментарии
+В БД остаются только тестовые пользователи для входа (без наполнения турнирных сущностей).
 
-Тестовый superadmin в БД:
-- `username: superadmin`
-- `id: 9001`
-- роль: `superadmin`
-
-Dev login для UI теперь Telegram-shaped: кнопка "Войти через Telegram" → ввод mock code → backend создает cookie session.
-
-Коды seeded аккаунтов:
+Коды аккаунтов:
 - `UFL-SUPERADMIN-2026` → `superadmin`
 - `UFL-ADMIN-2026` → `admin_test`
 - `UFL-CAPTAIN-2026` → `captain_alpha`
@@ -84,15 +71,12 @@ curl -i -c /tmp/cookies.txt \
 
 ## 3) Frontend подключение к backend
 
-Frontend теперь может работать не только на моках (рекомендуемый режим для интеграции — backend).
+Frontend работает через backend API.
 
-Переключение в `.env`:
+Настройка в `.env`:
 ```env
-VITE_USE_BACKEND=true
 VITE_API_BASE_URL=http://localhost:8080
 ```
-
-Если `VITE_USE_BACKEND=false`, будет использован mock repository layer.
 
 ---
 
@@ -103,7 +87,7 @@ VITE_API_BASE_URL=http://localhost:8080
 - `POST /api/auth/logout`
 - `POST /api/auth/telegram/start`
 - `POST /api/auth/telegram/complete-code`
-- `POST /api/auth/telegram/mock-code-login` (dev-only)
+- `POST /api/auth/telegram/mock-code-login` (только для тестового входа в non-production)
 
 ### Public read
 - `GET /api/teams`
@@ -133,7 +117,6 @@ VITE_API_BASE_URL=http://localhost:8080
 - Добавлен API repository layer (`src/infrastructure/api/repositories.ts`) для:
   - teams / players / matches / events / comments
   - session (через `/api/auth/me` и telegram mock-code login)
-- Provider переключается между mock и backend-режимом через `VITE_USE_BACKEND`.
 
 Это позволяет открыть существующие страницы (включая comments/profile flow) уже на реальных backend ручках.
 

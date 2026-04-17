@@ -800,35 +800,6 @@ export const sessionRepository: SessionRepository = {
     }))
     return mapMeToSession(me)
   },
-  async loginAsDevRole(role) {
-    const seeds: Record<string, { username: string; displayName: string }> = {
-      player: { username: 'player_test', displayName: 'Player Test' },
-      captain: { username: 'captain_alpha', displayName: 'Captain Alpha' },
-      admin: { username: 'admin_test', displayName: 'Admin Test' },
-      superadmin: { username: 'superadmin', displayName: 'Super Admin' },
-    }
-    const seed = seeds[role]
-    if (!seed) {
-      throw new Error(`unsupported dev role: ${role}`)
-    }
-    const me = await api<any>('/api/auth/dev-login', { method: 'POST', body: JSON.stringify({ username: seed.username, display_name: seed.displayName, roles: [role] }) })
-    return {
-      isAuthenticated: true,
-      user: {
-        id: String(me.user.id),
-        displayName: me.user.display_name,
-        role,
-        roles: [role],
-        playerProfileId: me.user.player_id ? String(me.user.player_id) : undefined,
-        teamId: me.user.team_id ? String(me.user.team_id) : undefined,
-        telegramHandle: me.user.username ? `@${String(me.user.username).replace(/^@/, '')}` : undefined,
-        telegramId: me.user.telegram_id ? String(me.user.telegram_id) : undefined,
-      },
-      permissions: [],
-      restrictions: [],
-      lastLoginAt: me.session?.created_at,
-    }
-  },
   async logout() {
     await api('/api/auth/logout', { method: 'POST' }).catch(() => undefined)
   },
