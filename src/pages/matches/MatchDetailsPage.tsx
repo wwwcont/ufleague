@@ -129,7 +129,7 @@ export const MatchDetailsPage = () => {
   const { data: matchFeedEvents } = useEvents(matchId ? { entityType: 'match', entityId: matchId, limit: 3 } : undefined)
   const { session } = useSession()
   const { isMatchMuted, toggleMatchMuted } = useUserPreferences()
-  const { matchesRepository, playoffGridRepository, cabinetRepository, eventsRepository } = useRepositories()
+  const { matchesRepository, playoffGridRepository, cabinetRepository, eventsRepository, usersRepository } = useRepositories()
 
   const teamMap = Object.fromEntries((teams ?? []).map((team) => [team.id, team]))
   const home = match ? teamMap[match.homeTeamId] : null
@@ -175,6 +175,7 @@ export const MatchDetailsPage = () => {
   const [playoffStatus, setPlayoffStatus] = useState<string | null>(null)
   const [selectedPlayoffId, setSelectedPlayoffId] = useState<string | null>(null)
   const [currentPlayoffCell, setCurrentPlayoffCell] = useState<{ id: string; col: number; row: number } | null>(null)
+  const [captainNames, setCaptainNames] = useState<Record<string, string>>({})
   const candidatePlayers = useMemo(() => (players ?? []).filter((p) => p.teamId === goalTeamId), [goalTeamId, players])
   const cardCandidatePlayers = useMemo(() => (players ?? []).filter((p) => p.teamId === cardsTeamId), [cardsTeamId, players])
 
@@ -218,6 +219,30 @@ export const MatchDetailsPage = () => {
     const timer = window.setInterval(() => setNowTs(Date.now()), 30_000)
     return () => window.clearInterval(timer)
   }, [match, match?.status])
+
+  useEffect(() => {
+    const captainIds = [home?.captainUserId, away?.captainUserId].filter((value): value is string => Boolean(value))
+    if (!captainIds.length) {
+      setCaptainNames({})
+      return
+    }
+    void (async () => {
+      const uniqueIds = Array.from(new Set(captainIds))
+      const entries = await Promise.all(uniqueIds.map(async (userId) => {
+        try {
+          const card = await usersRepository.getUserCard(userId)
+          const name = card?.displayName?.trim()
+          return [userId, name || null] as const
+        } catch {
+          return [userId, null] as const
+        }
+      }))
+      setCaptainNames(entries.reduce<Record<string, string>>((acc, [userId, displayName]) => {
+        if (displayName) acc[userId] = displayName
+        return acc
+      }, {}))
+    })()
+  }, [away?.captainUserId, home?.captainUserId, usersRepository])
 
   useEffect(() => {
     if (!match) return
@@ -289,6 +314,13 @@ export const MatchDetailsPage = () => {
   const homeStats = getTeamStats(home.id, allMatches)
   const awayStats = getTeamStats(away.id, allMatches)
   const effectiveScore = scoreDraft ?? match.score
+  const resolveCaptain = (team: typeof home) => {
+    if (!team) return '—'
+    if (team.captainUserId && captainNames[team.captainUserId]) return captainNames[team.captainUserId]
+    const captainPlayer = players.find((player) => player.userId === team.captainUserId)
+    if (captainPlayer?.displayName) return captainPlayer.displayName
+    return team.coach && team.coach !== 'TBD' ? team.coach : '—'
+  }
 
   const eventsMinuteMax = localEvents.length ? Math.max(...localEvents.map((event) => event.minute ?? 0)) : 0
   const baseMinute = Math.max(match.currentMinute ?? 0, eventsMinuteMax)
@@ -1018,7 +1050,7 @@ export const MatchDetailsPage = () => {
             { label: 'Голы', homeValue: homeStats.goals, awayValue: awayStats.goals },
             { label: 'Разница голов', homeValue: homeStats.goalDiff, awayValue: awayStats.goalDiff },
             { label: 'Победы', homeValue: homeStats.wins, awayValue: awayStats.wins },
-            { label: 'Капитан', homeValue: home.coach, awayValue: away.coach },
+            { label: 'Капитан', homeValue: resolveCaptain(home), awayValue: resolveCaptain(away) },
             { label: 'Форма', homeValue: homeForm.join(' '), awayValue: awayForm.join(' ') },
           ].map((row) => (
             <Fragment key={row.label}>

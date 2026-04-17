@@ -36,14 +36,8 @@ export const canManagePlayer = (session: AuthSession, player: Player | null | un
 }
 
 export const canManageMatch = (session: AuthSession) => isAdmin(session)
-export const canManageMatchScore = (session: AuthSession) => isAdmin(session) || session.permissions.includes('match.score.manage')
-export const canManageMatchControls = (session: AuthSession, match: Match | null | undefined, teamsById: Record<string, Team | undefined>) => {
-  if (!match) return false
-  if (canManageMatchScore(session)) return true
-  const home = teamsById[match.homeTeamId]
-  const away = teamsById[match.awayTeamId]
-  return isTeamCaptain(session, home) || isTeamCaptain(session, away)
-}
+export const canManageMatchScore = (session: AuthSession) => isAdmin(session)
+export const canManageMatchControls = (session: AuthSession, _match: Match | null | undefined, _teamsById: Record<string, Team | undefined>) => isAdmin(session)
 export const hasRestriction = (session: AuthSession, prefix: string) => (session.restrictions ?? []).some((item) => item.startsWith(prefix))
 export const canCreateEvent = (session: AuthSession) => isAtLeastRole(session, 'captain') && !hasRestriction(session, 'events:banned')
 
