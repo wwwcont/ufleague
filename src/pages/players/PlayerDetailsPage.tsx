@@ -428,9 +428,12 @@ export const PlayerDetailsPage = () => {
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
         <h2 className="mb-3 text-base font-semibold text-textPrimary">Статистика игрока</h2>
-        <div className="grid gap-2 text-sm sm:grid-cols-2">
+        <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Матчи:</span> {player.stats.appearances}</div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Голы:</span> <span className="font-semibold text-accentYellow">{player.stats.goals}</span></div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Голы:</span> <span className="font-semibold text-accentYellow">{goalsFromMatches}</span></div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Ассисты:</span> {assistsFromMatches}</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Желтые карточки:</span> {yellowCardsFromMatches}</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Красные карточки:</span> {redCardsFromMatches}</div>
         </div>
       </section>
 

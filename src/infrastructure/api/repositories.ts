@@ -931,6 +931,16 @@ export const cabinetRepository: CabinetRepository = {
       createdAt: item.created_at ? new Date(Number(item.created_at) * 1000).toISOString() : new Date().toISOString(),
     }))
   },
+  async getTelegramNotificationsEnabled() {
+    const payload = await api<{ enabled?: boolean }>(`/api/me/telegram-notifications`)
+    return payload.enabled !== false
+  },
+  async setTelegramNotificationsEnabled(enabled) {
+    await api(`/api/me/telegram-notifications`, {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled }),
+    })
+  },
   async getTournamentCycles() {
     const payload = await api<any[]>('/api/tournament/cycles')
     return payload.map((item) => ({

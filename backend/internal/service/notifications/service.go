@@ -55,6 +55,14 @@ func (s Service) ListUserNotifications(ctx context.Context, userID int64, limit 
 	return s.repo.ListUserNotifications(ctx, userID, limit)
 }
 
+func (s Service) GetTelegramNotificationsEnabled(ctx context.Context, userID int64) (bool, error) {
+	return s.repo.GetTelegramNotificationsEnabled(ctx, userID)
+}
+
+func (s Service) SetTelegramNotificationsEnabled(ctx context.Context, userID int64, enabled bool) error {
+	return s.repo.SetTelegramNotificationsEnabled(ctx, userID, enabled)
+}
+
 type TelegramDeliveryAdapter interface {
 	Deliver(ctx context.Context, job domain.NotificationJob) error
 }

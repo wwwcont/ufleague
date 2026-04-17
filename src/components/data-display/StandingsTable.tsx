@@ -5,6 +5,7 @@ import { TeamAvatar } from '../ui/TeamAvatar'
 
 export const StandingsTable = ({ rows, teamMap }: { rows: StandingRow[]; teamMap: Record<string, Team> }) => (
   <div className="matte-panel overflow-x-auto p-2">
+    <p className="mb-2 px-2 text-[11px] text-textMuted">Очки: победа = 3, ничья = 1, поражение = 0. Разница мячей учитывается как дополнительный критерий при равенстве очков.</p>
     <table className="min-w-full border-separate border-spacing-y-1 text-sm">
       <thead>
         <tr className="text-[11px] uppercase tracking-[0.11em] text-textMuted">

@@ -212,6 +212,8 @@ export const CabinetSectionPage = () => {
   }, [status])
   const [myActions, setMyActions] = useState<Array<{ id: string; action: string; targetType: string; targetId: string; route: string; createdAt: string; metadata?: Record<string, unknown> }>>([])
   const [myNotifications, setMyNotifications] = useState<Array<{ id: string; notificationType: string; title: string; body: string; route: string; status: string; createdAt: string }>>([])
+  const [telegramNotificationsEnabled, setTelegramNotificationsEnabled] = useState(true)
+  const [telegramSettingsLoading, setTelegramSettingsLoading] = useState(false)
   const favoriteItems = useMemo(() => favoriteEntityKeys.map((key) => {
     const [type, id] = key.split(':')
     if (!id) return null
@@ -453,6 +455,20 @@ export const CabinetSectionPage = () => {
     void cabinetRepository.getMyNotifications().then((items) => {
       setMyNotifications(items)
     }).catch(() => setMyNotifications([]))
+  }, [cabinetRepository, navigate, section, session.isAuthenticated])
+
+  useEffect(() => {
+    if (section !== 'user-settings') return
+    if (!session.isAuthenticated) {
+      navigate('/login', { replace: true })
+      return
+    }
+    if (!cabinetRepository.getTelegramNotificationsEnabled) return
+    setTelegramSettingsLoading(true)
+    void cabinetRepository.getTelegramNotificationsEnabled()
+      .then((enabled) => setTelegramNotificationsEnabled(enabled))
+      .catch(() => setStatus('error: не удалось загрузить настройки уведомлений'))
+      .finally(() => setTelegramSettingsLoading(false))
   }, [cabinetRepository, navigate, section, session.isAuthenticated])
 
   const lookupUserByTelegram = async () => {
@@ -730,8 +746,36 @@ export const CabinetSectionPage = () => {
       )}
 
       {section === 'user-settings' && (
-        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4">
-          <p className="text-sm text-textSecondary">Настройки пользователя появятся в следующем релизе.</p>
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-4">
+          <div>
+            <h3 className="text-base font-semibold text-textPrimary">Уведомления в Telegram</h3>
+            <p className="mt-1 text-xs text-textMuted">При выключении отключаются турнирные уведомления, комментарии и события. Коды авторизации Telegram остаются активными.</p>
+          </div>
+          <button
+            type="button"
+            disabled={telegramSettingsLoading || !cabinetRepository.setTelegramNotificationsEnabled}
+            onClick={async () => {
+              if (!cabinetRepository.setTelegramNotificationsEnabled) return
+              const next = !telegramNotificationsEnabled
+              setTelegramSettingsLoading(true)
+              try {
+                await cabinetRepository.setTelegramNotificationsEnabled(next)
+                setTelegramNotificationsEnabled(next)
+                setStatus(`ok: telegram notifications ${next ? 'enabled' : 'disabled'}`)
+              } catch (error) {
+                setStatus(`error: ${(error as Error).message}`)
+              } finally {
+                setTelegramSettingsLoading(false)
+              }
+            }}
+            className={`group inline-flex w-full items-center justify-between rounded-2xl border px-4 py-3 transition ${telegramNotificationsEnabled ? 'border-accentYellow/80 bg-accentYellow/10' : 'border-borderSubtle bg-mutedBg'} disabled:opacity-60`}
+            aria-label={telegramNotificationsEnabled ? 'Выключить Telegram уведомления' : 'Включить Telegram уведомления'}
+          >
+            <span className="text-sm font-medium text-textPrimary">{telegramNotificationsEnabled ? 'Уведомления включены' : 'Уведомления выключены'}</span>
+            <span className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${telegramNotificationsEnabled ? 'bg-accentYellow' : 'bg-panelSoft'}`}>
+              <span className={`inline-block h-5 w-5 transform rounded-full bg-app transition ${telegramNotificationsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+            </span>
+          </button>
         </section>
       )}
 
