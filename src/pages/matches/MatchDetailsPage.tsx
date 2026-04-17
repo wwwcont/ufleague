@@ -14,7 +14,7 @@ import { EntityReactions } from '../../components/ui/EntityReactions'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { ApiError } from '../../infrastructure/api/repositories'
-import { canManageMatch, canManageMatchScore } from '../../domain/services/accessControl'
+import { canManageMatch, canManageMatchControls } from '../../domain/services/accessControl'
 import { formatMatchMetaMsk, getTimeToKickoff } from '../../lib/date-time'
 import { toExternalUrl } from '../../lib/links'
 import type { Match } from '../../domain/entities/types'
@@ -221,7 +221,7 @@ export const MatchDetailsPage = () => {
 
   useEffect(() => {
     if (!match) return
-    if (!canManageMatchScore(session)) return
+    if (!canManageMatch(session)) return
     const kickoffTs = Date.parse(`${match.date}T${match.time}:00Z`)
     if (!Number.isFinite(kickoffTs)) return
 
@@ -272,11 +272,11 @@ export const MatchDetailsPage = () => {
   }
 
   const isAdmin = canManageMatch(session)
-  const canEditScore = canManageMatchScore(session)
+  const canEditScore = canManageMatchControls(session, match, teamMap)
   const actionError = (error: unknown) => {
     if (error instanceof ApiError) {
       if (error.status === 403) return 'Недостаточно прав (403).'
-      if (error.status === 429) return 'Слишком частые запросы (429).'
+      if (error.status === 429) return 'Изменение отклонено: cooldown 30 секунд между прибавлением и отдельный cooldown 30 секунд между убавлением.'
       return `Ошибка API ${error.status}: ${error.message}`
     }
     return error instanceof Error ? error.message : 'Не удалось выполнить admin action'
