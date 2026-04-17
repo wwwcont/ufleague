@@ -36,6 +36,23 @@ make migrate-up
 > Миграции запускаются локальным Go tool (`go run ./tools/migrate`) и по умолчанию подключаются к `localhost:5433`.
 > Если нужен другой DSN: `make migrate-up MIGRATE_DATABASE_URL="postgres://..."`.
 
+
+### Изоляция Postgres при нескольких docker-compose
+Чтобы соседние проекты с PostgreSQL не подмешивали свои `POSTGRES_*` значения, в compose используются отдельные переменные `UFL_DB_*` (и отдельный volume `${COMPOSE_PROJECT_NAME}_postgres_data`).
+
+Рекомендуемый порядок:
+```bash
+cp .env.example .env
+docker compose down
+docker compose up --build -d
+```
+
+Если база уже была и пароль менялся ранее, нужно синхронизировать volume с новыми кредами:
+```bash
+docker compose down -v
+docker compose up --build -d
+```
+
 ### Поднять frontend
 ```bash
 cd ..
