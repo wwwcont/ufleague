@@ -1,11 +1,11 @@
-import { Camera, Send } from 'lucide-react'
+import { Camera, Globe, Send } from 'lucide-react'
 import { toExternalUrl } from '../../lib/links'
 
 const VkGlyph = () => (
   <span className="inline-flex h-4 w-4 items-center justify-center text-[9px] font-bold leading-none">VK</span>
 )
 
-export type SocialSet = { telegram?: string; vk?: string; instagram?: string }
+export type SocialSet = { telegram?: string; vk?: string; instagram?: string; website?: string }
 type CustomSocial = { label: string; url: string }
 
 export const SocialLinks = ({ compact = false, links, custom = [] }: { compact?: boolean; links?: SocialSet; custom?: CustomSocial[] }) => {
@@ -17,7 +17,8 @@ export const SocialLinks = ({ compact = false, links, custom = [] }: { compact?:
   const telegramUrl = toExternalUrl(links?.telegram)
   const vkUrl = toExternalUrl(links?.vk)
   const instagramUrl = toExternalUrl(links?.instagram)
-  const hasAny = Boolean(telegramUrl || vkUrl || instagramUrl || visibleCustom.length)
+  const websiteUrl = toExternalUrl(links?.website)
+  const hasAny = Boolean(telegramUrl || vkUrl || instagramUrl || websiteUrl || visibleCustom.length)
   if (!hasAny) return null
 
   return (
@@ -30,6 +31,9 @@ export const SocialLinks = ({ compact = false, links, custom = [] }: { compact?:
       </a>}
       {instagramUrl && <a href={instagramUrl} target="_blank" rel="noreferrer noopener" aria-label="Instagram" className={`${size} inline-flex items-center justify-center rounded-full border border-borderSubtle bg-panelSoft text-textSecondary hover:border-borderStrong hover:text-accentYellow`}>
         <Camera size={14} />
+      </a>}
+      {websiteUrl && <a href={websiteUrl} target="_blank" rel="noreferrer noopener" aria-label="Website" className={`${size} inline-flex items-center justify-center rounded-full border border-borderSubtle bg-panelSoft text-textSecondary hover:border-borderStrong hover:text-accentYellow`}>
+        <Globe size={14} />
       </a>}
       {visibleCustom.map((item) => (
         <a key={item.url} href={item.url} target="_blank" rel="noreferrer noopener" aria-label={item.label} className={`${size} inline-flex items-center justify-center rounded-full border border-borderSubtle bg-panelSoft px-2 text-[10px] font-semibold uppercase text-textSecondary hover:border-borderStrong hover:text-accentYellow`}>

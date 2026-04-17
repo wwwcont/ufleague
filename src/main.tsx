@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import { App } from './app/App'
+import appHeaderLogo from './logo/transparent_logo.png'
 
 const isZoomAllowedTarget = (target: EventTarget | null) => {
   if (!(target instanceof Element)) return false
@@ -32,6 +33,16 @@ const blockGlobalZoomOutsideAllowlist = () => {
 }
 
 blockGlobalZoomOutsideAllowlist()
+
+const syncFaviconsWithHeaderLogo = () => {
+  const links = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="icon"], link[rel="apple-touch-icon"]'))
+  links.forEach((link) => {
+    link.href = appHeaderLogo
+    link.type = 'image/png'
+  })
+}
+
+syncFaviconsWithHeaderLogo()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

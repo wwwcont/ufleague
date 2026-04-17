@@ -2142,6 +2142,10 @@ func handleDomainErr(w http.ResponseWriter, err error) {
 		http.Error(w, "Слишком много запросов, попробуйте позже", 429)
 		return
 	}
+	if errors.Is(err, tournament.ErrRateLimited) {
+		http.Error(w, err.Error(), 429)
+		return
+	}
 	if errors.Is(err, cabinetadmin.ErrUserAlreadyCaptain) {
 		http.Error(w, "Пользователь уже капитан", 409)
 		return
