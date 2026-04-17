@@ -63,6 +63,8 @@ const isSystemMatchFeedEvent = (event: { title?: string; summary?: string; text?
   return false
 }
 
+const isSystemLocalMatchEvent = (event: { note?: string }) => String(event.note ?? '').trim().toLowerCase().startsWith('система:')
+
 const getOutcome = (targetTeamId: string, match: Match): 'W' | 'D' | 'L' | '-' => {
   if (match.status !== 'finished') return '-'
   const isHome = match.homeTeamId === targetTeamId
@@ -320,6 +322,7 @@ export const MatchDetailsPage = () => {
       .sort((a, b) => String(b.timestamp ?? '').localeCompare(String(a.timestamp ?? '')))
       .map((event) => ({ id: event.id, label: event.summary?.trim() || event.title?.trim() || 'Событие' }))
     : localEvents
+      .filter((event) => !isSystemLocalMatchEvent(event))
       .slice()
       .sort((a, b) => (b.minute ?? 0) - (a.minute ?? 0))
       .map((event) => ({ id: event.id, label: event.note?.trim() || event.type }))

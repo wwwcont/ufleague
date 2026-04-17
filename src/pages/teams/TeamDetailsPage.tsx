@@ -94,17 +94,18 @@ export const TeamDetailsPage = () => {
   const teamMatches = allTeamMatches.slice(0, 3)
   const hasMoreMatches = allTeamMatches.length > 3
   const teamMap = Object.fromEntries((teams ?? []).map((item) => [item.id, item]))
-
-  const liveMatch = allTeamMatches.find((match) => match.status === 'live' || match.status === 'half_time')
-  const nextMatch = allTeamMatches
-    .filter((match) => match.status === 'scheduled')
-    .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))[0]
-
-  const tourStatus = liveMatch
-    ? `LIVE • ${liveMatch.round}`
-    : nextMatch
-      ? `Следующий • ${nextMatch.round}`
-      : 'ВЫБЫЛА'
+  const recentForm = allTeamMatches
+    .filter((match) => match.status === 'finished')
+    .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`))
+    .slice(0, 5)
+    .map((match) => {
+      const isHome = match.homeTeamId === team.id
+      const ownScore = isHome ? match.score.home : match.score.away
+      const opponentScore = isHome ? match.score.away : match.score.home
+      if (ownScore > opponentScore) return 'W'
+      if (ownScore < opponentScore) return 'L'
+      return 'D'
+    })
   const canManageCurrentTeam = canManageTeam(session, team)
   const isFavoriteTeam = isFavorite(`team:${team.id}`)
   const actionError = (error: unknown) => {
@@ -309,13 +310,12 @@ export const TeamDetailsPage = () => {
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
         <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Trophy size={16} className="text-accentYellow" /> ИНФОРМАЦИЯ</h2>
-        <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-6">
+        <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-5">
           <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Позиция:</span> <span className="font-semibold text-textPrimary">#{standing?.position ?? '—'}</span></div>
           <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Очки:</span> <span className="font-semibold text-accentYellow">{standing?.points ?? team.statsSummary.points}</span></div>
           <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Матчи:</span> {team.statsSummary.played}</div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Форма:</span> {team.form.map((item) => formLabel[item] ?? item).join(' ')}</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Форма:</span> {(recentForm.length ? recentForm : team.form).map((item) => formLabel[item] ?? item).join(' ')}</div>
           <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Голы:</span> {team.statsSummary.goalsFor}:{team.statsSummary.goalsAgainst}</div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">ТУР:</span> {tourStatus}</div>
         </div>
       </section>
 

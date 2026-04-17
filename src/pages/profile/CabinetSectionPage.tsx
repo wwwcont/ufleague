@@ -10,6 +10,8 @@ import { useRepositories } from '../../app/providers/use-repositories'
 import { useTeams } from '../../hooks/data/useTeams'
 import { usePlayers } from '../../hooks/data/usePlayers'
 import { useUserPreferences } from '../../hooks/app/useUserPreferences'
+import { CircularImageCropField } from '../../components/ui/CircularImageCropField'
+import { buildCircularCropUploadFile, type CircleCrop } from '../../lib/image-upload'
 
 const roleRank: Record<UserRole, number> = {
   guest: 0,
@@ -94,6 +96,12 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
 
 const parseCSV = (raw: string) => raw.split(',').map((item) => item.trim()).filter(Boolean)
 const mskOffsetMinutes = 3 * 60
+const matchStatusOptions: Array<{ value: Match['status']; label: string }> = [
+  { value: 'scheduled', label: 'Запланирован' },
+  { value: 'live', label: 'LIVE' },
+  { value: 'half_time', label: 'Перерыв' },
+  { value: 'finished', label: 'Завершен' },
+]
 
 const toMskDateTimeInput = (iso?: string) => {
   if (!iso) return ''
@@ -254,11 +262,15 @@ export const CabinetSectionPage = () => {
   const [newTeamSlug, setNewTeamSlug] = useState('')
   const [newTeamDescription, setNewTeamDescription] = useState('')
   const [newTeamLogoFile, setNewTeamLogoFile] = useState<File | null>(null)
+  const [newTeamLogoPreview, setNewTeamLogoPreview] = useState<string | null>(null)
+  const [newTeamLogoCrop, setNewTeamLogoCrop] = useState<CircleCrop>({ x: 0, y: 0, zoom: 1 })
   const [newPlayerName, setNewPlayerName] = useState('')
   const [newPlayerUserId, setNewPlayerUserId] = useState('')
   const [newPlayerPosition, setNewPlayerPosition] = useState('MF')
   const [newPlayerNumber, setNewPlayerNumber] = useState('10')
   const [newPlayerAvatarFile, setNewPlayerAvatarFile] = useState<File | null>(null)
+  const [newPlayerAvatarPreview, setNewPlayerAvatarPreview] = useState<string | null>(null)
+  const [newPlayerAvatarCrop, setNewPlayerAvatarCrop] = useState<CircleCrop>({ x: 0, y: 0, zoom: 1 })
   const [matchHomeTeamId, setMatchHomeTeamId] = useState('')
   const [matchAwayTeamId, setMatchAwayTeamId] = useState('')
   const [matchStartAt, setMatchStartAt] = useState('')
@@ -1083,10 +1095,19 @@ export const CabinetSectionPage = () => {
             <input value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="team name" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={newTeamSlug} onChange={(e) => setNewTeamSlug(e.target.value)} placeholder="team slug" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={newTeamDescription} onChange={(e) => setNewTeamDescription(e.target.value)} placeholder="team description" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-            <input type="file" accept="image/*" onChange={(e) => setNewTeamLogoFile(e.target.files?.[0] ?? null)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-xs" />
+            <input type="file" accept="image/*" onChange={(e) => {
+              const file = e.target.files?.[0] ?? null
+              setNewTeamLogoFile(file)
+              setNewTeamLogoCrop({ x: 0, y: 0, zoom: 1 })
+              setNewTeamLogoPreview(file ? URL.createObjectURL(file) : null)
+            }} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-xs" />
+            {newTeamLogoFile && newTeamLogoPreview && (
+              <CircularImageCropField label="Кроп логотипа (круг)" imageUrl={newTeamLogoPreview} crop={newTeamLogoCrop} onChange={setNewTeamLogoCrop} />
+            )}
             <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
               try {
-                const logoUrl = newTeamLogoFile ? (await uploadsRepository.uploadImage(newTeamLogoFile)).url : undefined
+                const croppedLogoFile = newTeamLogoFile ? await buildCircularCropUploadFile(newTeamLogoFile, newTeamLogoCrop) : null
+                const logoUrl = croppedLogoFile ? (await uploadsRepository.uploadImage(croppedLogoFile)).url : undefined
                 await teamsRepository.createTeam?.({ name: newTeamName, slug: newTeamSlug, description: newTeamDescription, logoUrl })
                 setStatus('ok: team created')
               } catch (error) {
@@ -1102,11 +1123,20 @@ export const CabinetSectionPage = () => {
             <input value={newPlayerName} onChange={(e) => setNewPlayerName(e.target.value)} placeholder="full name" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={newPlayerPosition} onChange={(e) => setNewPlayerPosition(e.target.value)} placeholder="position" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={newPlayerNumber} onChange={(e) => setNewPlayerNumber(e.target.value)} placeholder="shirt number" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-            <input type="file" accept="image/*" onChange={(e) => setNewPlayerAvatarFile(e.target.files?.[0] ?? null)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-xs" />
+            <input type="file" accept="image/*" onChange={(e) => {
+              const file = e.target.files?.[0] ?? null
+              setNewPlayerAvatarFile(file)
+              setNewPlayerAvatarCrop({ x: 0, y: 0, zoom: 1 })
+              setNewPlayerAvatarPreview(file ? URL.createObjectURL(file) : null)
+            }} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1 text-xs" />
+            {newPlayerAvatarFile && newPlayerAvatarPreview && (
+              <CircularImageCropField label="Кроп аватара (круг)" imageUrl={newPlayerAvatarPreview} crop={newPlayerAvatarCrop} onChange={setNewPlayerAvatarCrop} />
+            )}
             <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
               try {
                 if (!newPlayerUserId.trim()) throw new Error('Требуется ID пользователя для создания player profile')
-                const avatarUrl = newPlayerAvatarFile ? (await uploadsRepository.uploadImage(newPlayerAvatarFile)).url : undefined
+                const croppedAvatarFile = newPlayerAvatarFile ? await buildCircularCropUploadFile(newPlayerAvatarFile, newPlayerAvatarCrop) : null
+                const avatarUrl = croppedAvatarFile ? (await uploadsRepository.uploadImage(croppedAvatarFile)).url : undefined
                 await playersRepository.createPlayer?.({ userId: newPlayerUserId.trim(), teamId, fullName: newPlayerName, position: newPlayerPosition, shirtNumber: Number(newPlayerNumber) || 0, avatarUrl })
                 setStatus('ok: player created')
               } catch (error) {
@@ -1127,7 +1157,9 @@ export const CabinetSectionPage = () => {
             </select>
             <input type="datetime-local" value={toMskDateTimeInput(matchStartAt)} onChange={(e) => setMatchStartAt(fromMskDateTimeInput(e.target.value))} placeholder="Дата и время старта (МСК)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <p className="text-[11px] text-textMuted">МСК: {toMskDisplay(matchStartAt) || '—'} (формат ДД.ММ.ГГГГ ЧЧ:ММ)</p>
-            <input value={matchStatus} onChange={(e) => setMatchStatus(e.target.value as typeof matchStatus)} placeholder="status" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <select value={matchStatus} onChange={(e) => setMatchStatus(e.target.value as Match['status'])} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+              {matchStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
             <input value={matchStage} onChange={(e) => setMatchStage(e.target.value)} placeholder="Стадия (например: 1/8)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={matchVenue} onChange={(e) => setMatchVenue(e.target.value)} placeholder="venue" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
             <input value={matchReferee} onChange={(e) => setMatchReferee(e.target.value)} placeholder="Судья" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
@@ -1168,7 +1200,9 @@ export const CabinetSectionPage = () => {
           </select>
           <input type="datetime-local" value={toMskDateTimeInput(matchStartAt)} onChange={(e) => setMatchStartAt(fromMskDateTimeInput(e.target.value))} placeholder="Дата и время старта (МСК)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <p className="text-[11px] text-textMuted">МСК: {toMskDisplay(matchStartAt) || '—'} (формат ДД.ММ.ГГГГ ЧЧ:ММ)</p>
-          <input value={matchStatus} onChange={(e) => setMatchStatus(e.target.value as typeof matchStatus)} placeholder="status" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <select value={matchStatus} onChange={(e) => setMatchStatus(e.target.value as Match['status'])} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+            {matchStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
           <input value={matchStage} onChange={(e) => setMatchStage(e.target.value)} placeholder="Стадия (например: 1/8)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <button type="button" disabled={!isAdminScope} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
             try {
