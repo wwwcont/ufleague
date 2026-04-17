@@ -15,5 +15,5 @@ WHERE username IN (
   'superadmin',
   'admin_test',
   'captain_alpha',
-  'player_test'
+  'guest_test'
 );
