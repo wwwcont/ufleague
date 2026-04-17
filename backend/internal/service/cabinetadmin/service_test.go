@@ -29,6 +29,7 @@ type fakeRepo struct {
 	auditCalled        bool
 	auditErr           error
 	replacedRoles      []domain.Role
+	ensuredRoles       []domain.Role
 }
 
 func (f *fakeRepo) GetProfile(context.Context, int64) (domain.UserProfile, error) {
@@ -40,9 +41,12 @@ func (f *fakeRepo) UpdateProfile(context.Context, int64, domain.UpdateProfileReq
 func (f *fakeRepo) GetTeamByID(context.Context, int64) (domain.Team, error) {
 	return f.team, nil
 }
-func (f *fakeRepo) FindUserByUsername(context.Context, string) (int64, error)         { return 0, nil }
-func (f *fakeRepo) CreateTeamInvite(context.Context, int64, int64, int64) error       { return nil }
-func (f *fakeRepo) EnsureUserRole(context.Context, int64, domain.Role) error          { return nil }
+func (f *fakeRepo) FindUserByUsername(context.Context, string) (int64, error)   { return 0, nil }
+func (f *fakeRepo) CreateTeamInvite(context.Context, int64, int64, int64) error { return nil }
+func (f *fakeRepo) EnsureUserRole(_ context.Context, _ int64, role domain.Role) error {
+	f.ensuredRoles = append(f.ensuredRoles, role)
+	return nil
+}
 func (f *fakeRepo) UpdateTeamSocials(context.Context, int64, map[string]string) error { return nil }
 func (f *fakeRepo) SetPlayerVisible(context.Context, int64, bool) error               { return nil }
 func (f *fakeRepo) TransferCaptain(_ context.Context, teamID int64, newCaptain *int64) error {
@@ -120,6 +124,9 @@ func TestEnsureCaptainPlayerProfileCreatesProfileWhenMissing(t *testing.T) {
 	if repo.createdUserID != 11 || repo.createdTeamID != 22 {
 		t.Fatalf("unexpected create payload: user=%d team=%d", repo.createdUserID, repo.createdTeamID)
 	}
+	if len(repo.ensuredRoles) == 0 || repo.ensuredRoles[0] != domain.RolePlayer {
+		t.Fatalf("expected player role to be ensured, got %v", repo.ensuredRoles)
+	}
 }
 
 func TestEnsureCaptainPlayerProfileReassignsTeamWhenDifferent(t *testing.T) {
@@ -135,6 +142,9 @@ func TestEnsureCaptainPlayerProfileReassignsTeamWhenDifferent(t *testing.T) {
 	}
 	if repo.reassignedPlayerID != 100 || repo.reassignedTeamID != 99 {
 		t.Fatalf("unexpected reassign payload: player=%d team=%d", repo.reassignedPlayerID, repo.reassignedTeamID)
+	}
+	if len(repo.ensuredRoles) == 0 || repo.ensuredRoles[0] != domain.RolePlayer {
+		t.Fatalf("expected player role to be ensured, got %v", repo.ensuredRoles)
 	}
 }
 
@@ -204,7 +214,7 @@ func TestAdminTransferCaptainRejectsWhenTeamHasAnotherCaptain(t *testing.T) {
 }
 
 func TestAdminRevokeCaptainRoleClearsTeams(t *testing.T) {
-	repo := &fakeRepo{countTeams: 2}
+	repo := &fakeRepo{countTeams: 2, player: &domain.Player{ID: 88, UserID: ptr(77)}}
 	svc := NewService(repo)
 	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
 
@@ -213,6 +223,9 @@ func TestAdminRevokeCaptainRoleClearsTeams(t *testing.T) {
 	}
 	if !repo.clearedCaptains {
 		t.Fatalf("expected captain to be cleared from teams")
+	}
+	if len(repo.ensuredRoles) == 0 || repo.ensuredRoles[0] != domain.RolePlayer {
+		t.Fatalf("expected player role to be restored, got %v", repo.ensuredRoles)
 	}
 }
 

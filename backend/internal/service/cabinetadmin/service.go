@@ -285,6 +285,15 @@ func (s Service) AdminRevokeCaptainRole(ctx context.Context, actor domain.User, 
 	if err = s.repo.RevokeUserRole(ctx, userID, domain.RoleCaptain); err != nil {
 		return err
 	}
+	player, err := s.repo.GetPlayerByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if player != nil {
+		if err = s.repo.EnsureUserRole(ctx, userID, domain.RolePlayer); err != nil {
+			return err
+		}
+	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "admin.revoke_captain_role", "user", strconv.FormatInt(userID, 10), nil)
 }
 
@@ -419,12 +428,18 @@ func (s Service) EnsureCaptainPlayerProfile(ctx context.Context, userID, teamID 
 		if displayName == "" {
 			displayName = "Captain"
 		}
-		return s.repo.CreateCaptainPlayerProfile(ctx, userID, teamID, displayName)
+		if err = s.repo.CreateCaptainPlayerProfile(ctx, userID, teamID, displayName); err != nil {
+			return err
+		}
+		return s.repo.EnsureUserRole(ctx, userID, domain.RolePlayer)
 	}
 	if player.TeamID != nil && *player.TeamID == teamID {
-		return nil
+		return s.repo.EnsureUserRole(ctx, userID, domain.RolePlayer)
 	}
-	return s.repo.ReassignPlayerTeam(ctx, player.ID, teamID)
+	if err = s.repo.ReassignPlayerTeam(ctx, player.ID, teamID); err != nil {
+		return err
+	}
+	return s.repo.EnsureUserRole(ctx, userID, domain.RolePlayer)
 }
 
 func (s Service) GetMyActions(ctx context.Context, user domain.User, limit int) ([]domain.UserActionItem, error) {
