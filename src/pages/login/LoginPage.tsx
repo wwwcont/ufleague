@@ -8,7 +8,7 @@ const devAccounts = [
   { code: 'UFL-SUPERADMIN-2026', label: 'Superadmin' },
   { code: 'UFL-ADMIN-2026', label: 'Admin' },
   { code: 'UFL-CAPTAIN-2026', label: 'Captain' },
-  { code: 'UFL-PLAYER-2026', label: 'Player' },
+  { code: 'UFL-GUEST-2026', label: 'Guest' },
 ]
 
 export const LoginPage = () => {

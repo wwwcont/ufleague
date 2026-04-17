@@ -74,7 +74,7 @@ Backend: `http://localhost:8080`
 - `UFL-SUPERADMIN-2026` → `superadmin`
 - `UFL-ADMIN-2026` → `admin_test`
 - `UFL-CAPTAIN-2026` → `captain_alpha`
-- `UFL-PLAYER-2026` → `player_test`
+- `UFL-GUEST-2026` → `guest_test`
 
 CLI-проверка:
 ```bash
