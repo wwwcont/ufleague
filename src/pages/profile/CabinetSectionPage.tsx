@@ -55,7 +55,7 @@ const sectionRoles: Record<string, UserRole> = {
   roles: 'superadmin',
   rbac: 'superadmin',
   restrictions: 'superadmin',
-  settings: 'guest',
+  settings: 'player',
 }
 
 const sectionMeta: Record<string, { title: string; description: string; tips: string[] }> = {
