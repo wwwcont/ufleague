@@ -326,7 +326,7 @@ func (h Handler) GetUploadedImage(w http.ResponseWriter, r *http.Request) {
 		mimeType = "application/octet-stream"
 	}
 	w.Header().Set("Content-Type", mimeType)
-	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	w.Header().Set("Cache-Control", "no-cache, max-age=0, must-revalidate")
 	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(raw))
 }
 

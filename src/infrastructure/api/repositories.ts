@@ -56,13 +56,19 @@ function getCsrfToken(): string {
   return m ? decodeURIComponent(m[1]) : 'dev-csrf-token'
 }
 
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
+type ApiRequestOptions = {
+  silent?: boolean
+}
+
+async function api<T>(path: string, init?: RequestInit, options?: ApiRequestOptions): Promise<T> {
   const isWrite = (init?.method ?? 'GET').toUpperCase() !== 'GET'
   const res = await fetch(`${API_BASE}${path}`, { credentials: 'include', headers: { 'Content-Type': 'application/json', ...(isWrite ? { 'X-CSRF-Token': getCsrfToken() } : {}), ...(init?.headers ?? {}) }, ...init })
   if (!res.ok) {
     const rawMessage = (await res.text()).trim() || `API ${res.status}`
     const message = toRussianMessage(rawMessage)
-    notifyError(message)
+    if (!options?.silent) {
+      notifyError(message)
+    }
     throw new ApiError(res.status, message)
   }
   if (res.status === 204) return undefined as T
@@ -776,7 +782,7 @@ const mapMeToSession = (me: BackendMeDTO): AuthSession => {
 export const sessionRepository: SessionRepository = {
   async getSession() {
     try {
-      const me = await api<BackendMeDTO>('/api/auth/me')
+      const me = await api<BackendMeDTO>('/api/auth/me', undefined, { silent: true })
       return mapMeToSession(me)
     } catch {
       return guestSession
@@ -796,7 +802,7 @@ export const sessionRepository: SessionRepository = {
   async completeTelegramLoginWithCode(requestId: string, code: string) {
     const me = await api<BackendMeDTO>('/api/auth/telegram/mock-code-login', {
       method: 'POST',
-      body: JSON.stringify({ request_id: requestId, code }),
+      body: JSON.stringify({ code }),
     }).catch(async () => api<BackendMeDTO>('/api/auth/telegram/complete-code', {
       method: 'POST',
       body: JSON.stringify({ request_id: requestId, code }),
@@ -936,7 +942,7 @@ export const cabinetRepository: CabinetRepository = {
 export const usersRepository: UsersRepository = {
   async getUserCard(userId) {
     try {
-      return mapUserCard(await api<any>(`/api/users/${userId}`))
+      return mapUserCard(await api<any>(`/api/users/${userId}`, undefined, { silent: true }))
     } catch {
       return null
     }
@@ -945,10 +951,10 @@ export const usersRepository: UsersRepository = {
     const normalized = username.trim().replace(/^@/, '')
     if (!normalized) return null
     try {
-      return mapUserCard(await api<any>(`/api/users/by-telegram/${encodeURIComponent(normalized)}`))
+      return mapUserCard(await api<any>(`/api/users/by-telegram/${encodeURIComponent(normalized)}`, undefined, { silent: true }))
     } catch {
       try {
-        const list = await api<any[]>(`/api/users/search?telegram=${encodeURIComponent(normalized)}`)
+        const list = await api<any[]>(`/api/users/search?telegram=${encodeURIComponent(normalized)}`, undefined, { silent: true })
         return list.length ? mapUserCard(list[0]) : null
       } catch {
         return null
@@ -959,7 +965,7 @@ export const usersRepository: UsersRepository = {
     const normalized = username.trim().replace(/^@/, '')
     if (!normalized) return []
     try {
-      const list = await api<any[]>(`/api/users/search?telegram=${encodeURIComponent(normalized)}`)
+      const list = await api<any[]>(`/api/users/search?telegram=${encodeURIComponent(normalized)}`, undefined, { silent: true })
       return list.map(mapUserCard)
     } catch {
       return []
@@ -967,11 +973,11 @@ export const usersRepository: UsersRepository = {
   },
   async getUserProfile(userId) {
     try {
-      const item = await api<any>(`/api/admin/users/${userId}/profile`)
+      const item = await api<any>(`/api/admin/users/${userId}/profile`, undefined, { silent: true })
       return mapProfile(item)
     } catch {
       try {
-        const me = await api<any>(`/api/me/profile`)
+        const me = await api<any>(`/api/me/profile`, undefined, { silent: true })
         if (String(me.user_id) !== String(userId)) return null
         return mapProfile(me)
       } catch {
@@ -984,7 +990,7 @@ export const usersRepository: UsersRepository = {
       await api(`/api/admin/users/${userId}/profile`, { method: 'PATCH', body: JSON.stringify({ display_name: input.displayName, first_name: input.firstName, last_name: input.lastName, bio: input.bio, avatar_url: input.avatarUrl, socials: input.socials }) })
       return
     } catch {
-      const me = await api<any>(`/api/auth/me`)
+      const me = await api<any>(`/api/auth/me`, undefined, { silent: true })
       if (String(me.user?.id ?? '') !== String(userId)) {
         throw new ApiError(403, 'forbidden')
       }

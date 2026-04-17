@@ -842,7 +842,7 @@ export const CabinetSectionPage = () => {
                       setStatus(`error: ${(error as Error).message}`)
                     }
                   }}>Сделать капитаном</button>
-                  <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary" onClick={async () => {
+                  <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
                     try {
                       await cabinetRepository.adminAssignCaptainRole?.(selectedUser.id)
                       if (grantTeamCreate && currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)) {
@@ -852,7 +852,7 @@ export const CabinetSectionPage = () => {
                     } catch (error) {
                       setStatus(`error: ${(error as Error).message}`)
                     }
-                  }}>Сделать капитаном без команды</button>
+                  }}>Сделать капитаном (без команды)</button>
                 </div>
               )}
 

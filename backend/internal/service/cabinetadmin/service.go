@@ -285,6 +285,15 @@ func (s Service) AdminRevokeCaptainRole(ctx context.Context, actor domain.User, 
 	if err = s.repo.RevokeUserRole(ctx, userID, domain.RoleCaptain); err != nil {
 		return err
 	}
+	player, err := s.repo.GetPlayerByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if player != nil {
+		if err = s.repo.EnsureUserRole(ctx, userID, domain.RolePlayer); err != nil {
+			return err
+		}
+	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "admin.revoke_captain_role", "user", strconv.FormatInt(userID, 10), nil)
 }
 
@@ -354,10 +363,32 @@ func (s Service) SuperadminAssignRoles(ctx context.Context, actor domain.User, u
 	if !s.policy.CanSuperadminManageIAM(actor) {
 		return fmt.Errorf("forbidden")
 	}
-	if err := s.repo.ReplaceUserRoles(ctx, userID, req.Roles); err != nil {
+	roles := append([]domain.Role{}, req.Roles...)
+	currentRoles, err := s.repo.GetUserRoles(ctx, userID)
+	if err != nil {
 		return err
 	}
-	return s.repo.AddAuditLog(ctx, actor.ID, "superadmin.assign_roles", "user", strconv.FormatInt(userID, 10), map[string]any{"roles": req.Roles})
+	hasCaptainNow := false
+	hasCaptainInRequest := false
+	for _, role := range currentRoles {
+		if role == domain.RoleCaptain {
+			hasCaptainNow = true
+			break
+		}
+	}
+	for _, role := range roles {
+		if role == domain.RoleCaptain {
+			hasCaptainInRequest = true
+			break
+		}
+	}
+	if hasCaptainNow && !hasCaptainInRequest {
+		roles = append(roles, domain.RoleCaptain)
+	}
+	if err := s.repo.ReplaceUserRoles(ctx, userID, roles); err != nil {
+		return err
+	}
+	return s.repo.AddAuditLog(ctx, actor.ID, "superadmin.assign_roles", "user", strconv.FormatInt(userID, 10), map[string]any{"roles": roles})
 }
 func (s Service) SuperadminAssignPermissions(ctx context.Context, actor domain.User, userID int64, req domain.AssignPermissionsRequest) error {
 	if !s.policy.CanSuperadminManageIAM(actor) {
@@ -397,12 +428,18 @@ func (s Service) EnsureCaptainPlayerProfile(ctx context.Context, userID, teamID 
 		if displayName == "" {
 			displayName = "Captain"
 		}
-		return s.repo.CreateCaptainPlayerProfile(ctx, userID, teamID, displayName)
+		if err = s.repo.CreateCaptainPlayerProfile(ctx, userID, teamID, displayName); err != nil {
+			return err
+		}
+		return s.repo.EnsureUserRole(ctx, userID, domain.RolePlayer)
 	}
 	if player.TeamID != nil && *player.TeamID == teamID {
-		return nil
+		return s.repo.EnsureUserRole(ctx, userID, domain.RolePlayer)
 	}
-	return s.repo.ReassignPlayerTeam(ctx, player.ID, teamID)
+	if err = s.repo.ReassignPlayerTeam(ctx, player.ID, teamID); err != nil {
+		return err
+	}
+	return s.repo.EnsureUserRole(ctx, userID, domain.RolePlayer)
 }
 
 func (s Service) GetMyActions(ctx context.Context, user domain.User, limit int) ([]domain.UserActionItem, error) {
