@@ -705,11 +705,12 @@ export const commentsRepository: CommentsRepository = {
       const isOwn = String(raw.author_user_id) === currentAuthor.id
       const createdAtTs = new Date(comment.createdAt).getTime()
       const canEdit = isOwn && Number.isFinite(createdAtTs) && now - createdAtTs <= 12 * 60 * 60 * 1000
+      const canDeleteOwn = isOwn && Number.isFinite(createdAtTs) && now - createdAtTs <= 12 * 60 * 60 * 1000
       return {
         ...comment,
         isOwn,
         canEdit,
-        canDelete: isOwn || currentAuthor.role === 'admin' || currentAuthor.role === 'superadmin',
+        canDelete: canDeleteOwn || currentAuthor.role === 'admin' || currentAuthor.role === 'superadmin',
       }
     })
 

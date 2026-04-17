@@ -20,6 +20,7 @@ import { EventContentRenderer, EventEditor } from '../../components/events'
 import type { EventContentBlock } from '../../domain/entities/types'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
 import { resolveEventSourceLabel } from '../../domain/services/eventSourceLabel'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 export const EventDetailsPage = () => {
   const { eventId } = useParams()
@@ -35,6 +36,7 @@ export const EventDetailsPage = () => {
   const [isSaving, setIsSaving] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
   const [statusTone, setStatusTone] = useState<'idle' | 'success' | 'error'>('idle')
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [editableTitle, setEditableTitle] = useState('')
   const [editableSummary, setEditableSummary] = useState('')
   const [contentBlocks, setContentBlocks] = useState<EventContentBlock[]>([])
@@ -69,6 +71,31 @@ export const EventDetailsPage = () => {
     return err instanceof Error ? err.message : 'Операция не выполнена'
   }
 
+  const deleteEvent = async () => {
+    try {
+      await eventsRepository.deleteEvent?.(event.id)
+      if (event.entityType === 'match' && event.entityId) {
+        const targetMatch = matches?.find((item) => item.id === event.entityId)
+        if (targetMatch) {
+          const nextMatchEvents = targetMatch.events.filter((item) => item.linkedEventId !== event.id)
+          if (nextMatchEvents.length !== targetMatch.events.length) {
+            await matchesRepository.updateMatch?.(targetMatch.id, {
+              homeScore: targetMatch.score.home,
+              awayScore: targetMatch.score.away,
+              matchEvents: nextMatchEvents,
+            })
+          }
+        }
+      }
+      navigate('/events')
+    } catch (err) {
+      setStatus(actionError(err))
+      setStatusTone('error')
+    } finally {
+      setDeleteConfirmOpen(false)
+    }
+  }
+
   return (
     <PageContainer>
       <EditableSection isEditing={isEditing} className="p-5">
@@ -98,29 +125,7 @@ export const EventDetailsPage = () => {
             <button
               type="button"
               className="rounded-lg border border-borderSubtle px-2 py-1 text-xs text-textSecondary"
-              onClick={async () => {
-                if (!window.confirm('Удалить событие?')) return
-                try {
-                  await eventsRepository.deleteEvent?.(event.id)
-                  if (event.entityType === 'match' && event.entityId) {
-                    const targetMatch = matches?.find((item) => item.id === event.entityId)
-                    if (targetMatch) {
-                      const nextMatchEvents = targetMatch.events.filter((item) => item.linkedEventId !== event.id)
-                      if (nextMatchEvents.length !== targetMatch.events.length) {
-                        await matchesRepository.updateMatch?.(targetMatch.id, {
-                          homeScore: targetMatch.score.home,
-                          awayScore: targetMatch.score.away,
-                          matchEvents: nextMatchEvents,
-                        })
-                      }
-                    }
-                  }
-                  navigate('/events')
-                } catch (err) {
-                  setStatus(actionError(err))
-                  setStatusTone('error')
-                }
-              }}
+              onClick={() => setDeleteConfirmOpen(true)}
             >
               Удалить
             </button>
@@ -204,6 +209,17 @@ export const EventDetailsPage = () => {
           <EntityReactions entityKey={`event:${event.id}`} />
         </div>
       </EditableSection>
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        title="Удалить событие?"
+        description="Действие нельзя отменить. Событие исчезнет из лент."
+        confirmLabel="Удалить"
+        cancelLabel="Отмена"
+        onCancel={() => setDeleteConfirmOpen(false)}
+        onConfirm={() => {
+          void deleteEvent()
+        }}
+      />
       <CommentsSection entityType="event" entityId={event.id} title="Комментарии к событию" />
     </PageContainer>
   )

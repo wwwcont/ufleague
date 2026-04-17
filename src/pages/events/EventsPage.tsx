@@ -118,7 +118,7 @@ export const EventsPage = () => {
                     try {
                       const scopeType = (teamId ? 'team' : 'global') as 'team' | 'global'
                       const normalizedBlocks = normalizeEventBlocks(blocks, { text: '', imageUrl: undefined })
-                      await eventsRepository.createEventForScope?.({
+                      const created = await eventsRepository.createEventForScope?.({
                         scopeType,
                         scopeId: scopeType === 'team' ? teamId : undefined,
                         title: title.trim(),
@@ -127,22 +127,9 @@ export const EventsPage = () => {
                         imageUrl: normalizedBlocks.find((item) => item.type === 'image')?.imageUrl,
                         contentBlocks: normalizedBlocks,
                       })
-                      setCreatedLocal((prev) => [{
-                        id: `local_${Date.now()}`,
-                        title: title.trim(),
-                        summary: summary.trim() || deriveSummaryFromBlocks(normalizedBlocks),
-                        text: blocksToPlainText(normalizedBlocks),
-                        contentBlocks: normalizedBlocks,
-                        timestamp: new Date().toISOString(),
-                        source: scopeType,
-                        authorName: session.user.displayName,
-                        category: 'news',
-                        entityType: scopeType,
-                        entityId: scopeType === 'team' ? teamId : undefined,
-                        imageUrl: normalizedBlocks.find((item) => item.type === 'image')?.imageUrl,
-                        canEdit: true,
-                        canDelete: true,
-                      }, ...prev])
+                      if (created) {
+                        setCreatedLocal((prev) => [{ ...created, canEdit: true, canDelete: true }, ...prev])
+                      }
                       setTitle('')
                       setSummary('')
                       setBlocks([])

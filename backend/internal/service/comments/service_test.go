@@ -69,13 +69,21 @@ func TestCreateCommentRespectsCooldown(t *testing.T) {
 }
 
 func TestDeleteCommentPermission(t *testing.T) {
+	now := time.Now()
 	repo := &fakeRepo{byID: map[int64]domain.Comment{
-		10: {ID: 10, AuthorUserID: 2},
+		10: {ID: 10, AuthorUserID: 2, CreatedAt: now.Add(-2 * time.Hour)},
+		11: {ID: 11, AuthorUserID: 2, CreatedAt: now.Add(-13 * time.Hour)},
 	}}
 	svc := NewService(repo, 0)
 	err := svc.DeleteComment(context.Background(), domain.User{ID: 3, Roles: []domain.Role{domain.RolePlayer}}, 10)
 	if err != ErrForbidden {
 		t.Fatalf("expected ErrForbidden, got %v", err)
+	}
+	if err = svc.DeleteComment(context.Background(), domain.User{ID: 2, Roles: []domain.Role{domain.RolePlayer}}, 11); err != ErrForbidden {
+		t.Fatalf("expected ErrForbidden for expired delete window, got %v", err)
+	}
+	if err = svc.DeleteComment(context.Background(), domain.User{ID: 2, Roles: []domain.Role{domain.RolePlayer}}, 10); err != nil {
+		t.Fatalf("expected owner to delete within window, got %v", err)
 	}
 }
 

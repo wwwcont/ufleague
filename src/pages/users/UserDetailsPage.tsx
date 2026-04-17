@@ -19,7 +19,7 @@ const roleLabel: Record<string, string> = {
 export const UserDetailsPage = () => {
   const { userId } = useParams()
   const { usersRepository, uploadsRepository, playersRepository } = useRepositories()
-  const { session } = useSession()
+  const { session, refreshSession } = useSession()
   const userLoader = useCallback(() => (userId ? usersRepository.getUserCard(userId) : Promise.resolve(null)), [userId, usersRepository])
   const { data: user, isLoading } = useQueryState(userLoader, (value) => !value)
   const [profile, setProfile] = useState<{ userId: string; username: string; telegramId?: string; telegramUsername?: string; displayName: string; firstName: string; lastName: string; bio: string; avatarUrl: string; socials: Record<string, string> } | null>(null)
@@ -160,6 +160,9 @@ export const UserDetailsPage = () => {
                 await usersRepository.updateUserProfile(userId, { displayName, firstName: firstName.trim(), lastName: lastName.trim(), bio, avatarUrl: uploadedAvatarUrl, socials: profile?.socials ?? {} })
                 if (uploadedAvatarUrl && user.playerId && playersRepository.updatePlayer) {
                   await playersRepository.updatePlayer(user.playerId, { avatar: uploadedAvatarUrl })
+                }
+                if (session.user.id === userId) {
+                  await refreshSession()
                 }
                 setProfile((prev) => prev ? { ...prev, displayName, firstName: firstName.trim(), lastName: lastName.trim(), bio, avatarUrl: uploadedAvatarUrl } : prev)
                 setStatus('Профиль сохранён')

@@ -631,6 +631,7 @@ export const CabinetSectionPage = () => {
                   birth_date: birthDate,
                 },
               })
+              await refreshSession()
               setStatus('ok: profile updated')
             } catch (error) {
               setStatus(`error: ${(error as Error).message}`)
@@ -816,6 +817,7 @@ export const CabinetSectionPage = () => {
           <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
             try {
               await cabinetRepository.updateMyProfile({ displayName, firstName: firstName.trim(), lastName: lastName.trim(), bio, avatarUrl, socials })
+              await refreshSession()
               setStatus('ok: profile updated')
             } catch (error) {
               setStatus(`error: ${(error as Error).message}`)
