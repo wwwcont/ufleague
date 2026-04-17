@@ -75,7 +75,7 @@ export const TeamEventsPage = () => {
                     setStatus('Публикуем событие...')
                     try {
                       const normalizedBlocks = normalizeEventBlocks(blocks, { text: '', imageUrl: undefined })
-                      await eventsRepository.createEventForScope?.({
+                      const created = await eventsRepository.createEventForScope?.({
                         scopeType: 'team',
                         scopeId: teamId,
                         title: title.trim(),
@@ -84,22 +84,9 @@ export const TeamEventsPage = () => {
                         imageUrl: normalizedBlocks.find((item) => item.type === 'image')?.imageUrl,
                         contentBlocks: normalizedBlocks,
                       })
-                      setCreatedLocal((prev) => [{
-                        id: `local_${Date.now()}`,
-                        title: title.trim(),
-                        summary: summary.trim() || deriveSummaryFromBlocks(normalizedBlocks),
-                        text: blocksToPlainText(normalizedBlocks),
-                        contentBlocks: normalizedBlocks,
-                        timestamp: new Date().toISOString(),
-                        source: 'team',
-                        authorName: session.user.displayName,
-                        category: 'news',
-                        entityType: 'team',
-                        entityId: teamId,
-                        imageUrl: normalizedBlocks.find((item) => item.type === 'image')?.imageUrl,
-                        canEdit: true,
-                        canDelete: true,
-                      }, ...prev])
+                      if (created) {
+                        setCreatedLocal((prev) => [{ ...created, canEdit: true, canDelete: true }, ...prev])
+                      }
                       setTitle('')
                       setSummary('')
                       setBlocks([])

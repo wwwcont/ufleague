@@ -120,6 +120,8 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Get("/me/profile", h.GetMyProfile)
 		r.With(sessionMW.RequireSession).Get("/me/actions", h.GetMyActions)
 		r.With(sessionMW.RequireSession).Get("/me/notifications", h.GetMyNotifications)
+		r.With(sessionMW.RequireSession).Get("/me/telegram-notifications", h.GetMyTelegramNotifications)
+		r.With(sessionMW.RequireSession).Patch("/me/telegram-notifications", h.UpdateMyTelegramNotifications)
 		r.With(sessionMW.RequireSession).Patch("/me/profile", h.UpdateMyProfile)
 		r.With(sessionMW.RequireSession).Post("/captain/teams/{id}/invite", h.CaptainInviteByUsername)
 		r.With(sessionMW.RequireSession).Patch("/captain/teams/{id}/socials", h.CaptainUpdateTeamSocials)
@@ -1718,6 +1720,41 @@ func (h Handler) GetMyNotifications(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, items)
 }
+
+func (h Handler) GetMyTelegramNotifications(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	enabled, err := h.notifications.GetTelegramNotificationsEnabled(r.Context(), current.User.ID)
+	if err != nil {
+		http.Error(w, "failed", 400)
+		return
+	}
+	writeJSON(w, 200, map[string]bool{"enabled": enabled})
+}
+
+func (h Handler) UpdateMyTelegramNotifications(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	if err := h.notifications.SetTelegramNotificationsEnabled(r.Context(), current.User.ID, req.Enabled); err != nil {
+		http.Error(w, "failed", 400)
+		return
+	}
+	writeJSON(w, 200, map[string]any{"status": "ok", "enabled": req.Enabled})
+}
+
 func (h Handler) UpdateMyProfile(w http.ResponseWriter, r *http.Request) {
 	current, ok := middleware.CurrentSession(r.Context())
 	if !ok {

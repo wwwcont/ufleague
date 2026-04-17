@@ -88,7 +88,10 @@ func (s Service) DeleteComment(ctx context.Context, user domain.User, commentID 
 	if err != nil {
 		return err
 	}
-	if comment.AuthorUserID == user.ID || hasRole(user, domain.RoleAdmin, domain.RoleSuperadmin) {
+	if hasRole(user, domain.RoleAdmin, domain.RoleSuperadmin) {
+		return s.repo.SoftDelete(ctx, commentID)
+	}
+	if comment.AuthorUserID == user.ID && time.Since(comment.CreatedAt) <= 12*time.Hour {
 		return s.repo.SoftDelete(ctx, commentID)
 	}
 	return ErrForbidden

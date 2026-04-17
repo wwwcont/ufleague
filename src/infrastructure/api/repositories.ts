@@ -173,6 +173,55 @@ const mapMatch = (m: any): Match => ({
   playoffCellId: m.playoff_cell_id ? String(m.playoff_cell_id) : null,
 })
 
+const derivePlayoffResult = (cell: { homeTeamId: string | null; awayTeamId: string | null; attachedMatches: Array<{ status: Match['status']; homeScore: number; awayScore: number }> }) => {
+  const aggregate = cell.attachedMatches.reduce(({ home, away }, match) => ({ home: home + match.homeScore, away: away + match.awayScore }), { home: 0, away: 0 })
+  const allMatchesFinished = cell.attachedMatches.length > 0 && cell.attachedMatches.every((match) => match.status === 'finished')
+  const winnerTeamId = !allMatchesFinished
+    ? null
+    : aggregate.home > aggregate.away
+      ? cell.homeTeamId
+      : aggregate.away > aggregate.home
+        ? cell.awayTeamId
+        : null
+
+  return {
+    aggregateHomeScore: allMatchesFinished ? aggregate.home : null,
+    aggregateAwayScore: allMatchesFinished ? aggregate.away : null,
+    allMatchesFinished,
+    winnerTeamId,
+  }
+}
+
+const mapPlayoffCell = (cell: any): PlayoffGrid['cells'][number] => {
+  const mapped = {
+    id: String(cell.id),
+    homeTeamId: cell.home_team_id ? String(cell.home_team_id) : null,
+    awayTeamId: cell.away_team_id ? String(cell.away_team_id) : null,
+    col: Number(cell.col),
+    row: Number(cell.row),
+    attachedMatchIds: Array.isArray(cell.attached_match_ids) ? cell.attached_match_ids.map((id: number) => String(id)) : [],
+    attachedMatches: Array.isArray(cell.attached_matches) ? cell.attached_matches.map((match: any) => ({
+      id: String(match.id),
+      status: match.status as Match['status'],
+      homeScore: Number(match.home_score ?? 0),
+      awayScore: Number(match.away_score ?? 0),
+    })) : [],
+    aggregateHomeScore: cell.aggregate_home_score ?? null,
+    aggregateAwayScore: cell.aggregate_away_score ?? null,
+    winnerTeamId: cell.winner_team_id ? String(cell.winner_team_id) : null,
+    allMatchesFinished: Boolean(cell.all_matches_finished),
+  }
+
+  const derived = derivePlayoffResult(mapped)
+  return {
+    ...mapped,
+    aggregateHomeScore: derived.aggregateHomeScore,
+    aggregateAwayScore: derived.aggregateAwayScore,
+    winnerTeamId: derived.winnerTeamId,
+    allMatchesFinished: derived.allMatchesFinished,
+  }
+}
+
 const mapEvent = (e: any): PublicEvent => {
   const contentBlocks = normalizeEventBlocks(e.metadata?.content_blocks, { text: String(e.body ?? ''), imageUrl: e.metadata?.image_url ? String(e.metadata.image_url) : undefined })
   return {
@@ -486,24 +535,7 @@ export const playoffGridRepository: PlayoffGridRepository = {
     try {
       const data = await api<any>(`/api/playoff-grid/${tournamentId}`)
       return {
-        cells: (data.cells ?? []).map((cell: any) => ({
-          id: String(cell.id),
-          homeTeamId: cell.home_team_id ? String(cell.home_team_id) : null,
-          awayTeamId: cell.away_team_id ? String(cell.away_team_id) : null,
-          col: Number(cell.col),
-          row: Number(cell.row),
-          attachedMatchIds: Array.isArray(cell.attached_match_ids) ? cell.attached_match_ids.map((id: number) => String(id)) : [],
-          attachedMatches: Array.isArray(cell.attached_matches) ? cell.attached_matches.map((match: any) => ({
-            id: String(match.id),
-            status: match.status as Match['status'],
-            homeScore: Number(match.home_score ?? 0),
-            awayScore: Number(match.away_score ?? 0),
-          })) : [],
-          aggregateHomeScore: cell.aggregate_home_score ?? null,
-          aggregateAwayScore: cell.aggregate_away_score ?? null,
-          winnerTeamId: cell.winner_team_id ? String(cell.winner_team_id) : null,
-          allMatchesFinished: Boolean(cell.all_matches_finished),
-        })),
+        cells: (data.cells ?? []).map((cell: any) => mapPlayoffCell(cell)),
         lines: (data.lines ?? []).map((line: any) => ({
           id: String(line.id),
           fromPlayoffId: String(line.from_playoff_id),
@@ -590,24 +622,7 @@ export const playoffGridRepository: PlayoffGridRepository = {
       }),
     })
     return {
-      cells: (data.cells ?? []).map((cell: any) => ({
-        id: String(cell.id),
-        homeTeamId: cell.home_team_id ? String(cell.home_team_id) : null,
-        awayTeamId: cell.away_team_id ? String(cell.away_team_id) : null,
-        col: Number(cell.col),
-        row: Number(cell.row),
-        attachedMatchIds: Array.isArray(cell.attached_match_ids) ? cell.attached_match_ids.map((id: number) => String(id)) : [],
-        attachedMatches: Array.isArray(cell.attached_matches) ? cell.attached_matches.map((match: any) => ({
-          id: String(match.id),
-          status: match.status as Match['status'],
-          homeScore: Number(match.home_score ?? 0),
-          awayScore: Number(match.away_score ?? 0),
-        })) : [],
-        aggregateHomeScore: cell.aggregate_home_score ?? null,
-        aggregateAwayScore: cell.aggregate_away_score ?? null,
-        winnerTeamId: cell.winner_team_id ? String(cell.winner_team_id) : null,
-        allMatchesFinished: Boolean(cell.all_matches_finished),
-      })),
+      cells: (data.cells ?? []).map((cell: any) => mapPlayoffCell(cell)),
       lines: (data.lines ?? []).map((line: any) => ({
         id: String(line.id),
         fromPlayoffId: String(line.from_playoff_id),
@@ -690,11 +705,12 @@ export const commentsRepository: CommentsRepository = {
       const isOwn = String(raw.author_user_id) === currentAuthor.id
       const createdAtTs = new Date(comment.createdAt).getTime()
       const canEdit = isOwn && Number.isFinite(createdAtTs) && now - createdAtTs <= 12 * 60 * 60 * 1000
+      const canDeleteOwn = isOwn && Number.isFinite(createdAtTs) && now - createdAtTs <= 12 * 60 * 60 * 1000
       return {
         ...comment,
         isOwn,
         canEdit,
-        canDelete: isOwn || currentAuthor.role === 'admin' || currentAuthor.role === 'superadmin',
+        canDelete: canDeleteOwn || currentAuthor.role === 'admin' || currentAuthor.role === 'superadmin',
       }
     })
 
@@ -915,6 +931,16 @@ export const cabinetRepository: CabinetRepository = {
       status: String(item.status ?? ''),
       createdAt: item.created_at ? new Date(Number(item.created_at) * 1000).toISOString() : new Date().toISOString(),
     }))
+  },
+  async getTelegramNotificationsEnabled() {
+    const payload = await api<{ enabled?: boolean }>(`/api/me/telegram-notifications`)
+    return payload.enabled !== false
+  },
+  async setTelegramNotificationsEnabled(enabled) {
+    await api(`/api/me/telegram-notifications`, {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled }),
+    })
   },
   async getTournamentCycles() {
     const payload = await api<any[]>('/api/tournament/cycles')

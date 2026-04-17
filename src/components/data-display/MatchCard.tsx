@@ -7,7 +7,7 @@ import { formatMatchMetaMsk, getTimeToKickoff } from '../../lib/date-time'
 const tournamentFallbackLogo = '/assets/logos/tournament.svg'
 
 const getMatchIndicator = (match: Match) => {
-  if (match.status === 'live') return { label: 'LIVE', tone: 'text-statusLive' }
+  if (match.status === 'live' || match.status === 'half_time') return { label: 'LIVE', tone: 'text-statusLive' }
   if (match.status === 'finished') return { label: 'Завершен', tone: 'text-textSecondary' }
 
   const startsIn = getTimeToKickoff(match.date, match.time)

@@ -193,6 +193,33 @@ func (r *NotificationsRepository) ListUserNotifications(ctx context.Context, use
 	return out, rows.Err()
 }
 
+func (r *NotificationsRepository) GetTelegramNotificationsEnabled(ctx context.Context, userID int64) (bool, error) {
+	var hasDisabled bool
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM notification_subscriptions
+			WHERE user_id = $1
+			  AND telegram_chat_id IS NOT NULL
+			  AND is_enabled = FALSE
+		)
+	`, userID).Scan(&hasDisabled)
+	if err != nil {
+		return false, err
+	}
+	return !hasDisabled, nil
+}
+
+func (r *NotificationsRepository) SetTelegramNotificationsEnabled(ctx context.Context, userID int64, enabled bool) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE notification_subscriptions
+		SET is_enabled = $2
+		WHERE user_id = $1
+		  AND telegram_chat_id IS NOT NULL
+	`, userID, enabled)
+	return err
+}
+
 func asString(value any) string {
 	if value == nil {
 		return ""

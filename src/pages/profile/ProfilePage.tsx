@@ -20,7 +20,7 @@ const userCabinetEntries: CabinetEntry[] = [
   { title: 'Мои действия', description: 'Лента личных действий по дате.', route: '/profile/my-actions', icon: 'shield' },
   { title: 'Мои уведомления', description: 'Все уведомления из Telegram-канала аккаунта.', route: '/profile/my-notifications', icon: 'shield' },
   { title: 'Избранное', description: 'Список команд и игроков, отмеченных звездочкой.', route: '/profile/favorites', icon: 'shield' },
-  { title: 'Настройки', description: 'Персональные настройки (пока заглушка).', route: '/profile/user-settings', icon: 'shield' },
+  { title: 'Настройки', description: 'Персональные настройки Telegram-уведомлений.', route: '/profile/user-settings', icon: 'shield' },
 ]
 
 const cabinetByRole: Record<UserRole, CabinetEntry[]> = {

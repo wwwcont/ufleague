@@ -50,19 +50,6 @@ const getPlayerLastName = (name?: string) => {
   return parts[parts.length - 1]
 }
 
-const isSystemMatchFeedEvent = (event: { title?: string; summary?: string; text?: string }) => {
-  const title = String(event.title ?? '').trim().toLowerCase()
-  const summary = String(event.summary ?? '').trim().toLowerCase()
-  const text = String(event.text ?? '').trim().toLowerCase()
-
-  if (title === 'гол') return true
-  if (title === 'желтая карточка' || title === 'жёлтая карточка') return true
-  if (title === 'красная карточка') return true
-  if (summary.includes('ассист') && text.includes('забил')) return true
-  if (text.includes('получил желтую карточку') || text.includes('получил жёлтую карточку') || text.includes('получил красную карточку')) return true
-  return false
-}
-
 const getOutcome = (targetTeamId: string, match: Match): 'W' | 'D' | 'L' | '-' => {
   if (match.status !== 'finished') return '-'
   const isHome = match.homeTeamId === targetTeamId
@@ -313,17 +300,11 @@ export const MatchDetailsPage = () => {
     const elapsed = Math.max(0, Math.floor((nowTs - anchorTs) / 60_000))
     return Math.min(120, baseMinute + elapsed)
   })()
-  const latestEvents = (matchFeedEvents?.length
-    ? matchFeedEvents
-      .filter((event) => !isSystemMatchFeedEvent(event))
-      .slice()
-      .sort((a, b) => String(b.timestamp ?? '').localeCompare(String(a.timestamp ?? '')))
-      .map((event) => ({ id: event.id, label: event.summary?.trim() || event.title?.trim() || 'Событие' }))
-    : localEvents
-      .slice()
-      .sort((a, b) => (b.minute ?? 0) - (a.minute ?? 0))
-      .map((event) => ({ id: event.id, label: event.note?.trim() || event.type }))
-  ).slice(0, 3)
+  const latestEvents = (matchFeedEvents ?? [])
+    .slice()
+    .sort((a, b) => String(b.timestamp ?? '').localeCompare(String(a.timestamp ?? '')))
+    .map((event) => ({ id: event.id, label: event.summary?.trim() || event.title?.trim() || 'Событие' }))
+    .slice(0, 3)
   const playersById = Object.fromEntries(players.map((player) => [player.id, player]))
   const historyEvents = localEvents
     .filter((event) => (event.type === 'goal' || event.type === 'yellow_card' || event.type === 'red_card') && event.teamId)
