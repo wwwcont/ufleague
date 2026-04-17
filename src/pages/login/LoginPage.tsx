@@ -2,6 +2,14 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useSession } from '../../app/providers/use-session'
+import { notifyError, notifySuccess } from '../../lib/notifications'
+
+const devAccounts = [
+  { code: 'UFL-SUPERADMIN-2026', label: 'Суперадмин' },
+  { code: 'UFL-ADMIN-2026', label: 'Админ' },
+  { code: 'UFL-CAPTAIN-2026', label: 'Капитан' },
+  { code: 'UFL-GUEST-2026', label: 'Гость' },
+]
 
 export const LoginPage = () => {
   const { isLoading, startTelegramLogin, completeTelegramLoginWithCode } = useSession()
@@ -45,8 +53,10 @@ export const LoginPage = () => {
                 setStep('code')
                 openTelegramAuth(login.authUrl)
               } catch (err) {
-                const msg = err instanceof Error ? err.message : 'unknown error'
-                setError(`Не удалось инициировать Telegram login: ${msg}`)
+                const msg = err instanceof Error ? err.message : 'Неизвестная ошибка'
+                const text = `Не удалось начать вход: ${msg}`
+                setError(text)
+                notifyError(text)
               }
             }}
             disabled={isLoading}
@@ -79,6 +89,19 @@ export const LoginPage = () => {
               placeholder="Введите код"
               className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary outline-none"
             />
+            <div className="flex flex-wrap gap-2">
+              {devAccounts.map((item) => (
+                <button
+                  key={item.code}
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => setCode(item.code)}
+                  className="rounded-lg border border-borderSubtle px-2 py-1 text-[11px] text-textSecondary"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               onClick={async () => {
@@ -87,10 +110,13 @@ export const LoginPage = () => {
                   await completeTelegramLoginWithCode(requestId, code)
                   window.sessionStorage.removeItem('tg_login_request_id')
                   window.sessionStorage.removeItem('tg_login_expires_at')
+                  notifySuccess('Вход выполнен успешно')
                   navigate('/profile')
                 } catch (err) {
-                  const msg = err instanceof Error ? err.message : 'unknown error'
-                  setError(`Не удалось завершить вход: ${msg}`)
+                  const msg = err instanceof Error ? err.message : 'Неизвестная ошибка'
+                  const text = `Не удалось завершить вход: ${msg}`
+                  setError(text)
+                  notifyError(text)
                 }
               }}
               disabled={isLoading || !code.trim()}

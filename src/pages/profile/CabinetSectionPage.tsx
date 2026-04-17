@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { AlertTriangle, CheckCircle2, ChevronRight, LayoutPanelTop } from 'lucide-react'
+import { AlertTriangle, ChevronRight, LayoutPanelTop } from 'lucide-react'
 import type { Match, PublicUserCard, Team, UserRole } from '../../domain/entities/types'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useSession } from '../../app/providers/use-session'
+import { notifyError, notifySuccess, toRussianMessage } from '../../lib/notifications'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { useTeams } from '../../hooks/data/useTeams'
 import { usePlayers } from '../../hooks/data/usePlayers'
@@ -138,8 +139,6 @@ const toDdMmYyyyFromDateInput = (value: string) => {
   return `${dd}.${mm}.${yyyy}`
 }
 
-const statusTone = (status: string) => status.startsWith('ok:') ? 'text-emerald-300' : 'text-rose-300'
-
 const formatActionTitle = (action: string, metadata?: Record<string, unknown>) => {
   if (action === 'auth.register') return 'Регистрация в системе'
   if (action === 'comment.create') return 'Опубликован комментарий'
@@ -188,6 +187,20 @@ export const CabinetSectionPage = () => {
   const { favoriteEntityKeys } = useUserPreferences()
 
   const [status, setStatus] = useState('')
+
+  useEffect(() => {
+    const normalized = status.trim()
+    if (!normalized) return
+    if (normalized.startsWith('ok:')) {
+      notifySuccess(toRussianMessage(normalized.replace(/^ok:\s*/i, '')))
+      return
+    }
+    if (normalized.startsWith('error:')) {
+      notifyError(toRussianMessage(normalized.replace(/^error:\s*/i, '')))
+      return
+    }
+    notifyError(toRussianMessage(normalized))
+  }, [status])
   const [myActions, setMyActions] = useState<Array<{ id: string; action: string; targetType: string; targetId: string; route: string; createdAt: string; metadata?: Record<string, unknown> }>>([])
   const [myNotifications, setMyNotifications] = useState<Array<{ id: string; notificationType: string; title: string; body: string; route: string; status: string; createdAt: string }>>([])
   const favoriteItems = useMemo(() => favoriteEntityKeys.map((key) => {
@@ -1380,15 +1393,6 @@ export const CabinetSectionPage = () => {
               setStatus(`error: ${(error as Error).message}`)
             }
           }}>Update setting</button>
-        </section>
-      )}
-
-      {status && (
-        <section className="fixed left-1/2 top-4 z-50 w-[min(92vw,540px)] -translate-x-1/2 rounded-xl border border-borderSubtle bg-panelBg/95 px-4 py-3 text-sm shadow-soft backdrop-blur">
-          <p className={`flex items-center gap-2 ${statusTone(status)}`}>
-            {status.startsWith('ok:') ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
-            {status}
-          </p>
         </section>
       )}
 

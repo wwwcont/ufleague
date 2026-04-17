@@ -15,6 +15,7 @@ import type {
 import type { AuthSession, BackendMeDTO, CommentAuthorState, CommentNode, Match, Player, PlayoffGrid, PublicEvent, PublicUserCard, SearchResult, StandingRow, Team, UserRole } from '../../domain/entities/types'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
 import { normalizeImageForUpload } from '../../lib/image-upload'
+import { notifyError, toRussianMessage } from '../../lib/notifications'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 
@@ -59,7 +60,9 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const isWrite = (init?.method ?? 'GET').toUpperCase() !== 'GET'
   const res = await fetch(`${API_BASE}${path}`, { credentials: 'include', headers: { 'Content-Type': 'application/json', ...(isWrite ? { 'X-CSRF-Token': getCsrfToken() } : {}), ...(init?.headers ?? {}) }, ...init })
   if (!res.ok) {
-    const message = (await res.text()).trim() || `API ${res.status}`
+    const rawMessage = (await res.text()).trim() || `API ${res.status}`
+    const message = toRussianMessage(rawMessage)
+    notifyError(message)
     throw new ApiError(res.status, message)
   }
   if (res.status === 204) return undefined as T
