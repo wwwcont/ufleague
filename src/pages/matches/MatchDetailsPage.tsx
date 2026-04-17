@@ -16,6 +16,7 @@ import { useRepositories } from '../../app/providers/use-repositories'
 import { ApiError } from '../../infrastructure/api/repositories'
 import { canManageMatch, canManageMatchScore } from '../../domain/services/accessControl'
 import { formatMatchMetaMsk, getTimeToKickoff } from '../../lib/date-time'
+import { toExternalUrl } from '../../lib/links'
 import type { Match } from '../../domain/entities/types'
 import { EditableSectionHeader, SectionActionBar } from '../../components/ui/editable'
 import { useUserPreferences } from '../../hooks/app/useUserPreferences'
@@ -337,6 +338,8 @@ export const MatchDetailsPage = () => {
     return ''
   })()
   const isMutedMatch = isMatchMuted(match.id)
+  const broadcastExternalUrl = toExternalUrl(match.broadcastUrl)
+  const diskExternalUrl = toExternalUrl(match.diskUrl)
 
   const refreshAfterPlayoffAction = async () => {
     await Promise.all([
@@ -474,9 +477,9 @@ export const MatchDetailsPage = () => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <EntityReactions entityKey={`match:${match.id}`} />
         <div className="flex flex-wrap items-center gap-2">
-          {match.broadcastUrl?.trim() && (
+          {broadcastExternalUrl && (
             <a
-              href={match.broadcastUrl}
+              href={broadcastExternalUrl}
               target="_blank"
               rel="noreferrer noopener"
               className="inline-flex items-center rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app"
@@ -484,9 +487,9 @@ export const MatchDetailsPage = () => {
               Смотреть трансляцию
             </a>
           )}
-          {match.diskUrl?.trim() && (
+          {diskExternalUrl && (
             <a
-              href={match.diskUrl}
+              href={diskExternalUrl}
               target="_blank"
               rel="noreferrer noopener"
               className="inline-flex items-center rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app"

@@ -5,6 +5,7 @@ import type { Match, PublicUserCard, Team, UserRole } from '../../domain/entitie
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useSession } from '../../app/providers/use-session'
 import { notifyError, notifySuccess, toRussianMessage } from '../../lib/notifications'
+import { toAppRoute } from '../../lib/links'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { useTeams } from '../../hooks/data/useTeams'
 import { usePlayers } from '../../hooks/data/usePlayers'
@@ -61,8 +62,8 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   edit: { title: 'Редактирование профиля', description: 'Рабочая форма профиля пользователя.', tips: ['Используйте загрузку данных перед сохранением.', 'Поля socials поддерживают key=value.'] },
   activity: { title: 'Моя активность', description: 'Работа с комментариями и реакциями.', tips: ['Откройте сущность и оставьте комментарий.', 'Проверьте ограничения доступа в реальном потоке.'] },
   'my-user': { title: 'Профиль пользователя', description: 'Быстрый переход в карточку пользователя.', tips: ['Открывается ваш user-профиль.', 'Редактирование доступно владельцу.'] },
-  'my-actions': { title: 'Мои действия', description: 'Лента действий пользователя.', tips: ['События сортируются по времени.', 'Каждый элемент ведет к месту действия.'] },
-  'my-notifications': { title: 'Мои уведомления', description: 'Дубли Telegram-уведомлений с переходом к источнику.', tips: ['Уведомления сортируются по времени.', 'Каждый элемент ведет к событию или пользователю.'] },
+  'my-actions': { title: 'Мои действия', description: 'История ваших действий.', tips: [] },
+  'my-notifications': { title: 'Мои уведомления', description: 'Ваши уведомления.', tips: [] },
   favorites: { title: 'Избранное', description: 'Список любимых команд и игроков.', tips: ['Элементы идут единым списком.', 'Оформление соответствует карточкам поиска.'] },
   'user-settings': { title: 'Настройки', description: 'Персональные настройки пользователя.', tips: ['Секция подготовлена под будущий функционал.'] },
   'player-profile': { title: 'Профиль игрока', description: 'Игровой профиль пользователя (отдельно от user-профиля).', tips: ['Переходите в user-профиль для ФИО/био.', 'Проверяйте связь user ↔ player profile.'] },
@@ -425,7 +426,7 @@ export const CabinetSectionPage = () => {
         targetType: item.targetType,
         targetId: item.targetId,
         createdAt: item.createdAt,
-        route: item.route || '/',
+        route: toAppRoute(item.route || '/'),
         metadata: item.metadata,
       })))
     }).catch(() => setMyActions([]))
@@ -682,11 +683,9 @@ export const CabinetSectionPage = () => {
             const details = formatActionDetails(item.action, item.metadata)
             const reactionType = String(item.metadata?.reaction_type ?? '')
             return (
-              <Link key={item.id} to={item.route} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
+              <Link key={item.id} to={toAppRoute(item.route)} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
                 <p className="text-sm font-semibold text-textPrimary">{title}</p>
-                <p className="mt-1 text-xs text-textMuted">
-                  {new Date(item.createdAt).toLocaleString('ru-RU')} · {item.targetType}:{item.targetId}
-                </p>
+                <p className="mt-1 text-xs text-textMuted">{new Date(item.createdAt).toLocaleString('ru-RU')}</p>
                 {reactionType === 'like' && <p className="mt-2 text-xs text-emerald-300">👍 Лайк</p>}
                 {reactionType === 'dislike' && <p className="mt-2 text-xs text-rose-300">👎 Дизлайк</p>}
                 {details && <p className="mt-2 text-xs text-textSecondary">{details}</p>}
@@ -700,10 +699,10 @@ export const CabinetSectionPage = () => {
       {section === 'my-notifications' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
           {myNotifications.length ? myNotifications.map((item) => (
-            <Link key={item.id} to={item.route || '/'} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
+            <Link key={item.id} to={toAppRoute(item.route || '/')} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
               <p className="text-sm font-semibold text-textPrimary">{item.title || 'Уведомление'}</p>
               {item.body && <p className="mt-1 text-xs text-textSecondary">{item.body}</p>}
-              <p className="mt-1 text-xs text-textMuted">{new Date(item.createdAt).toLocaleString('ru-RU')} · {item.notificationType} · {item.status}</p>
+              <p className="mt-1 text-xs text-textMuted">{new Date(item.createdAt).toLocaleString('ru-RU')}</p>
               <p className="mt-2 text-xs text-accentYellow">Перейти к источнику →</p>
             </Link>
           )) : <p className="text-xs text-textMuted">Пока нет уведомлений.</p>}
