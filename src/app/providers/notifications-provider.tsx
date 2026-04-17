@@ -46,7 +46,7 @@ export const NotificationsProvider = ({ children }: { children: ReactNode }) => 
   return (
     <NotificationsContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed left-1/2 top-4 z-[130] flex w-[min(94vw,560px)] -translate-x-1/2 flex-col gap-2 px-2">
+      <div className="pointer-events-none fixed left-1/2 top-[calc(env(safe-area-inset-top)+4.5rem)] z-[130] flex w-[min(94vw,560px)] -translate-x-1/2 flex-col gap-2 px-2">
         {items.map((item) => {
           const Icon = iconByTone[item.tone]
           return (

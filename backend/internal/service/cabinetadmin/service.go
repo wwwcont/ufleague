@@ -354,10 +354,32 @@ func (s Service) SuperadminAssignRoles(ctx context.Context, actor domain.User, u
 	if !s.policy.CanSuperadminManageIAM(actor) {
 		return fmt.Errorf("forbidden")
 	}
-	if err := s.repo.ReplaceUserRoles(ctx, userID, req.Roles); err != nil {
+	roles := append([]domain.Role{}, req.Roles...)
+	currentRoles, err := s.repo.GetUserRoles(ctx, userID)
+	if err != nil {
 		return err
 	}
-	return s.repo.AddAuditLog(ctx, actor.ID, "superadmin.assign_roles", "user", strconv.FormatInt(userID, 10), map[string]any{"roles": req.Roles})
+	hasCaptainNow := false
+	hasCaptainInRequest := false
+	for _, role := range currentRoles {
+		if role == domain.RoleCaptain {
+			hasCaptainNow = true
+			break
+		}
+	}
+	for _, role := range roles {
+		if role == domain.RoleCaptain {
+			hasCaptainInRequest = true
+			break
+		}
+	}
+	if hasCaptainNow && !hasCaptainInRequest {
+		roles = append(roles, domain.RoleCaptain)
+	}
+	if err := s.repo.ReplaceUserRoles(ctx, userID, roles); err != nil {
+		return err
+	}
+	return s.repo.AddAuditLog(ctx, actor.ID, "superadmin.assign_roles", "user", strconv.FormatInt(userID, 10), map[string]any{"roles": roles})
 }
 func (s Service) SuperadminAssignPermissions(ctx context.Context, actor domain.User, userID int64, req domain.AssignPermissionsRequest) error {
 	if !s.policy.CanSuperadminManageIAM(actor) {

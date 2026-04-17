@@ -28,6 +28,7 @@ type fakeRepo struct {
 	reassignedTeamID   int64
 	auditCalled        bool
 	auditErr           error
+	replacedRoles      []domain.Role
 }
 
 func (f *fakeRepo) GetProfile(context.Context, int64) (domain.UserProfile, error) {
@@ -49,8 +50,11 @@ func (f *fakeRepo) TransferCaptain(_ context.Context, teamID int64, newCaptain *
 	f.transferredCaptain = newCaptain
 	return nil
 }
-func (f *fakeRepo) ModerateDeleteComment(context.Context, int64) error             { return nil }
-func (f *fakeRepo) ReplaceUserRoles(context.Context, int64, []domain.Role) error   { return nil }
+func (f *fakeRepo) ModerateDeleteComment(context.Context, int64) error { return nil }
+func (f *fakeRepo) ReplaceUserRoles(_ context.Context, _ int64, roles []domain.Role) error {
+	f.replacedRoles = append([]domain.Role{}, roles...)
+	return nil
+}
 func (f *fakeRepo) ReplaceUserPermissions(context.Context, int64, []string) error  { return nil }
 func (f *fakeRepo) ReplaceUserRestrictions(context.Context, int64, []string) error { return nil }
 func (f *fakeRepo) UpsertGlobalSetting(context.Context, string, map[string]any, int64) error {
@@ -222,6 +226,37 @@ func TestAdminArchiveTeam(t *testing.T) {
 	}
 	if repo.archivedTeamID != 55 || !repo.archivedValue {
 		t.Fatalf("unexpected archive payload: team=%d archived=%v", repo.archivedTeamID, repo.archivedValue)
+	}
+}
+
+func TestSuperadminAssignRolesPreservesCaptain(t *testing.T) {
+	repo := &fakeRepo{roles: []domain.Role{domain.RoleCaptain, domain.RoleAdmin}}
+	svc := NewService(repo)
+	actor := domain.User{ID: 1, Roles: []domain.Role{domain.RoleSuperadmin}}
+
+	err := svc.SuperadminAssignRoles(context.Background(), actor, 77, domain.AssignRolesRequest{Roles: []domain.Role{domain.RoleGuest}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(repo.replacedRoles) != 2 {
+		t.Fatalf("expected 2 roles after preserve, got %v", repo.replacedRoles)
+	}
+	if repo.replacedRoles[0] != domain.RoleGuest || repo.replacedRoles[1] != domain.RoleCaptain {
+		t.Fatalf("unexpected roles: %v", repo.replacedRoles)
+	}
+}
+
+func TestSuperadminAssignRolesDoesNotForceCaptainWhenAbsent(t *testing.T) {
+	repo := &fakeRepo{roles: []domain.Role{domain.RoleGuest}}
+	svc := NewService(repo)
+	actor := domain.User{ID: 1, Roles: []domain.Role{domain.RoleSuperadmin}}
+
+	err := svc.SuperadminAssignRoles(context.Background(), actor, 77, domain.AssignRolesRequest{Roles: []domain.Role{domain.RoleAdmin}})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(repo.replacedRoles) != 1 || repo.replacedRoles[0] != domain.RoleAdmin {
+		t.Fatalf("unexpected roles: %v", repo.replacedRoles)
 	}
 }
 
