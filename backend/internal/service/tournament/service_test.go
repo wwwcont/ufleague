@@ -2,6 +2,7 @@ package tournament
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -11,9 +12,11 @@ import (
 type stubRepo struct {
 	playerByID   map[int64]domain.Player
 	teamByID     map[int64]domain.Team
+	matchByID    map[int64]domain.Match
 	updated      domain.Player
 	updatedID    int64
 	updateCalled bool
+	matchUpdated bool
 }
 
 func (s *stubRepo) ListTeams(context.Context) ([]domain.Team, error) { return nil, nil }
@@ -35,12 +38,16 @@ func (s *stubRepo) CreatePlayer(context.Context, domain.Player) (domain.Player, 
 	return domain.Player{}, nil
 }
 func (s *stubRepo) ListMatches(context.Context) ([]domain.Match, error)   { return nil, nil }
-func (s *stubRepo) GetMatch(context.Context, int64) (domain.Match, error) { return domain.Match{}, nil }
+func (s *stubRepo) GetMatch(_ context.Context, id int64) (domain.Match, error) {
+	return s.matchByID[id], nil
+}
 func (s *stubRepo) CreateMatch(context.Context, domain.Match) (domain.Match, error) {
 	return domain.Match{}, nil
 }
-func (s *stubRepo) UpdateMatch(context.Context, int64, domain.Match) (domain.Match, error) {
-	return domain.Match{}, nil
+func (s *stubRepo) UpdateMatch(_ context.Context, id int64, match domain.Match) (domain.Match, error) {
+	s.matchUpdated = true
+	match.ID = id
+	return match, nil
 }
 func (s *stubRepo) ListTournamentCycles(context.Context) ([]domain.TournamentCycle, error) {
 	return nil, nil
@@ -148,5 +155,39 @@ func TestUpdatePlayer_AllowsCaptainForOwnTeam(t *testing.T) {
 	}
 	if !repo.updateCalled {
 		t.Fatalf("expected update to be called")
+	}
+}
+
+func TestUpdateMatch_ForbidsCaptain(t *testing.T) {
+	repo := &stubRepo{}
+	svc := NewService(repo)
+	actor := domain.User{ID: 7, Roles: []domain.Role{domain.RoleCaptain}}
+
+	_, err := svc.UpdateMatch(context.Background(), actor, 10, domain.UpdateMatchRequest{})
+	if !errors.Is(err, ErrForbidden) {
+		t.Fatalf("expected forbidden for captain, got: %v", err)
+	}
+	if repo.matchUpdated {
+		t.Fatalf("expected match update not to be called")
+	}
+}
+
+func TestUpdateMatch_AllowsAdmin(t *testing.T) {
+	repo := &stubRepo{}
+	svc := NewService(repo)
+	actor := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+	startAt := time.Now().UTC()
+
+	_, err := svc.UpdateMatch(context.Background(), actor, 10, domain.UpdateMatchRequest{
+		HomeTeamID: 11,
+		AwayTeamID: 12,
+		StartAt:    startAt,
+		Status:     "live",
+	})
+	if err != nil {
+		t.Fatalf("expected admin update to be allowed, got: %v", err)
+	}
+	if !repo.matchUpdated {
+		t.Fatalf("expected match update to be called")
 	}
 }

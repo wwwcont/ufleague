@@ -12,7 +12,6 @@ import (
 	"unicode"
 
 	"football_ui/backend/internal/domain"
-	"football_ui/backend/internal/domain/authz"
 )
 
 var (
@@ -319,36 +318,7 @@ func (s Service) CreateMatch(ctx context.Context, actor domain.User, req domain.
 func (s Service) UpdateMatch(ctx context.Context, actor domain.User, id int64, req domain.UpdateMatchRequest) (domain.Match, error) {
 	isAdmin := hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin)
 	if !isAdmin {
-		current, err := s.repo.GetMatch(ctx, id)
-		if err != nil {
-			return domain.Match{}, err
-		}
-
-		isCaptainOfMatch, err := s.isCaptainOfMatch(ctx, actor, current)
-		if err != nil {
-			return domain.Match{}, err
-		}
-		hasScorePermission := authz.NewChecker().HasPermission(actor, "match.score.manage")
-
-		if !isCaptainOfMatch && !hasScorePermission {
-			return domain.Match{}, ErrForbidden
-		}
-
-		if req.HomeTeamID != current.HomeTeamID || req.AwayTeamID != current.AwayTeamID || req.Venue != current.Venue || !samePlayoffCell(req.PlayoffCellID, current.PlayoffCellID) || !sameTournamentID(req.TournamentID, current.TournamentID) {
-			return domain.Match{}, ErrForbidden
-		}
-
-		if isCaptainOfMatch {
-			if !canCaptainUpdateMatch(current, req) {
-				return domain.Match{}, ErrForbidden
-			}
-			req.ExtraTime = mergeScoreCooldownExtra(req.ExtraTime, current.ExtraTime)
-			if err = enforceScoreCooldown(&req, current, time.Now().UTC()); err != nil {
-				return domain.Match{}, err
-			}
-		} else if !req.StartAt.Equal(current.StartAt) || req.Status != current.Status {
-			return domain.Match{}, ErrForbidden
-		}
+		return domain.Match{}, ErrForbidden
 	}
 	return s.repo.UpdateMatch(ctx, id, domain.Match{
 		TournamentID: func() int64 {
@@ -360,37 +330,6 @@ func (s Service) UpdateMatch(ctx context.Context, actor domain.User, id int64, r
 		HomeTeamID: req.HomeTeamID, AwayTeamID: req.AwayTeamID, StartAt: req.StartAt, Status: req.Status,
 		HomeScore: req.HomeScore, AwayScore: req.AwayScore, ExtraTime: req.ExtraTime, Venue: req.Venue, PlayoffCellID: req.PlayoffCellID,
 	})
-}
-
-func (s Service) isCaptainOfMatch(ctx context.Context, actor domain.User, match domain.Match) (bool, error) {
-	if !hasRole(actor, domain.RoleCaptain) {
-		return false, nil
-	}
-	homeTeam, err := s.repo.GetTeam(ctx, match.HomeTeamID)
-	if err != nil {
-		return false, err
-	}
-	awayTeam, err := s.repo.GetTeam(ctx, match.AwayTeamID)
-	if err != nil {
-		return false, err
-	}
-	return (homeTeam.CaptainUserID != nil && *homeTeam.CaptainUserID == actor.ID) || (awayTeam.CaptainUserID != nil && *awayTeam.CaptainUserID == actor.ID), nil
-}
-
-func canCaptainUpdateMatch(current domain.Match, req domain.UpdateMatchRequest) bool {
-	if req.HomeTeamID != current.HomeTeamID || req.AwayTeamID != current.AwayTeamID {
-		return false
-	}
-	if req.Venue != current.Venue || !samePlayoffCell(req.PlayoffCellID, current.PlayoffCellID) || !sameTournamentID(req.TournamentID, current.TournamentID) {
-		return false
-	}
-	if current.Status == "scheduled" && req.Status == "live" {
-		return true
-	}
-	if !req.StartAt.Equal(current.StartAt) {
-		return false
-	}
-	return req.Status == current.Status || req.Status == "live" || req.Status == "half_time" || req.Status == "finished"
 }
 
 func enforceScoreCooldown(req *domain.UpdateMatchRequest, current domain.Match, now time.Time) error {
