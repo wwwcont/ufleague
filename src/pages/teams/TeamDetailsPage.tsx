@@ -55,6 +55,7 @@ export const TeamDetailsPage = () => {
   const [editableTelegram, setEditableTelegram] = useState('')
   const [editableVk, setEditableVk] = useState('')
   const [editableInstagram, setEditableInstagram] = useState('')
+  const [editableWebsite, setEditableWebsite] = useState('')
   const [customLabel1, setCustomLabel1] = useState('')
   const [customUrl1, setCustomUrl1] = useState('')
   const [customLabel2, setCustomLabel2] = useState('')
@@ -73,6 +74,7 @@ export const TeamDetailsPage = () => {
     setEditableTelegram(team.socials?.telegram ?? '')
     setEditableVk(team.socials?.vk ?? '')
     setEditableInstagram(team.socials?.instagram ?? '')
+    setEditableWebsite(team.socials?.website ?? '')
     setCustomLabel1(team.socials?.custom?.[0]?.label ?? '')
     setCustomUrl1(team.socials?.custom?.[0]?.url ?? '')
     setCustomLabel2(team.socials?.custom?.[1]?.label ?? '')
@@ -121,6 +123,7 @@ export const TeamDetailsPage = () => {
     setEditableTelegram(team.socials?.telegram ?? '')
     setEditableVk(team.socials?.vk ?? '')
     setEditableInstagram(team.socials?.instagram ?? '')
+    setEditableWebsite(team.socials?.website ?? '')
     setCustomLabel1(team.socials?.custom?.[0]?.label ?? '')
     setCustomUrl1(team.socials?.custom?.[0]?.url ?? '')
     setCustomLabel2(team.socials?.custom?.[1]?.label ?? '')
@@ -192,13 +195,13 @@ export const TeamDetailsPage = () => {
             </div>
 
             <div className="rounded-xl border border-borderSubtle bg-black/25 p-3">
-              <p className="text-sm leading-relaxed text-textSecondary">{team.description || 'Описание команды пока не заполнено.'}</p>
+              <p className="text-sm leading-relaxed text-textSecondary">{team.description || ''}</p>
             </div>
 
             <div>
               <SocialLinks
                 compact
-                links={{ telegram: team.socials?.telegram, vk: team.socials?.vk, instagram: team.socials?.instagram }}
+                links={{ telegram: team.socials?.telegram, vk: team.socials?.vk, instagram: team.socials?.instagram, website: team.socials?.website }}
                 custom={team.socials?.custom}
               />
             </div>
@@ -221,6 +224,7 @@ export const TeamDetailsPage = () => {
                     <EditableTextField label="Telegram" value={editableTelegram} onChange={setEditableTelegram} isEditing placeholder="@team_channel" />
                     <EditableTextField label="VK" value={editableVk} onChange={setEditableVk} isEditing placeholder="vk.com/team" />
                     <EditableTextField label="Instagram" value={editableInstagram} onChange={setEditableInstagram} isEditing placeholder="instagram.com/team" />
+                    <EditableTextField label="Сайт" value={editableWebsite} onChange={setEditableWebsite} isEditing placeholder="https://team.site" />
                     <EditableTextField label="Custom link #1 (label)" value={customLabel1} onChange={setCustomLabel1} isEditing placeholder="Партнер" />
                     <EditableTextField label="Custom link #1 (url)" value={customUrl1} onChange={setCustomUrl1} isEditing placeholder="https://..." />
                     <EditableTextField label="Custom link #2 (label)" value={customLabel2} onChange={setCustomLabel2} isEditing placeholder="Мерч" />
@@ -288,6 +292,7 @@ export const TeamDetailsPage = () => {
                     telegram: editableTelegram,
                     vk: editableVk,
                     instagram: editableInstagram,
+                    website: editableWebsite,
                     custom: [
                       ...(customLabel1 && customUrl1 ? [{ label: customLabel1, url: customUrl1 }] : []),
                       ...(customLabel2 && customUrl2 ? [{ label: customLabel2, url: customUrl2 }] : []),
@@ -341,9 +346,11 @@ export const TeamDetailsPage = () => {
                       <p className="mt-1 px-1 text-[11px] font-semibold text-accentYellow">Капитан команды</p>
                     ) : null}
                   </div>
-                <Link to={`/players/${player.id}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-borderSubtle text-textSecondary" aria-label="Открыть игрока">
-                  <Pencil size={12} />
-                </Link>
+                {canManageCurrentTeam && (
+                  <Link to={`/players/${player.id}`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-borderSubtle text-textSecondary" aria-label="Открыть игрока">
+                    <Pencil size={12} />
+                  </Link>
+                )}
               </div>
             </div>
           )) : <p className="text-sm text-textMuted">Состав пока не загружен.</p>}

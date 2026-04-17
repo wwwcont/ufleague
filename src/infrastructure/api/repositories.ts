@@ -89,6 +89,7 @@ const mapTeam = (t: any): Team => ({
     telegram: t.socials?.telegram,
     vk: t.socials?.vk,
     instagram: t.socials?.instagram,
+    website: t.socials?.website,
     custom: Array.isArray(t.socials?.custom)
       ? t.socials.custom.slice(0, 2).map((item: any) => ({ label: String(item.label).slice(0, 20), url: String(item.url) }))
       : [
@@ -119,6 +120,7 @@ const mapPlayer = (p: any): Player | null => {
       telegram: p.socials?.telegram,
       vk: p.socials?.vk,
       instagram: p.socials?.instagram,
+      website: p.socials?.website,
     },
     isHidden: p.is_visible === false || p.visible === false || p.hidden === true || p.position === 'hidden',
     stats: { goals: 0, assists: 0, appearances: Number(p.appearances ?? 0) },
@@ -324,6 +326,7 @@ export const teamsRepository: TeamsRepository = {
       ...(patchSocials.telegram !== undefined ? { telegram: patchSocials.telegram } : {}),
       ...(patchSocials.vk !== undefined ? { vk: patchSocials.vk } : {}),
       ...(patchSocials.instagram !== undefined ? { instagram: patchSocials.instagram } : {}),
+      ...(patchSocials.website !== undefined ? { website: patchSocials.website } : {}),
       ...(patch.slogan !== undefined ? { slogan: patch.slogan } : {}),
       custom_1_label: customLinks[0]?.label ?? '',
       custom_1_url: customLinks[0]?.url ?? '',
@@ -396,6 +399,7 @@ export const playersRepository: PlayersRepository = {
       ...(patch.socials?.telegram !== undefined ? { telegram: patch.socials.telegram } : {}),
       ...(patch.socials?.vk !== undefined ? { vk: patch.socials.vk } : {}),
       ...(patch.socials?.instagram !== undefined ? { instagram: patch.socials.instagram } : {}),
+      ...(patch.socials?.website !== undefined ? { website: patch.socials.website } : {}),
       ...(patch.bio !== undefined ? { bio: patch.bio } : {}),
       ...(patch.age !== undefined ? { age: String(patch.age) } : {}),
     }

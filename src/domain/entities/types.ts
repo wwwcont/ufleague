@@ -105,6 +105,7 @@ export interface Team {
     telegram?: string
     vk?: string
     instagram?: string
+    website?: string
     custom?: Array<{ label: string; url: string }>
   }
   coach: string
@@ -127,6 +128,7 @@ export interface Player {
     telegram?: string
     vk?: string
     instagram?: string
+    website?: string
   }
   isHidden?: boolean
   stats: {

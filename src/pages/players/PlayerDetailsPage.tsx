@@ -69,6 +69,7 @@ export const PlayerDetailsPage = () => {
   const [telegram, setTelegram] = useState('')
   const [vk, setVk] = useState('')
   const [instagram, setInstagram] = useState('')
+  const [website, setWebsite] = useState('')
   const [number, setNumber] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | undefined>(undefined)
@@ -89,6 +90,7 @@ export const PlayerDetailsPage = () => {
     setTelegram(player.socials?.telegram ?? '')
     setVk(player.socials?.vk ?? '')
     setInstagram(player.socials?.instagram ?? '')
+    setWebsite(player.socials?.website ?? '')
     setNumber(String(player.number ?? ''))
     setPosition(player.position ?? 'MF')
     setAvatarPreview(player.avatar ?? undefined)
@@ -262,7 +264,7 @@ export const PlayerDetailsPage = () => {
             }}
           />
 
-          <SocialLinks compact links={{ telegram: player.socials?.telegram, vk: player.socials?.vk, instagram: player.socials?.instagram }} />
+          <SocialLinks compact links={{ telegram: player.socials?.telegram, vk: player.socials?.vk, instagram: player.socials?.instagram, website: player.socials?.website }} />
         </div>
       </EditableSection>
 
@@ -278,6 +280,7 @@ export const PlayerDetailsPage = () => {
             setTelegram(player.socials?.telegram ?? '')
             setVk(player.socials?.vk ?? '')
             setInstagram(player.socials?.instagram ?? '')
+            setWebsite(player.socials?.website ?? '')
             setProfileStatus(null)
             setProfileTone('idle')
             setProfileEditing(true)
@@ -288,6 +291,7 @@ export const PlayerDetailsPage = () => {
             setTelegram(player.socials?.telegram ?? '')
             setVk(player.socials?.vk ?? '')
             setInstagram(player.socials?.instagram ?? '')
+            setWebsite(player.socials?.website ?? '')
             setProfileStatus(null)
             setProfileTone('idle')
             setProfileEditing(false)
@@ -301,13 +305,14 @@ export const PlayerDetailsPage = () => {
               <EditableTextField label="Telegram" value={telegram} onChange={setTelegram} isEditing placeholder="@nickname" />
               <EditableTextField label="VK" value={vk} onChange={setVk} isEditing placeholder="vk.com/..." />
               <EditableTextField label="Instagram" value={instagram} onChange={setInstagram} isEditing placeholder="instagram.com/..." />
+              <EditableTextField label="Сайт" value={website} onChange={setWebsite} isEditing placeholder="https://example.com" />
             </div>
           </>
         ) : (
           <div className="space-y-2 text-sm text-textSecondary">
             <p>{bio || 'Био пока не заполнено.'}</p>
             <p className="text-xs text-textMuted">Возраст: {player.age || '—'}</p>
-            <SocialLinks compact links={{ telegram: player.socials?.telegram, vk: player.socials?.vk, instagram: player.socials?.instagram }} />
+            <SocialLinks compact links={{ telegram: player.socials?.telegram, vk: player.socials?.vk, instagram: player.socials?.instagram, website: player.socials?.website }} />
           </div>
         )}
         <SectionActionBar
@@ -321,6 +326,7 @@ export const PlayerDetailsPage = () => {
             setTelegram(player.socials?.telegram ?? '')
             setVk(player.socials?.vk ?? '')
             setInstagram(player.socials?.instagram ?? '')
+            setWebsite(player.socials?.website ?? '')
             setProfileStatus(null)
             setProfileTone('idle')
             setProfileEditing(false)
@@ -338,6 +344,7 @@ export const PlayerDetailsPage = () => {
                   telegram,
                   vk,
                   instagram,
+                  website,
                 },
               })
               setProfileStatus('Профиль обновлен')

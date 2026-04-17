@@ -16,8 +16,9 @@ import (
 )
 
 var (
-	ErrForbidden = errors.New("forbidden")
-	slugRegex    = regexp.MustCompile(`[^a-z0-9]+`)
+	ErrForbidden   = errors.New("forbidden")
+	ErrRateLimited = errors.New("rate limited")
+	slugRegex      = regexp.MustCompile(`[^a-z0-9]+`)
 )
 
 type Repository interface {
@@ -318,14 +319,34 @@ func (s Service) CreateMatch(ctx context.Context, actor domain.User, req domain.
 func (s Service) UpdateMatch(ctx context.Context, actor domain.User, id int64, req domain.UpdateMatchRequest) (domain.Match, error) {
 	isAdmin := hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin)
 	if !isAdmin {
-		if !authz.NewChecker().HasPermission(actor, "match.score.manage") {
-			return domain.Match{}, ErrForbidden
-		}
 		current, err := s.repo.GetMatch(ctx, id)
 		if err != nil {
 			return domain.Match{}, err
 		}
-		if req.HomeTeamID != current.HomeTeamID || req.AwayTeamID != current.AwayTeamID || !req.StartAt.Equal(current.StartAt) || req.Status != current.Status || req.Venue != current.Venue || !samePlayoffCell(req.PlayoffCellID, current.PlayoffCellID) {
+
+		isCaptainOfMatch, err := s.isCaptainOfMatch(ctx, actor, current)
+		if err != nil {
+			return domain.Match{}, err
+		}
+		hasScorePermission := authz.NewChecker().HasPermission(actor, "match.score.manage")
+
+		if !isCaptainOfMatch && !hasScorePermission {
+			return domain.Match{}, ErrForbidden
+		}
+
+		if req.HomeTeamID != current.HomeTeamID || req.AwayTeamID != current.AwayTeamID || req.Venue != current.Venue || !samePlayoffCell(req.PlayoffCellID, current.PlayoffCellID) || !sameTournamentID(req.TournamentID, current.TournamentID) {
+			return domain.Match{}, ErrForbidden
+		}
+
+		if isCaptainOfMatch {
+			if !canCaptainUpdateMatch(current, req) {
+				return domain.Match{}, ErrForbidden
+			}
+			req.ExtraTime = mergeScoreCooldownExtra(req.ExtraTime, current.ExtraTime)
+			if err = enforceScoreCooldown(&req, current, time.Now().UTC()); err != nil {
+				return domain.Match{}, err
+			}
+		} else if !req.StartAt.Equal(current.StartAt) || req.Status != current.Status {
 			return domain.Match{}, ErrForbidden
 		}
 	}
@@ -339,6 +360,122 @@ func (s Service) UpdateMatch(ctx context.Context, actor domain.User, id int64, r
 		HomeTeamID: req.HomeTeamID, AwayTeamID: req.AwayTeamID, StartAt: req.StartAt, Status: req.Status,
 		HomeScore: req.HomeScore, AwayScore: req.AwayScore, ExtraTime: req.ExtraTime, Venue: req.Venue, PlayoffCellID: req.PlayoffCellID,
 	})
+}
+
+func (s Service) isCaptainOfMatch(ctx context.Context, actor domain.User, match domain.Match) (bool, error) {
+	if !hasRole(actor, domain.RoleCaptain) {
+		return false, nil
+	}
+	homeTeam, err := s.repo.GetTeam(ctx, match.HomeTeamID)
+	if err != nil {
+		return false, err
+	}
+	awayTeam, err := s.repo.GetTeam(ctx, match.AwayTeamID)
+	if err != nil {
+		return false, err
+	}
+	return (homeTeam.CaptainUserID != nil && *homeTeam.CaptainUserID == actor.ID) || (awayTeam.CaptainUserID != nil && *awayTeam.CaptainUserID == actor.ID), nil
+}
+
+func canCaptainUpdateMatch(current domain.Match, req domain.UpdateMatchRequest) bool {
+	if req.HomeTeamID != current.HomeTeamID || req.AwayTeamID != current.AwayTeamID {
+		return false
+	}
+	if req.Venue != current.Venue || !samePlayoffCell(req.PlayoffCellID, current.PlayoffCellID) || !sameTournamentID(req.TournamentID, current.TournamentID) {
+		return false
+	}
+	if current.Status == "scheduled" && req.Status == "live" {
+		return true
+	}
+	if !req.StartAt.Equal(current.StartAt) {
+		return false
+	}
+	return req.Status == current.Status || req.Status == "live" || req.Status == "half_time" || req.Status == "finished"
+}
+
+func enforceScoreCooldown(req *domain.UpdateMatchRequest, current domain.Match, now time.Time) error {
+	scoreDelta := (req.HomeScore + req.AwayScore) - (current.HomeScore + current.AwayScore)
+	if scoreDelta == 0 {
+		return nil
+	}
+
+	const cooldown = 30 * time.Second
+	cooldownState := readScoreCooldownState(current.ExtraTime)
+	if scoreDelta > 0 && now.Before(cooldownState.increaseUntil) {
+		return fmt.Errorf("%w: score increase cooldown active until %s", ErrRateLimited, cooldownState.increaseUntil.Format(time.RFC3339))
+	}
+	if scoreDelta < 0 && now.Before(cooldownState.decreaseUntil) {
+		return fmt.Errorf("%w: score decrease cooldown active until %s", ErrRateLimited, cooldownState.decreaseUntil.Format(time.RFC3339))
+	}
+
+	if req.ExtraTime == nil {
+		req.ExtraTime = map[string]any{}
+	}
+	scoreCooldown, _ := req.ExtraTime["score_cooldown"].(map[string]any)
+	if scoreCooldown == nil {
+		scoreCooldown = map[string]any{}
+	}
+	if scoreDelta > 0 {
+		scoreCooldown["increase_until"] = now.Add(cooldown).Format(time.RFC3339)
+	} else {
+		scoreCooldown["decrease_until"] = now.Add(cooldown).Format(time.RFC3339)
+	}
+	req.ExtraTime["score_cooldown"] = scoreCooldown
+	return nil
+}
+
+type scoreCooldownState struct {
+	increaseUntil time.Time
+	decreaseUntil time.Time
+}
+
+func readScoreCooldownState(extra map[string]any) scoreCooldownState {
+	if extra == nil {
+		return scoreCooldownState{}
+	}
+	cooldownRaw, _ := extra["score_cooldown"].(map[string]any)
+	if cooldownRaw == nil {
+		return scoreCooldownState{}
+	}
+	return scoreCooldownState{
+		increaseUntil: parseRFC3339FromAny(cooldownRaw["increase_until"]),
+		decreaseUntil: parseRFC3339FromAny(cooldownRaw["decrease_until"]),
+	}
+}
+
+func parseRFC3339FromAny(value any) time.Time {
+	raw, ok := value.(string)
+	if !ok || strings.TrimSpace(raw) == "" {
+		return time.Time{}
+	}
+	parsed, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed
+}
+
+func mergeScoreCooldownExtra(next map[string]any, current map[string]any) map[string]any {
+	if next == nil {
+		next = map[string]any{}
+	}
+	if current == nil {
+		return next
+	}
+	if _, exists := next["score_cooldown"]; exists {
+		return next
+	}
+	if cooldown, exists := current["score_cooldown"]; exists {
+		next["score_cooldown"] = cooldown
+	}
+	return next
+}
+
+func sameTournamentID(reqID *int64, currentID int64) bool {
+	if reqID == nil {
+		return currentID == 0
+	}
+	return *reqID == currentID
 }
 
 func (s Service) ListTournamentCycles(ctx context.Context) ([]domain.TournamentCycle, error) {
