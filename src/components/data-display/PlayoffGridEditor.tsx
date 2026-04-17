@@ -22,20 +22,7 @@ const sameLine = (a: { fromCellId: string; toCellId: string }, b: { fromCellId: 
   || (a.fromCellId === b.toCellId && a.toCellId === b.fromCellId)
 )
 
-const buildLinePath = (fromX: number, fromY: number, toX: number, toY: number) => {
-  const dx = toX - fromX
-  const direction = dx >= 0 ? 1 : -1
-  const distance = Math.abs(dx)
-  const verticalDistance = Math.abs(toY - fromY)
-  const bendX = Math.max(44, distance * 0.46)
-  const verticalInfluence = Math.min(36, Math.max(8, verticalDistance * 0.18))
-  const startInsetX = fromX + direction * 6
-  const endInsetX = toX - direction * 6
-  const helperCurve = `M ${fromX} ${fromY} C ${fromX + direction * 14} ${fromY}, ${fromX + direction * 22} ${fromY + (toY >= fromY ? verticalInfluence : -verticalInfluence)}, ${startInsetX} ${fromY}`
-  const mainCurve = `M ${startInsetX} ${fromY} C ${fromX + direction * bendX} ${fromY}, ${toX - direction * bendX} ${toY}, ${endInsetX} ${toY}`
-  const exitCurve = `M ${endInsetX} ${toY} C ${toX - direction * 22} ${toY + (toY >= fromY ? -verticalInfluence : verticalInfluence)}, ${toX - direction * 14} ${toY}, ${toX} ${toY}`
-  return { helperCurve, mainCurve, exitCurve, midX: (fromX + toX) / 2, midY: (fromY + toY) / 2 }
-}
+const buildLinePath = (fromX: number, fromY: number, toX: number, toY: number) => ({ path: `M ${fromX} ${fromY} L ${toX} ${toY}`, midX: (fromX + toX) / 2, midY: (fromY + toY) / 2 })
 
 export const PlayoffGridEditor = ({
   grid,
@@ -399,7 +386,7 @@ export const PlayoffGridEditor = ({
               return (
                 <g key={line.clientKey}>
                   <path
-                    d={`${path.helperCurve} ${path.mainCurve} ${path.exitCurve}`}
+                    d={path.path}
                     fill="none"
                     stroke="transparent"
                     strokeWidth={14}
@@ -410,15 +397,13 @@ export const PlayoffGridEditor = ({
                     }}
                   />
                   <path
-                    d={path.mainCurve}
+                    d={path.path}
                     fill="none"
                     stroke={selectedLineId === line.id ? '#f4cf49' : `url(#${gradientId})`}
                     strokeWidth={selectedLineId === line.id ? 4.4 : 3.1}
                     strokeLinecap="round"
                     pointerEvents="none"
                   />
-                  <path d={path.helperCurve} fill="none" stroke={`url(#${gradientId})`} strokeWidth={2.1} strokeLinecap="round" pointerEvents="none" />
-                  <path d={path.exitCurve} fill="none" stroke={`url(#${gradientId})`} strokeWidth={2.1} strokeLinecap="round" pointerEvents="none" />
                   {editable && isEditing && editorMode === 'lines' && (
                     <g transform={`translate(${path.midX}, ${path.midY})`}>
                       <circle r="9" fill="rgba(18, 23, 39, 0.95)" stroke="rgba(255,255,255,0.2)" />
@@ -502,15 +487,15 @@ export const PlayoffGridEditor = ({
                     </button>
                   </div>
                 )}
-                <div className="h-full rounded-xl border border-accentYellow/45 bg-panelAlt/95 px-2 py-1 shadow-soft" style={{ boxShadow: 'inset 0 0 18px rgba(244,207,73,0.26), inset 0 0 4px rgba(244,207,73,0.24)' }}>
+                <div className="h-full rounded-xl border border-accentYellow/30 bg-panelAlt/95 px-2 py-1 shadow-soft" style={{ boxShadow: 'inset 14px 0 18px rgba(244,207,73,0.2), inset -14px 0 18px rgba(244,207,73,0.2)' }}>
                   <div className="grid h-full grid-rows-2 gap-y-1">
                     <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-1">
-                      {home ? <TeamAvatar team={home} size="sm" className="h-[18px] w-[18px] rounded-md border border-white/15 bg-white/10 p-[1px]" /> : <span className="h-[18px] w-[18px] rounded-md border border-dashed border-borderSubtle/70" />}
+                      {home ? <TeamAvatar team={home} size="sm" fit="cover" className="h-[18px] w-[18px] rounded-md border border-white/15 bg-white/10 p-[1px]" /> : <span className="h-[18px] w-[18px] rounded-md border border-dashed border-borderSubtle/70" />}
                       <span className={`truncate text-[11px] font-semibold ${showWinner && cell.winnerTeamId === cell.homeTeamId ? 'text-accentYellow' : 'text-textPrimary'}`}>{home?.shortName ?? 'TBD'}</span>
                       <span className="text-[11px] font-semibold text-textSecondary tabular-nums">{homeScoreLabel}</span>
                     </div>
                     <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-1">
-                      {away ? <TeamAvatar team={away} size="sm" className="h-[18px] w-[18px] rounded-md border border-white/15 bg-white/10 p-[1px]" /> : <span className="h-[18px] w-[18px] rounded-md border border-dashed border-borderSubtle/70" />}
+                      {away ? <TeamAvatar team={away} size="sm" fit="cover" className="h-[18px] w-[18px] rounded-md border border-white/15 bg-white/10 p-[1px]" /> : <span className="h-[18px] w-[18px] rounded-md border border-dashed border-borderSubtle/70" />}
                       <span className={`truncate text-[11px] font-semibold ${showWinner && cell.winnerTeamId === cell.awayTeamId ? 'text-accentYellow' : 'text-textPrimary'}`}>{away?.shortName ?? 'TBD'}</span>
                       <span className="text-[11px] font-semibold text-textSecondary tabular-nums">{awayScoreLabel}</span>
                     </div>
