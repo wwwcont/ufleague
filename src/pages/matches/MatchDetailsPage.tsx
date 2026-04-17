@@ -49,6 +49,19 @@ const getPlayerLastName = (name?: string) => {
   return parts[parts.length - 1]
 }
 
+const isSystemMatchFeedEvent = (event: { title?: string; summary?: string; text?: string }) => {
+  const title = String(event.title ?? '').trim().toLowerCase()
+  const summary = String(event.summary ?? '').trim().toLowerCase()
+  const text = String(event.text ?? '').trim().toLowerCase()
+
+  if (title === 'гол') return true
+  if (title === 'желтая карточка' || title === 'жёлтая карточка') return true
+  if (title === 'красная карточка') return true
+  if (summary.includes('ассист') && text.includes('забил')) return true
+  if (text.includes('получил желтую карточку') || text.includes('получил жёлтую карточку') || text.includes('получил красную карточку')) return true
+  return false
+}
+
 const getOutcome = (targetTeamId: string, match: Match): 'W' | 'D' | 'L' | '-' => {
   if (match.status !== 'finished') return '-'
   const isHome = match.homeTeamId === targetTeamId
@@ -301,6 +314,7 @@ export const MatchDetailsPage = () => {
   })()
   const latestEvents = (matchFeedEvents?.length
     ? matchFeedEvents
+      .filter((event) => !isSystemMatchFeedEvent(event))
       .slice()
       .sort((a, b) => String(b.timestamp ?? '').localeCompare(String(a.timestamp ?? '')))
       .map((event) => ({ id: event.id, label: event.summary?.trim() || event.title?.trim() || 'Событие' }))
@@ -457,8 +471,30 @@ export const MatchDetailsPage = () => {
         </div>
       </section>
 
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <EntityReactions entityKey={`match:${match.id}`} />
+        <div className="flex flex-wrap items-center gap-2">
+          {match.broadcastUrl?.trim() && (
+            <a
+              href={match.broadcastUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex items-center rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app"
+            >
+              Смотреть трансляцию
+            </a>
+          )}
+          {match.diskUrl?.trim() && (
+            <a
+              href={match.diskUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex items-center rounded-lg bg-accentYellow px-3 py-1.5 text-xs font-semibold text-app"
+            >
+              Диск
+            </a>
+          )}
+        </div>
       </div>
       {goalStatus && <p className="rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 text-xs text-textMuted">{goalStatus}</p>}
       {cardsStatus && <p className="rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 text-xs text-textMuted">{cardsStatus}</p>}
