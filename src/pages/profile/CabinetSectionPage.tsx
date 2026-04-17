@@ -235,7 +235,6 @@ export const CabinetSectionPage = () => {
   const [selectedUser, setSelectedUser] = useState<PublicUserCard | null>(null)
   const [userLookupResults, setUserLookupResults] = useState<PublicUserCard[]>([])
   const [selectedUserTeamId, setSelectedUserTeamId] = useState('')
-  const [grantTeamCreate, setGrantTeamCreate] = useState(false)
   const [membershipTeamId, setMembershipTeamId] = useState('')
   const [teamSocialsRaw, setTeamSocialsRaw] = useState('telegram=https://t.me/')
 
@@ -461,14 +460,12 @@ export const CabinetSectionPage = () => {
         setSelectedUser(null)
         setSelectedUserTeamId('')
         setMembershipTeamId('')
-        setGrantTeamCreate(false)
         setStatus('error: пользователь не найден')
         return null
       }
       setSelectedUser(merged[0])
       setSelectedUserTeamId('')
       setMembershipTeamId('')
-      setGrantTeamCreate(false)
       setStatus(merged.length > 1
         ? `ok: найдено пользователей: ${merged.length}. Выберите нужного.`
         : `ok: выбран пользователь ${merged[0].displayName}`)
@@ -804,7 +801,6 @@ export const CabinetSectionPage = () => {
                       setSelectedUser(item)
                       setSelectedUserTeamId('')
                       setMembershipTeamId('')
-                      setGrantTeamCreate(false)
                       setStatus(`ok: выбран пользователь ${item.displayName}`)
                     }}
                     className={`w-full rounded-lg border px-2 py-1 text-left text-xs ${selectedUser?.id === item.id ? 'border-accentYellow text-accentYellow' : 'border-borderSubtle text-textSecondary'}`}
@@ -827,16 +823,9 @@ export const CabinetSectionPage = () => {
                     <option value="">Выберите команду</option>
                     {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
                   </select>
-                  <label className="flex items-center gap-2 text-xs text-textSecondary">
-                    <input type="checkbox" checked={grantTeamCreate} onChange={(e) => setGrantTeamCreate(e.target.checked)} />
-                    Разрешить создание команды
-                  </label>
                   <button type="button" disabled={!selectedUserTeamId} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
                     try {
                       await teamsRepository.adminTransferCaptain?.(selectedUserTeamId, selectedUser.id)
-                      if (grantTeamCreate && currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)) {
-                        await cabinetRepository.superadminAssignPermissions({ userId: selectedUser.id, permissions: ['tournament.team.create'] })
-                      }
                       setStatus('ok: captain rights granted')
                     } catch (error) {
                       setStatus(`error: ${(error as Error).message}`)
@@ -845,9 +834,6 @@ export const CabinetSectionPage = () => {
                   <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
                     try {
                       await cabinetRepository.adminAssignCaptainRole?.(selectedUser.id)
-                      if (grantTeamCreate && currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)) {
-                        await cabinetRepository.superadminAssignPermissions({ userId: selectedUser.id, permissions: ['tournament.team.create'] })
-                      }
                       setStatus('ok: captain role assigned without team')
                     } catch (error) {
                       setStatus(`error: ${(error as Error).message}`)
