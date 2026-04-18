@@ -151,7 +151,7 @@ export const MatchDetailsPage = () => {
   const [goalTeamId, setGoalTeamId] = useState('')
   const [goalScorerId, setGoalScorerId] = useState('')
   const [goalAssistId, setGoalAssistId] = useState('')
-  const [goalCreateEvent, setGoalCreateEvent] = useState(true)
+  const [goalCreateEvent, setGoalCreateEvent] = useState(false)
   const [goalStatus, setGoalStatus] = useState<string | null>(null)
   const [goalAction, setGoalAction] = useState<'add' | 'remove_selected' | 'remove_last'>('add')
   const [goalConfirmOpen, setGoalConfirmOpen] = useState(false)
@@ -161,7 +161,7 @@ export const MatchDetailsPage = () => {
   const [cardsAction, setCardsAction] = useState<'add_yellow' | 'add_red' | 'remove_yellow' | 'remove_red'>('add_yellow')
   const [cardsConfirmOpen, setCardsConfirmOpen] = useState(false)
   const [cardsStatus, setCardsStatus] = useState<string | null>(null)
-  const [cardCreateEvent, setCardCreateEvent] = useState(true)
+  const [cardCreateEvent, setCardCreateEvent] = useState(false)
   const [matchFlowPending, setMatchFlowPending] = useState(false)
   const [matchControlOpen, setMatchControlOpen] = useState(false)
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false)
@@ -251,7 +251,7 @@ export const MatchDetailsPage = () => {
     if (!Number.isFinite(kickoffTs)) return
 
     const now = Date.now()
-    const endTs = kickoffTs + 150 * 60 * 1000
+    const endTs = kickoffTs + 96 * 60 * 1000
     const shouldStart = now >= kickoffTs && now < endTs && match.status === 'scheduled'
     const shouldFinish = now >= endTs && (match.status === 'live' || match.status === 'half_time' || match.status === 'scheduled')
     if (!shouldStart && !shouldFinish) return
@@ -269,19 +269,19 @@ export const MatchDetailsPage = () => {
         nextEvents.push({ id: `auto_start_${match.id}`, type: 'substitution', note: 'Система: матч начался' })
       }
       if (shouldFinish && !hasEndEvent) {
-        nextEvents.push({ id: `auto_end_${match.id}`, type: 'substitution', note: 'Система: матч завершен (150 минут)' })
+        nextEvents.push({ id: `auto_end_${match.id}`, type: 'substitution', note: 'Система: матч завершен (96 минут)' })
       }
       try {
         await matchesRepository.updateMatch?.(match.id, {
           status: shouldFinish ? 'finished' : 'live',
           homeScore: match.score.home,
           awayScore: match.score.away,
-          currentMinute: shouldFinish ? Math.max(150, estimatedLiveMinute || 150) : Math.max(1, estimatedLiveMinute || 1),
+          currentMinute: shouldFinish ? Math.max(96, estimatedLiveMinute || 96) : Math.max(1, estimatedLiveMinute || 1),
           clockAnchorAt: shouldFinish ? null : new Date().toISOString(),
           matchEvents: nextEvents,
         })
         setLocalEvents(nextEvents)
-        setGoalStatus(shouldFinish ? 'Матч автоматически завершен по таймеру 150 минут.' : 'Матч автоматически переведен в LIVE по времени старта.')
+        setGoalStatus(shouldFinish ? 'Матч автоматически завершен по таймеру 96 минут.' : 'Матч автоматически переведен в LIVE по времени старта.')
       } catch (error) {
         setGoalStatus(error instanceof Error ? error.message : 'Не удалось автоматически обновить статус матча.')
       }
@@ -330,7 +330,7 @@ export const MatchDetailsPage = () => {
     const anchorTs = Date.parse(match.clockAnchorAt)
     if (!Number.isFinite(anchorTs)) return baseMinute || null
     const elapsed = Math.max(0, Math.floor((nowTs - anchorTs) / 60_000))
-    return Math.min(120, baseMinute + elapsed)
+    return Math.min(96, baseMinute + elapsed)
   })()
   const latestEvents = (matchFeedEvents ?? [])
     .slice()
@@ -346,7 +346,7 @@ export const MatchDetailsPage = () => {
   const lastGoalEvent = [...localEvents].reverse().find((event) => event.type === 'goal' && event.teamId)
   const lastGoalTeamShortName = lastGoalEvent?.teamId ? (teamMap[lastGoalEvent.teamId]?.shortName ?? '—') : '—'
   const timingNote = (() => {
-    if (match.status === 'live' || match.status === 'half_time') return liveMinute ? `${liveMinute}′ минута` : 'Матч в процессе'
+    if (match.status === 'live' || match.status === 'half_time') return 'Матч в процессе'
     if (match.status === 'scheduled') return getTimeToKickoff(match.date, match.time) ?? 'Скоро'
     return ''
   })()
@@ -549,7 +549,7 @@ export const MatchDetailsPage = () => {
                 {candidatePlayers.map((player) => <option key={player.id} value={player.id}>{player.displayName}</option>)}
               </select>
               <div className="flex gap-2">
-                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => { setGoalAction('add'); setGoalConfirmOpen(true) }}>Добавить</button>
+                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => { setGoalAction('add'); setGoalCreateEvent(false); setGoalConfirmOpen(true) }}>Добавить</button>
                 <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50" onClick={() => { setGoalAction('remove_selected'); setGoalConfirmOpen(true) }}>Убавить</button>
               </div>
               <button
@@ -693,8 +693,8 @@ export const MatchDetailsPage = () => {
                 {cardCandidatePlayers.map((player) => <option key={player.id} value={player.id}>{player.displayName}</option>)}
               </select>
               <div className="grid grid-cols-2 gap-2">
-                <button type="button" disabled={!cardsTeamId || !cardsPlayerId} className="rounded-lg border border-amber-400/60 bg-amber-400/15 px-3 py-2 text-xs font-semibold text-amber-200 disabled:opacity-50" onClick={() => { setCardsAction('add_yellow'); setCardCreateEvent(true); setCardsConfirmOpen(true) }}>Желтая</button>
-                <button type="button" disabled={!cardsTeamId || !cardsPlayerId} className="rounded-lg border border-rose-400/60 bg-rose-400/15 px-3 py-2 text-xs font-semibold text-rose-200 disabled:opacity-50" onClick={() => { setCardsAction('add_red'); setCardCreateEvent(true); setCardsConfirmOpen(true) }}>Красная</button>
+                <button type="button" disabled={!cardsTeamId || !cardsPlayerId} className="rounded-lg border border-amber-400/60 bg-amber-400/15 px-3 py-2 text-xs font-semibold text-amber-200 disabled:opacity-50" onClick={() => { setCardsAction('add_yellow'); setCardCreateEvent(false); setCardsConfirmOpen(true) }}>Желтая</button>
+                <button type="button" disabled={!cardsTeamId || !cardsPlayerId} className="rounded-lg border border-rose-400/60 bg-rose-400/15 px-3 py-2 text-xs font-semibold text-rose-200 disabled:opacity-50" onClick={() => { setCardsAction('add_red'); setCardCreateEvent(false); setCardsConfirmOpen(true) }}>Красная</button>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" disabled={!cardsTeamId || !cardsPlayerId} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50" onClick={() => { setCardsAction('remove_yellow'); setCardCreateEvent(false); setCardsConfirmOpen(true) }}>Отменить желтую</button>
