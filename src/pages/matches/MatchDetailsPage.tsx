@@ -401,12 +401,25 @@ export const MatchDetailsPage = () => {
 
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-y-0 left-0 w-1/2 overflow-hidden">
-            {home.logoUrl && <img src={home.logoUrl} alt="" className="h-full w-full scale-[1.1] object-cover blur-md opacity-22" />}
+            {home.logoUrl && (
+              <img
+                src={home.logoUrl}
+                alt=""
+                className="h-full w-full scale-[1.18] object-cover blur-xl opacity-14 saturate-[0.45] brightness-[0.58] contrast-75 transition-[filter,opacity,transform] duration-1000 ease-out"
+              />
+            )}
           </div>
           <div className="absolute inset-y-0 right-0 w-1/2 overflow-hidden">
-            {away.logoUrl && <img src={away.logoUrl} alt="" className="h-full w-full scale-[1.1] object-cover blur-md opacity-22" />}
+            {away.logoUrl && (
+              <img
+                src={away.logoUrl}
+                alt=""
+                className="h-full w-full scale-[1.18] object-cover blur-xl opacity-14 saturate-[0.45] brightness-[0.58] contrast-75 transition-[filter,opacity,transform] duration-1000 ease-out"
+              />
+            )}
           </div>
-          <div className="absolute inset-0 bg-gradient-to-r from-black/46 via-black/84 to-black/46" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/74 via-black/90 to-black/74 transition-colors duration-700 ease-out" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/25 via-black/8 to-black/25 transition-opacity duration-1000 ease-out" />
         </div>
 
         <div className="relative z-10">
