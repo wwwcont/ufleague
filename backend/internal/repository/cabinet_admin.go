@@ -103,11 +103,22 @@ func (r *CabinetAdminRepository) UpdateProfile(ctx context.Context, userID int64
 
 func (r *CabinetAdminRepository) FindUserByUsername(ctx context.Context, username string) (int64, error) {
 	var id int64
-	err := r.pool.QueryRow(ctx, `SELECT id FROM users WHERE username=$1`, username).Scan(&id)
+	err := r.pool.QueryRow(ctx, `
+		SELECT id
+		FROM users
+		WHERE LOWER(username) = LOWER($1)
+		   OR LOWER(COALESCE(telegram_username, '')) = LOWER($1)
+		ORDER BY CASE WHEN LOWER(username) = LOWER($1) THEN 0 ELSE 1 END
+		LIMIT 1
+	`, username).Scan(&id)
 	return id, err
 }
 func (r *CabinetAdminRepository) CreateTeamInvite(ctx context.Context, teamID, invitedID, byID int64) error {
-	_, err := r.pool.Exec(ctx, `INSERT INTO team_invites (team_id,invited_user_id,invited_by_user_id,status) VALUES ($1,$2,$3,'pending')`, teamID, invitedID, byID)
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO team_invites (team_id,invited_user_id,invited_by_user_id,status)
+		VALUES ($1,$2,$3,'pending')
+		ON CONFLICT (team_id, invited_user_id, status) DO NOTHING
+	`, teamID, invitedID, byID)
 	return err
 }
 func (r *CabinetAdminRepository) EnsureUserRole(ctx context.Context, userID int64, role domain.Role) error {
