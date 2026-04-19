@@ -253,35 +253,27 @@ export const MatchDetailsPage = () => {
     const now = Date.now()
     const endTs = kickoffTs + 96 * 60 * 1000
     const shouldStart = now >= kickoffTs && now < endTs && match.status === 'scheduled'
-    const shouldFinish = now >= endTs && (match.status === 'live' || match.status === 'half_time' || match.status === 'scheduled')
-    if (!shouldStart && !shouldFinish) return
+    if (!shouldStart) return
 
     void (async () => {
       const hasStartEvent = localEvents.some((event) => event.id === `auto_start_${match.id}`)
-      const hasEndEvent = localEvents.some((event) => event.id === `auto_end_${match.id}`)
-      if (shouldStart && hasStartEvent && !shouldFinish) return
-      if (shouldFinish && hasEndEvent) return
+      if (hasStartEvent) return
 
       const minuteBase = localEvents.length ? Math.max(...localEvents.map((event) => event.minute ?? 0)) : 0
       const estimatedLiveMinute = Math.max(match.currentMinute ?? 0, minuteBase)
-      const nextEvents = [...localEvents]
-      if (shouldStart && !hasStartEvent) {
-        nextEvents.push({ id: `auto_start_${match.id}`, type: 'substitution', note: 'Система: матч начался' })
-      }
-      if (shouldFinish && !hasEndEvent) {
-        nextEvents.push({ id: `auto_end_${match.id}`, type: 'substitution', note: 'Система: матч завершен (96 минут)' })
-      }
+      const nextEvents = [...localEvents, { id: `auto_start_${match.id}`, type: 'substitution', note: 'Система: матч начался' } satisfies Match['events'][number]]
+
       try {
         await matchesRepository.updateMatch?.(match.id, {
-          status: shouldFinish ? 'finished' : 'live',
+          status: 'live',
           homeScore: match.score.home,
           awayScore: match.score.away,
-          currentMinute: shouldFinish ? Math.max(96, estimatedLiveMinute || 96) : Math.max(1, estimatedLiveMinute || 1),
-          clockAnchorAt: shouldFinish ? null : new Date().toISOString(),
+          currentMinute: Math.max(1, estimatedLiveMinute || 1),
+          clockAnchorAt: new Date().toISOString(),
           matchEvents: nextEvents,
         })
         setLocalEvents(nextEvents)
-        setGoalStatus(shouldFinish ? 'Матч автоматически завершен по таймеру 96 минут.' : 'Матч автоматически переведен в LIVE по времени старта.')
+        setGoalStatus('Матч автоматически переведен в LIVE по времени старта.')
       } catch (error) {
         setGoalStatus(error instanceof Error ? error.message : 'Не удалось автоматически обновить статус матча.')
       }

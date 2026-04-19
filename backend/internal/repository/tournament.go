@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"football_ui/backend/internal/domain"
 
@@ -678,4 +679,63 @@ func (r *TournamentRepository) syncUserProfileFromPlayer(ctx context.Context, pl
 		DO UPDATE SET first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name, avatar_url=EXCLUDED.avatar_url, socials=EXCLUDED.socials, updated_at=NOW()
 	`, *player.UserID, firstName, lastName, player.AvatarURL, socialsRaw)
 	return err
+}
+
+func (r *TournamentRepository) AutoFinishExpiredMatches(ctx context.Context, now time.Time) ([]int64, error) {
+	rows, err := r.pool.Query(ctx, `
+		UPDATE matches
+		SET status='finished',
+			extra_time = jsonb_set(
+				jsonb_set(
+					jsonb_set(
+						COALESCE(extra_time, '{}'::jsonb),
+						'{match_minute}',
+						to_jsonb(GREATEST(
+							96,
+							CASE
+								WHEN COALESCE(extra_time->>'match_minute','') ~ '^[0-9]+$' THEN (extra_time->>'match_minute')::int
+								ELSE 0
+							END
+						)),
+						true
+					),
+					'{clock_anchor_at}',
+					'null'::jsonb,
+					true
+				),
+				'{match_events}',
+				CASE
+					WHEN EXISTS (
+						SELECT 1
+						FROM jsonb_array_elements(COALESCE(extra_time->'match_events', '[]'::jsonb)) AS evt
+						WHERE evt->>'id' = ('auto_end_' || matches.id::text)
+					) THEN COALESCE(extra_time->'match_events', '[]'::jsonb)
+					ELSE COALESCE(extra_time->'match_events', '[]'::jsonb) || jsonb_build_array(
+						jsonb_build_object(
+							'id', 'auto_end_' || matches.id::text,
+							'type', 'substitution',
+							'note', 'Система: матч завершен (96 минут)'
+						)
+					)
+				END,
+				true
+			),
+			updated_at = NOW()
+		WHERE status IN ('scheduled', 'live', 'half_time')
+			AND start_at <= ($1 - INTERVAL '96 minutes')
+		RETURNING id
+	`, now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := make([]int64, 0)
+	for rows.Next() {
+		var id int64
+		if err = rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }

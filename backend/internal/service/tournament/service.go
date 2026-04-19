@@ -36,6 +36,7 @@ type Repository interface {
 	GetMatch(ctx context.Context, id int64) (domain.Match, error)
 	CreateMatch(ctx context.Context, match domain.Match) (domain.Match, error)
 	UpdateMatch(ctx context.Context, id int64, match domain.Match) (domain.Match, error)
+	AutoFinishExpiredMatches(ctx context.Context, now time.Time) ([]int64, error)
 	ListTournamentCycles(ctx context.Context) ([]domain.TournamentCycle, error)
 	CreateTournamentCycle(ctx context.Context, req domain.CreateTournamentCycleRequest) (domain.TournamentCycle, error)
 	DeleteTournamentCycle(ctx context.Context, cycleID int64) error
@@ -58,6 +59,9 @@ func NewService(repo Repository) Service {
 	return Service{repo: repo}
 }
 
+func (s Service) AutoFinishExpiredMatches(ctx context.Context, now time.Time) ([]int64, error) {
+	return s.repo.AutoFinishExpiredMatches(ctx, now)
+}
 func hasRole(user domain.User, roles ...domain.Role) bool {
 	for _, current := range user.Roles {
 		for _, role := range roles {

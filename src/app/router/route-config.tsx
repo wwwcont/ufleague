@@ -10,6 +10,7 @@ import { MatchEventsPage } from '../../pages/matches/MatchEventsPage'
 import { MatchesPage } from '../../pages/matches/MatchesPage'
 import { PlayerDetailsPage } from '../../pages/players/PlayerDetailsPage'
 import { PlayersPage } from '../../pages/players/PlayersPage'
+import { TopScorersPage } from '../../pages/players/TopScorersPage'
 import { ProfilePage } from '../../pages/profile/ProfilePage'
 import { CabinetSectionPage } from '../../pages/profile/CabinetSectionPage'
 import { SearchPage } from '../../pages/search/SearchPage'
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
       { path: 'teams/:teamId/roster', element: <TeamRosterPage /> },
       { path: 'teams/:teamId/events', element: <TeamEventsPage /> },
       { path: 'players', element: <PlayersPage /> },
+      { path: 'top-scorers', element: <TopScorersPage /> },
       { path: 'players/:playerId', element: <PlayerDetailsPage /> },
       { path: 'table', element: <TablePage /> },
       { path: 'search', element: <SearchPage /> },

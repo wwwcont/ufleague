@@ -7,6 +7,7 @@ import type {
   Match,
   PlayoffGrid,
   Player,
+  TopScorer,
   PublicEvent,
   PublicUserCard,
   SearchResult,
@@ -33,6 +34,7 @@ export interface TeamsRepository {
 export interface PlayersRepository {
   getPlayers(teamId?: string): Promise<Player[]>
   getPlayerById(playerId: string): Promise<Player | null>
+  getTopScorers?(options?: { limit?: number; tournamentId?: string }): Promise<TopScorer[]>
   createPlayer?(input: { userId: string; teamId: string; fullName: string; position: string; shirtNumber: number; avatarUrl?: string }): Promise<void>
   updatePlayer?(playerId: string, patch: Partial<Pick<Player, 'displayName' | 'position' | 'number' | 'avatar' | 'bio' | 'age' | 'socials'>>): Promise<void>
 }

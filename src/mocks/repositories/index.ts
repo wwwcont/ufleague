@@ -20,6 +20,7 @@ import { players } from '../data/players'
 import { defaultSession, makeSessionByRole } from '../data/session'
 import { standings } from '../data/standings'
 import { teams } from '../data/teams'
+import { buildPlayerLeaderboard } from '../../domain/services/playerLeaderboard'
 
 let inMemoryTeams = teams.map((team) => ({ ...team, socials: { ...(team.socials ?? {}), custom: [...(team.socials?.custom ?? [])] } }))
 let inMemoryPlayers = players.map((player) => ({ ...player, socials: { ...(player.socials ?? {}) }, stats: { ...player.stats } }))
@@ -217,6 +218,10 @@ export const playersRepository: PlayersRepository = {
   },
   async getPlayerById(playerId) {
     return inMemoryPlayers.find((p) => p.id === playerId) ?? null
+  },
+  async getTopScorers(options) {
+    const rows = buildPlayerLeaderboard(inMemoryPlayers, inMemoryMatches)
+    return typeof options?.limit === 'number' ? rows.slice(0, options.limit) : rows
   },
   async createPlayer(input) {
     ensurePlayerForUser(input.userId, input.teamId, input.fullName)

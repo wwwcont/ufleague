@@ -91,6 +91,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.Get("/matches", h.ListMatches)
 		r.Get("/matches/{id}", h.GetMatch)
 		r.Get("/standings", h.GetStandings)
+		r.Get("/stats/top-scorers", h.GetTopScorers)
 		r.Get("/tournament/cycles", h.GetTournamentCycles)
 		r.Get("/playoff-grid/{tournamentId}", h.GetPlayoffGrid)
 		r.Get("/search", h.Search)
@@ -1012,6 +1013,159 @@ func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
 
 	for i := range rows {
 		rows[i].Position = i + 1
+	}
+	writeJSON(w, 200, rows)
+}
+
+type topScorerRow struct {
+	PlayerID    int64 `json:"player_id"`
+	TeamID      int64 `json:"team_id"`
+	Goals       int   `json:"goals"`
+	Assists     int   `json:"assists"`
+	YellowCards int   `json:"yellow_cards"`
+	RedCards    int   `json:"red_cards"`
+}
+
+type rawMatchEvent struct {
+	Type           string
+	PlayerID       int64
+	AssistPlayerID int64
+}
+
+func parseEventPlayerID(value any) int64 {
+	switch v := value.(type) {
+	case float64:
+		return int64(v)
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	case string:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		if err == nil {
+			return parsed
+		}
+	}
+	return 0
+}
+
+func parseMatchEvents(extra map[string]any) []rawMatchEvent {
+	if extra == nil {
+		return nil
+	}
+	raw := extra["match_events"]
+	if raw == nil {
+		raw = extra["goal_events"]
+	}
+	eventsRaw, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	result := make([]rawMatchEvent, 0, len(eventsRaw))
+	for _, item := range eventsRaw {
+		payload, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		typeValue, _ := payload["type"].(string)
+		normalizedType := strings.TrimSpace(typeValue)
+		if normalizedType == "" {
+			normalizedType = "goal"
+		}
+		result = append(result, rawMatchEvent{
+			Type:           normalizedType,
+			PlayerID:       parseEventPlayerID(payload["player_id"]),
+			AssistPlayerID: parseEventPlayerID(payload["assist_player_id"]),
+		})
+	}
+	return result
+}
+
+func (h Handler) GetTopScorers(w http.ResponseWriter, r *http.Request) {
+	limit := 0
+	if rawLimit := strings.TrimSpace(r.URL.Query().Get("limit")); rawLimit != "" {
+		parsed, err := strconv.Atoi(rawLimit)
+		if err != nil || parsed <= 0 {
+			http.Error(w, "bad limit", 400)
+			return
+		}
+		limit = parsed
+	}
+
+	targetCycleID := int64(0)
+	if rawCycle := strings.TrimSpace(r.URL.Query().Get("tournamentId")); rawCycle != "" {
+		parsed, err := strconv.ParseInt(rawCycle, 10, 64)
+		if err != nil || parsed <= 0 {
+			http.Error(w, "bad tournamentId", 400)
+			return
+		}
+		targetCycleID = parsed
+	}
+
+	players, err := h.tournament.ListPlayers(r.Context())
+	if err != nil {
+		http.Error(w, "failed", 500)
+		return
+	}
+	matches, err := h.tournament.ListMatches(r.Context())
+	if err != nil {
+		http.Error(w, "failed", 500)
+		return
+	}
+
+	rowsByPlayer := make(map[int64]*topScorerRow, len(players))
+	for _, player := range players {
+		if player.TeamID == nil || *player.TeamID == 0 {
+			continue
+		}
+		rowsByPlayer[player.ID] = &topScorerRow{PlayerID: player.ID, TeamID: *player.TeamID}
+	}
+
+	for _, match := range matches {
+		if targetCycleID > 0 && match.TournamentID != targetCycleID {
+			continue
+		}
+		for _, event := range parseMatchEvents(match.ExtraTime) {
+			if event.PlayerID > 0 {
+				if row := rowsByPlayer[event.PlayerID]; row != nil {
+					switch event.Type {
+					case "goal":
+						row.Goals++
+					case "yellow_card":
+						row.YellowCards++
+					case "red_card":
+						row.RedCards++
+					}
+				}
+			}
+			if event.Type == "goal" && event.AssistPlayerID > 0 {
+				if row := rowsByPlayer[event.AssistPlayerID]; row != nil {
+					row.Assists++
+				}
+			}
+		}
+	}
+
+	rows := make([]topScorerRow, 0, len(rowsByPlayer))
+	for _, row := range rowsByPlayer {
+		if row.Goals > 0 {
+			rows = append(rows, *row)
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].Goals != rows[j].Goals {
+			return rows[i].Goals > rows[j].Goals
+		}
+		if rows[i].Assists != rows[j].Assists {
+			return rows[i].Assists > rows[j].Assists
+		}
+		if rows[i].RedCards != rows[j].RedCards {
+			return rows[i].RedCards < rows[j].RedCards
+		}
+		return rows[i].PlayerID < rows[j].PlayerID
+	})
+	if limit > 0 && len(rows) > limit {
+		rows = rows[:limit]
 	}
 	writeJSON(w, 200, rows)
 }
