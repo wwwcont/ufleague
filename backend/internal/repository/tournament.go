@@ -682,6 +682,7 @@ func (r *TournamentRepository) syncUserProfileFromPlayer(ctx context.Context, pl
 }
 
 func (r *TournamentRepository) AutoFinishExpiredMatches(ctx context.Context, now time.Time) ([]int64, error) {
+	_ = now
 	rows, err := r.pool.Query(ctx, `
 		UPDATE matches
 		SET status='finished',
@@ -722,9 +723,9 @@ func (r *TournamentRepository) AutoFinishExpiredMatches(ctx context.Context, now
 			),
 			updated_at = NOW()
 		WHERE status IN ('scheduled', 'live', 'half_time')
-			AND start_at <= ($1 - INTERVAL '96 minutes')
+			AND start_at <= (NOW() - INTERVAL '96 minutes')
 		RETURNING id
-	`, now)
+	`)
 	if err != nil {
 		return nil, err
 	}

@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"football_ui/backend/internal/app/session"
@@ -44,10 +45,37 @@ type Handler struct {
 	cabinet       cabinetadmin.Service
 	session       session.Manager
 	cfg           config.Config
+	topScorers    topScorersCache
+}
+
+type topScorersCache struct {
+	mu      sync.RWMutex
+	ttl     time.Duration
+	entries map[string]topScorersCacheEntry
+}
+
+type topScorersCacheEntry struct {
+	expiresAt time.Time
+	rows      []topScorerRow
 }
 
 func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *repository.AuthRepository, tournamentSvc tournament.Service, eventsSvc eventsservice.Service, commentsSvc commentservice.Service, notificationsSvc notifservice.Service, telegramAuthSvc telegramauth.Service, cabinetSvc cabinetadmin.Service, sessionManager session.Manager) http.Handler {
-	h := Handler{healthRepo: healthRepo, authRepo: authRepo, tournament: tournamentSvc, events: eventsSvc, comments: commentsSvc, notifications: notificationsSvc, telegramAuth: telegramAuthSvc, cabinet: cabinetSvc, session: sessionManager, cfg: cfg}
+	h := Handler{
+		healthRepo:    healthRepo,
+		authRepo:      authRepo,
+		tournament:    tournamentSvc,
+		events:        eventsSvc,
+		comments:      commentsSvc,
+		notifications: notificationsSvc,
+		telegramAuth:  telegramAuthSvc,
+		cabinet:       cabinetSvc,
+		session:       sessionManager,
+		cfg:           cfg,
+		topScorers: topScorersCache{
+			ttl:     7 * time.Second,
+			entries: map[string]topScorersCacheEntry{},
+		},
+	}
 	r := chi.NewRouter()
 	obs := middleware.NewObservabilityMiddleware(h.reportHTTPErrorFlow)
 	sec := middleware.NewSecurityMiddleware(cfg)
@@ -1081,7 +1109,37 @@ func parseMatchEvents(extra map[string]any) []rawMatchEvent {
 	return result
 }
 
-func (h Handler) GetTopScorers(w http.ResponseWriter, r *http.Request) {
+func topScorersCacheKey(limit int, tournamentID int64) string {
+	return strconv.Itoa(limit) + ":" + strconv.FormatInt(tournamentID, 10)
+}
+
+func (h *Handler) getCachedTopScorers(key string, now time.Time) ([]topScorerRow, bool) {
+	h.topScorers.mu.RLock()
+	entry, ok := h.topScorers.entries[key]
+	h.topScorers.mu.RUnlock()
+	if !ok || now.After(entry.expiresAt) {
+		return nil, false
+	}
+	rows := make([]topScorerRow, len(entry.rows))
+	copy(rows, entry.rows)
+	return rows, true
+}
+
+func (h *Handler) storeCachedTopScorers(key string, rows []topScorerRow, now time.Time) {
+	if h.topScorers.ttl <= 0 {
+		return
+	}
+	copyRows := make([]topScorerRow, len(rows))
+	copy(copyRows, rows)
+	h.topScorers.mu.Lock()
+	h.topScorers.entries[key] = topScorersCacheEntry{
+		expiresAt: now.Add(h.topScorers.ttl),
+		rows:      copyRows,
+	}
+	h.topScorers.mu.Unlock()
+}
+
+func (h *Handler) GetTopScorers(w http.ResponseWriter, r *http.Request) {
 	limit := 0
 	if rawLimit := strings.TrimSpace(r.URL.Query().Get("limit")); rawLimit != "" {
 		parsed, err := strconv.Atoi(rawLimit)
@@ -1100,6 +1158,13 @@ func (h Handler) GetTopScorers(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		targetCycleID = parsed
+	}
+
+	now := time.Now().UTC()
+	cacheKey := topScorersCacheKey(limit, targetCycleID)
+	if rows, ok := h.getCachedTopScorers(cacheKey, now); ok {
+		writeJSON(w, 200, rows)
+		return
 	}
 
 	players, err := h.tournament.ListPlayers(r.Context())
@@ -1167,6 +1232,7 @@ func (h Handler) GetTopScorers(w http.ResponseWriter, r *http.Request) {
 	if limit > 0 && len(rows) > limit {
 		rows = rows[:limit]
 	}
+	h.storeCachedTopScorers(cacheKey, rows, now)
 	writeJSON(w, 200, rows)
 }
 
