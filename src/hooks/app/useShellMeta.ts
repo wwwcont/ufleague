@@ -12,6 +12,7 @@ export const useShellMeta = () => {
     if (pathname === '/teams') return 'КОМАНДЫ'
     if (pathname.startsWith('/players/')) return 'ИГРОК'
     if (pathname === '/players') return 'ИГРОКИ'
+    if (pathname === '/top-scorers') return 'ТОП БОМБАРДИРОВ'
     if (pathname === '/table') return 'ТАБЛИЦА / СЕТКА'
     if (pathname === '/search') return 'ПОИСК'
     if (pathname.startsWith('/events/')) return 'СОБЫТИЕ'

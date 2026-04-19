@@ -110,7 +110,7 @@ const mapPlayer = (p: any): Player | null => {
     id: String(p.id),
     teamId: String(p.team_id),
     userId: String(p.user_id),
-    displayName: p.full_name,
+    displayName: String(p.full_name ?? p.nickname ?? '').trim() || `@${String(p.user_id)}`,
     number: p.shirt_number ?? 0,
     position: (p.position || 'MF') as Player['position'],
     age: Number(p.socials?.age ?? 21),
