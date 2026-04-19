@@ -12,7 +12,7 @@ import type {
   UsersRepository,
   UploadsRepository,
 } from '../../domain/repositories/contracts'
-import type { AuthSession, BackendMeDTO, CommentAuthorState, CommentNode, Match, Player, PlayoffGrid, PublicEvent, PublicUserCard, SearchResult, StandingRow, Team, UserRole } from '../../domain/entities/types'
+import type { AuthSession, BackendMeDTO, CommentAuthorState, CommentNode, Match, Player, PlayoffGrid, PublicEvent, PublicUserCard, SearchResult, StandingRow, Team, TopScorer, UserRole } from '../../domain/entities/types'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
 import { normalizeImageForUpload } from '../../lib/image-upload'
 import { notifyError, toRussianMessage } from '../../lib/notifications'
@@ -175,6 +175,16 @@ const mapMatch = (m: any): Match => ({
   playoffCellId: m.playoff_cell_id ? String(m.playoff_cell_id) : null,
 })
 
+
+
+const mapTopScorer = (item: any): TopScorer => ({
+  playerId: String(item.player_id),
+  teamId: String(item.team_id),
+  goals: Number(item.goals ?? 0),
+  assists: Number(item.assists ?? 0),
+  yellowCards: Number(item.yellow_cards ?? 0),
+  redCards: Number(item.red_cards ?? 0),
+})
 const derivePlayoffResult = (cell: { homeTeamId: string | null; awayTeamId: string | null; attachedMatches: Array<{ status: Match['status']; homeScore: number; awayScore: number }> }) => {
   const aggregate = cell.attachedMatches.reduce(({ home, away }, match) => ({ home: home + match.homeScore, away: away + match.awayScore }), { home: 0, away: 0 })
   const allMatchesFinished = cell.attachedMatches.length > 0 && cell.attachedMatches.every((match) => match.status === 'finished')
@@ -376,6 +386,13 @@ export const playersRepository: PlayersRepository = {
     } catch {
       return null
     }
+  },
+  async getTopScorers(options) {
+    const params = new URLSearchParams()
+    if (options?.limit) params.set('limit', String(options.limit))
+    if (options?.tournamentId) params.set('tournamentId', String(options.tournamentId))
+    const suffix = params.toString() ? `?${params.toString()}` : ''
+    return (await api<any[]>(`/api/stats/top-scorers${suffix}`)).map(mapTopScorer)
   },
   async createPlayer(input) {
     await api('/api/players', {

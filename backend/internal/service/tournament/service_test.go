@@ -37,7 +37,7 @@ func (s *stubRepo) GetPlayer(_ context.Context, id int64) (domain.Player, error)
 func (s *stubRepo) CreatePlayer(context.Context, domain.Player) (domain.Player, error) {
 	return domain.Player{}, nil
 }
-func (s *stubRepo) ListMatches(context.Context) ([]domain.Match, error)   { return nil, nil }
+func (s *stubRepo) ListMatches(context.Context) ([]domain.Match, error) { return nil, nil }
 func (s *stubRepo) GetMatch(_ context.Context, id int64) (domain.Match, error) {
 	return s.matchByID[id], nil
 }
@@ -48,6 +48,10 @@ func (s *stubRepo) UpdateMatch(_ context.Context, id int64, match domain.Match) 
 	s.matchUpdated = true
 	match.ID = id
 	return match, nil
+}
+
+func (s *stubRepo) AutoFinishExpiredMatches(context.Context, time.Time) ([]int64, error) {
+	return nil, nil
 }
 func (s *stubRepo) ListTournamentCycles(context.Context) ([]domain.TournamentCycle, error) {
 	return nil, nil

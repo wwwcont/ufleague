@@ -174,6 +174,17 @@ export interface Match {
   tieRelation?: MatchTieRelation | null
 }
 
+
+
+export interface TopScorer {
+  playerId: ID
+  teamId: ID
+  goals: number
+  assists: number
+  yellowCards: number
+  redCards: number
+}
+
 export interface StandingRow {
   position: number
   teamId: ID

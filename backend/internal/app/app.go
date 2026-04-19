@@ -46,6 +46,8 @@ func Run(ctx context.Context, cfg config.Config) error {
 	telegramAuthSvc := telegramauth.NewService(authRepo, cfg.Telegram.MiniAppAuthURL, cfg.Features.TelegramMockLoginEnabled, cfg.Features.TelegramMockCode)
 	sessionManager := session.NewManager(cfg.Session.CookieName, cfg.Session.TTL, cfg.Session.Secure, cfg.Session.Domain)
 
+	runMatchAutoFinishJob(ctx, tournamentSvc, time.Minute)
+
 	srv := &http.Server{
 		Addr:              cfg.HTTP.Address(),
 		Handler:           transporthttp.NewRouter(cfg, dbPool, authRepo, tournamentSvc, eventsSvc, commentsSvc, notificationsSvc, telegramAuthSvc, cabinetSvc, sessionManager),
@@ -72,4 +74,26 @@ func Run(ctx context.Context, cfg config.Config) error {
 	case err := <-errCh:
 		return err
 	}
+}
+
+func runMatchAutoFinishJob(ctx context.Context, tournamentSvc tournament.Service, interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				finishedIDs, err := tournamentSvc.AutoFinishExpiredMatches(ctx, time.Now().UTC())
+				if err != nil {
+					slog.Error("match_auto_finish_job_failed", "err", err)
+					continue
+				}
+				if len(finishedIDs) > 0 {
+					slog.Info("match_auto_finish_job_updated", "count", len(finishedIDs), "match_ids", finishedIDs)
+				}
+			}
+		}
+	}()
 }

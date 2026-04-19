@@ -11,7 +11,8 @@ import { useEvents } from '../../hooks/data/useEvents'
 import { formatTimeOnlyMsk } from '../../lib/date-time'
 import type { Team } from '../../domain/entities/types'
 import { usePlayers } from '../../hooks/data/usePlayers'
-import { buildPlayerLeaderboard, resolvePlayerDisplayName } from '../../domain/services/playerLeaderboard'
+import { useTopScorers } from '../../hooks/data/useTopScorers'
+import { resolvePlayerDisplayName } from '../../domain/services/playerLeaderboard'
 import { TeamAvatar } from '../../components/ui/TeamAvatar'
 
 const fallbackTeam = (id: string): Team => ({
@@ -45,7 +46,8 @@ export const HomePage = () => {
   const playerMap = Object.fromEntries((players ?? []).map((player) => [player.id, player]))
   const liveAndUpcoming = (matchList ?? []).filter((m) => m.status === 'live' || m.status === 'scheduled').slice(0, 5)
   const visibleEvents = useMemo(() => events ?? [], [events])
-  const topScorers = useMemo(() => buildPlayerLeaderboard(players ?? [], matchList ?? []).slice(0, 3), [players, matchList])
+  const { data: topScorersData } = useTopScorers({ limit: 3 })
+  const topScorers = topScorersData ?? []
 
   return (
     <PageContainer>
