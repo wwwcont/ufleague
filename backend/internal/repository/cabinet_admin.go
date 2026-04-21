@@ -635,8 +635,18 @@ func (r *CabinetAdminRepository) ListEntityChangeHistory(ctx context.Context, li
 		SELECT al.id, al.action, al.target_type, al.target_id, COALESCE(al.metadata, '{}'::jsonb), al.created_at, COALESCE(u.display_name, '')
 		FROM audit_logs al
 		LEFT JOIN users u ON u.id = al.actor_user_id
-		WHERE al.target_type IN ('team', 'player', 'match')
-		  AND al.action IN ('team.update', 'player.update', 'match.update')
+		WHERE al.target_type IN ('team', 'player', 'match', 'user')
+		  AND (
+			al.action LIKE '%.update'
+			OR al.action IN (
+				'captain.team_socials',
+				'captain.roster_visibility',
+				'admin.archive_team',
+				'admin.delete_team',
+				'admin.delete_match',
+				'admin.user_profile_update'
+			)
+		  )
 		ORDER BY al.created_at DESC
 		LIMIT $1
 	`, limit)
