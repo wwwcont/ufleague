@@ -39,6 +39,7 @@ export const router = createBrowserRouter([
       { path: 'teams/:teamId/events', element: <TeamEventsPage /> },
       { path: 'players', element: <PlayersPage /> },
       { path: 'top-scorers', element: <TopScorersPage /> },
+      { path: 'top-players', element: <TopScorersPage /> },
       { path: 'players/:playerId', element: <PlayerDetailsPage /> },
       { path: 'table', element: <TablePage /> },
       { path: 'search', element: <SearchPage /> },
