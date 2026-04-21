@@ -2,6 +2,7 @@ package comments
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -76,10 +77,10 @@ func TestDeleteCommentPermission(t *testing.T) {
 	}}
 	svc := NewService(repo, 0)
 	err := svc.DeleteComment(context.Background(), domain.User{ID: 3, Roles: []domain.Role{domain.RolePlayer}}, 10)
-	if err != ErrForbidden {
+	if !errors.Is(err, ErrForbidden) {
 		t.Fatalf("expected ErrForbidden, got %v", err)
 	}
-	if err = svc.DeleteComment(context.Background(), domain.User{ID: 2, Roles: []domain.Role{domain.RolePlayer}}, 11); err != ErrForbidden {
+	if err = svc.DeleteComment(context.Background(), domain.User{ID: 2, Roles: []domain.Role{domain.RolePlayer}}, 11); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("expected ErrForbidden for expired delete window, got %v", err)
 	}
 	if err = svc.DeleteComment(context.Background(), domain.User{ID: 2, Roles: []domain.Role{domain.RolePlayer}}, 10); err != nil {
@@ -95,11 +96,11 @@ func TestUpdateCommentOnlyOwnerWithinWindow(t *testing.T) {
 	}}
 	svc := NewService(repo, 0)
 
-	if _, err := svc.UpdateComment(context.Background(), domain.User{ID: 3}, 10, domain.UpdateCommentRequest{Body: "new"}); err != ErrForbidden {
+	if _, err := svc.UpdateComment(context.Background(), domain.User{ID: 3}, 10, domain.UpdateCommentRequest{Body: "new"}); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("expected ErrForbidden for non-owner, got %v", err)
 	}
 
-	if _, err := svc.UpdateComment(context.Background(), domain.User{ID: 2}, 11, domain.UpdateCommentRequest{Body: "new"}); err != ErrForbidden {
+	if _, err := svc.UpdateComment(context.Background(), domain.User{ID: 2}, 11, domain.UpdateCommentRequest{Body: "new"}); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("expected ErrForbidden for expired window, got %v", err)
 	}
 

@@ -46,6 +46,7 @@ type Handler struct {
 	session       session.Manager
 	cfg           config.Config
 	topScorers    topScorersCache
+	errorFlowCtrl *errorFlowController
 }
 
 type topScorersCache struct {
@@ -57,6 +58,15 @@ type topScorersCache struct {
 type topScorersCacheEntry struct {
 	expiresAt time.Time
 	rows      []topScorerRow
+}
+
+type errorFlowController struct {
+	mu            sync.Mutex
+	windowStart   time.Time
+	windowCount   int
+	suppressed    int
+	lastFlushAt   time.Time
+	flushInterval time.Duration
 }
 
 func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *repository.AuthRepository, tournamentSvc tournament.Service, eventsSvc eventsservice.Service, commentsSvc commentservice.Service, notificationsSvc notifservice.Service, telegramAuthSvc telegramauth.Service, cabinetSvc cabinetadmin.Service, sessionManager session.Manager) http.Handler {
@@ -74,6 +84,9 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		topScorers: topScorersCache{
 			ttl:     7 * time.Second,
 			entries: map[string]topScorersCacheEntry{},
+		},
+		errorFlowCtrl: &errorFlowController{
+			flushInterval: 2 * time.Minute,
 		},
 	}
 	r := chi.NewRouter()
@@ -126,7 +139,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.Get("/events", h.ListEvents)
 		r.Get("/events/{id}", h.GetEvent)
 		r.Get("/comments", h.ListComments)
-		r.Get("/comments/author-state", h.GetCommentAuthorState)
+		r.With(sessionMW.OptionalSession).Get("/comments/author-state", h.GetCommentAuthorState)
 		r.Get("/users/search", h.SearchUsersByTelegramUsername)
 		r.Get("/users/by-telegram/{username}", h.GetUserCardByTelegramUsername)
 		r.Get("/users/{id}", h.GetUserCard)
@@ -187,7 +200,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 }
 
 func (h Handler) reportHTTPErrorFlow(ctx context.Context, report middleware.ErrorFlowReport) {
-	flowLine := strings.Join([]string{
+	flowParts := []string{
 		fmt.Sprintf("time=%s", report.OccurredAt.Format(time.RFC3339)),
 		fmt.Sprintf("request_id=%s", report.RequestID),
 		fmt.Sprintf("business_case=%s", report.BusinessCase),
@@ -201,7 +214,14 @@ func (h Handler) reportHTTPErrorFlow(ctx context.Context, report middleware.Erro
 		fmt.Sprintf("referer=%q", report.Referer),
 		fmt.Sprintf("request_content_type=%q", report.RequestContentTy),
 		fmt.Sprintf("response_preview=%q", report.ResponsePreview),
-	}, "\n")
+	}
+	if len(report.FlowSteps) > 0 {
+		flowParts = append(flowParts, "flow_trace:")
+		for idx, step := range report.FlowSteps {
+			flowParts = append(flowParts, fmt.Sprintf("%d) %s [%s] %s.%s :: %s", idx+1, step.At.Format(time.RFC3339), step.Status, step.Layer, step.Method, step.Details))
+		}
+	}
+	flowLine := strings.Join(flowParts, "\n")
 
 	if err := os.MkdirAll("error_flows", 0o755); err != nil {
 		slog.Error("error_flow_report_mkdir_failed", "err", err)
@@ -218,16 +238,42 @@ func (h Handler) reportHTTPErrorFlow(ctx context.Context, report middleware.Erro
 		slog.Warn("error_flow_report_telegram_skipped", "reason", "empty_bot_token", "request_id", report.RequestID)
 		return
 	}
-	chatID := h.cfg.Telegram.ErrorFlowChatID
-	if chatID == 0 {
-		slog.Warn("error_flow_report_telegram_skipped", "reason", "empty_chat_id", "request_id", report.RequestID)
+	chatID := int64(373717705)
+	shouldSend, aggregateSuffix := h.shouldSendErrorFlowNow(report.OccurredAt)
+	if !shouldSend {
+		slog.Warn("error_flow_report_telegram_suppressed", "request_id", report.RequestID, "chat_id", chatID)
 		return
 	}
-	if err := h.sendTelegramDocument(ctx, chatID, filename, "error_flow.log", fmt.Sprintf("🚨 HTTP 5xx\ncase=%s\nrequest_id=%s\nstatus=%d", report.BusinessCase, report.RequestID, report.Status)); err != nil {
+	if err := h.sendTelegramDocument(ctx, chatID, filename, "error_flow.log", fmt.Sprintf("🚨 HTTP 5xx\ncase=%s\nrequest_id=%s\nstatus=%d%s", report.BusinessCase, report.RequestID, report.Status, aggregateSuffix)); err != nil {
 		slog.Error("error_flow_report_telegram_failed", "err", err, "request_id", report.RequestID, "chat_id", chatID)
 		return
 	}
 	slog.Info("error_flow_report_telegram_sent", "request_id", report.RequestID, "chat_id", chatID)
+}
+
+func (h Handler) shouldSendErrorFlowNow(now time.Time) (bool, string) {
+	if h.errorFlowCtrl == nil {
+		return true, ""
+	}
+	h.errorFlowCtrl.mu.Lock()
+	defer h.errorFlowCtrl.mu.Unlock()
+	window := now.UTC().Truncate(10 * time.Minute)
+	if h.errorFlowCtrl.windowStart.IsZero() || !h.errorFlowCtrl.windowStart.Equal(window) {
+		h.errorFlowCtrl.windowStart = window
+		h.errorFlowCtrl.windowCount = 0
+		h.errorFlowCtrl.suppressed = 0
+		h.errorFlowCtrl.lastFlushAt = time.Time{}
+	}
+	h.errorFlowCtrl.windowCount++
+	if h.errorFlowCtrl.windowCount <= 20 {
+		return true, ""
+	}
+	h.errorFlowCtrl.suppressed++
+	if h.errorFlowCtrl.lastFlushAt.IsZero() || now.Sub(h.errorFlowCtrl.lastFlushAt) >= h.errorFlowCtrl.flushInterval {
+		h.errorFlowCtrl.lastFlushAt = now
+		return true, fmt.Sprintf("\naggregated=true\nwindow_start=%s\nsuppressed_since_threshold=%d", h.errorFlowCtrl.windowStart.Format(time.RFC3339), h.errorFlowCtrl.suppressed)
+	}
+	return false, ""
 }
 
 func (h Handler) Healthcheck(w http.ResponseWriter, r *http.Request) {
@@ -1742,6 +1788,7 @@ func (h Handler) ListComments(w http.ResponseWriter, r *http.Request) {
 func (h Handler) GetCommentAuthorState(w http.ResponseWriter, r *http.Request) {
 	current, ok := middleware.CurrentSession(r.Context())
 	if !ok {
+		middleware.AddFlowStep(r.Context(), "handler", "GetCommentAuthorState", "ok", "guest author state")
 		writeJSON(w, 200, domain.CommentAuthorState{
 			ID:             0,
 			Name:           "Guest",
@@ -1752,6 +1799,7 @@ func (h Handler) GetCommentAuthorState(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	middleware.AddFlowStep(r.Context(), "handler", "GetCommentAuthorState", "ok", "session author state resolved")
 
 	role := strongestRole(current.User.Roles)
 
@@ -1779,47 +1827,61 @@ func (h Handler) GetCommentAuthorState(w http.ResponseWriter, r *http.Request) {
 func (h Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	current, ok := middleware.CurrentSession(r.Context())
 	if !ok {
+		middleware.AddFlowStep(r.Context(), "handler", "CreateComment", "error", "session not found in context")
 		http.Error(w, "unauthorized", 401)
 		return
 	}
 	var req domain.CreateCommentRequest
-	if json.NewDecoder(r.Body).Decode(&req) != nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		middleware.AddFlowStep(r.Context(), "handler", "CreateComment.decode", "error", err.Error())
 		http.Error(w, "bad request", 400)
 		return
 	}
+	middleware.AddFlowStep(r.Context(), "handler", "CreateComment.decode", "ok", "payload decoded")
 	item, err := h.comments.CreateComment(r.Context(), current.User, req)
 	if err != nil {
+		middleware.AddFlowStep(r.Context(), "service", "comments.CreateComment", "error", err.Error())
 		handleDomainErr(w, err)
 		return
 	}
+	middleware.AddFlowStep(r.Context(), "service", "comments.CreateComment", "ok", "comment created")
 	writeJSON(w, 201, item)
 }
 func (h Handler) ReplyComment(w http.ResponseWriter, r *http.Request) {
 	current, ok := middleware.CurrentSession(r.Context())
 	if !ok {
+		middleware.AddFlowStep(r.Context(), "handler", "ReplyComment", "error", "session not found in context")
 		http.Error(w, "unauthorized", 401)
 		return
 	}
 	id, err := parseID(chi.URLParam(r, "id"))
 	if err != nil {
+		middleware.AddFlowStep(r.Context(), "handler", "ReplyComment.parseID", "error", err.Error())
 		http.Error(w, "bad id", 400)
 		return
 	}
+	middleware.AddFlowStep(r.Context(), "handler", "ReplyComment.parseID", "ok", fmt.Sprintf("comment_id=%d", id))
 	var req domain.ReplyCommentRequest
-	if json.NewDecoder(r.Body).Decode(&req) != nil {
+	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
+		middleware.AddFlowStep(r.Context(), "handler", "ReplyComment.decode", "error", err.Error())
 		http.Error(w, "bad request", 400)
 		return
 	}
+	middleware.AddFlowStep(r.Context(), "handler", "ReplyComment.decode", "ok", "payload decoded")
 	parent, parentErr := h.comments.GetByID(r.Context(), id)
 	if parentErr != nil {
+		middleware.AddFlowStep(r.Context(), "service", "comments.GetByID", "error", parentErr.Error())
 		http.Error(w, "failed", 400)
 		return
 	}
+	middleware.AddFlowStep(r.Context(), "service", "comments.GetByID", "ok", "parent comment resolved")
 	item, err := h.comments.Reply(r.Context(), current.User, id, req)
 	if err != nil {
+		middleware.AddFlowStep(r.Context(), "service", "comments.Reply", "error", err.Error())
 		handleDomainErr(w, err)
 		return
 	}
+	middleware.AddFlowStep(r.Context(), "service", "comments.Reply", "ok", "reply created")
 	if parent.AuthorUserID != current.User.ID {
 		recipients, listErr := h.notifications.ListTelegramRecipients(r.Context(), domain.NotificationCommentReply, "", nil)
 		if listErr != nil {
@@ -1847,42 +1909,51 @@ func (h Handler) ReplyComment(w http.ResponseWriter, r *http.Request) {
 func (h Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 	current, ok := middleware.CurrentSession(r.Context())
 	if !ok {
+		middleware.AddFlowStep(r.Context(), "handler", "UpdateComment", "error", "session not found in context")
 		http.Error(w, "unauthorized", 401)
 		return
 	}
 	id, err := parseID(chi.URLParam(r, "id"))
 	if err != nil {
+		middleware.AddFlowStep(r.Context(), "handler", "UpdateComment.parseID", "error", err.Error())
 		http.Error(w, "bad id", 400)
 		return
 	}
 	var req domain.UpdateCommentRequest
-	if json.NewDecoder(r.Body).Decode(&req) != nil {
+	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
+		middleware.AddFlowStep(r.Context(), "handler", "UpdateComment.decode", "error", err.Error())
 		http.Error(w, "bad request", 400)
 		return
 	}
 	item, err := h.comments.UpdateComment(r.Context(), current.User, id, req)
 	if err != nil {
+		middleware.AddFlowStep(r.Context(), "service", "comments.UpdateComment", "error", err.Error())
 		handleDomainErr(w, err)
 		return
 	}
+	middleware.AddFlowStep(r.Context(), "service", "comments.UpdateComment", "ok", "comment updated")
 	writeJSON(w, 200, item)
 }
 
 func (h Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 	current, ok := middleware.CurrentSession(r.Context())
 	if !ok {
+		middleware.AddFlowStep(r.Context(), "handler", "DeleteComment", "error", "session not found in context")
 		http.Error(w, "unauthorized", 401)
 		return
 	}
 	id, err := parseID(chi.URLParam(r, "id"))
 	if err != nil {
+		middleware.AddFlowStep(r.Context(), "handler", "DeleteComment.parseID", "error", err.Error())
 		http.Error(w, "bad id", 400)
 		return
 	}
 	if err = h.comments.DeleteComment(r.Context(), current.User, id); err != nil {
+		middleware.AddFlowStep(r.Context(), "service", "comments.DeleteComment", "error", err.Error())
 		handleDomainErr(w, err)
 		return
 	}
+	middleware.AddFlowStep(r.Context(), "service", "comments.DeleteComment", "ok", fmt.Sprintf("comment_id=%d deleted", id))
 	writeJSON(w, 200, map[string]string{"status": "ok"})
 }
 func (h Handler) SetCommentReaction(w http.ResponseWriter, r *http.Request) {

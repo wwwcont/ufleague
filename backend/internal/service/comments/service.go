@@ -3,6 +3,7 @@ package comments
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -72,29 +73,39 @@ func (s Service) Reply(ctx context.Context, user domain.User, parentID int64, re
 func (s Service) UpdateComment(ctx context.Context, user domain.User, commentID int64, req domain.UpdateCommentRequest) (domain.Comment, error) {
 	comment, err := s.repo.GetByID(ctx, commentID)
 	if err != nil {
-		return domain.Comment{}, err
+		return domain.Comment{}, fmt.Errorf("load comment by id %d: %w", commentID, err)
 	}
 	if comment.AuthorUserID != user.ID {
-		return domain.Comment{}, ErrForbidden
+		return domain.Comment{}, fmt.Errorf("%w: only author can edit comment (author_user_id=%d, actor_user_id=%d)", ErrForbidden, comment.AuthorUserID, user.ID)
 	}
 	if time.Since(comment.CreatedAt) > 12*time.Hour {
-		return domain.Comment{}, ErrForbidden
+		return domain.Comment{}, fmt.Errorf("%w: edit window exceeded (created_at=%s, max_window=12h)", ErrForbidden, comment.CreatedAt.UTC().Format(time.RFC3339))
 	}
-	return s.repo.UpdateBody(ctx, commentID, strings.TrimSpace(req.Body))
+	item, updateErr := s.repo.UpdateBody(ctx, commentID, strings.TrimSpace(req.Body))
+	if updateErr != nil {
+		return domain.Comment{}, fmt.Errorf("update comment body for id %d: %w", commentID, updateErr)
+	}
+	return item, nil
 }
 
 func (s Service) DeleteComment(ctx context.Context, user domain.User, commentID int64) error {
 	comment, err := s.repo.GetByID(ctx, commentID)
 	if err != nil {
-		return err
+		return fmt.Errorf("load comment by id %d: %w", commentID, err)
 	}
 	if hasRole(user, domain.RoleAdmin, domain.RoleSuperadmin) {
-		return s.repo.SoftDelete(ctx, commentID)
+		if deleteErr := s.repo.SoftDelete(ctx, commentID); deleteErr != nil {
+			return fmt.Errorf("admin soft delete comment %d: %w", commentID, deleteErr)
+		}
+		return nil
 	}
 	if comment.AuthorUserID == user.ID && time.Since(comment.CreatedAt) <= 12*time.Hour {
-		return s.repo.SoftDelete(ctx, commentID)
+		if deleteErr := s.repo.SoftDelete(ctx, commentID); deleteErr != nil {
+			return fmt.Errorf("author soft delete comment %d: %w", commentID, deleteErr)
+		}
+		return nil
 	}
-	return ErrForbidden
+	return fmt.Errorf("%w: delete denied (author_user_id=%d, actor_user_id=%d, created_at=%s, max_window=12h)", ErrForbidden, comment.AuthorUserID, user.ID, comment.CreatedAt.UTC().Format(time.RFC3339))
 }
 
 func (s Service) SetReaction(ctx context.Context, user domain.User, commentID int64, req domain.SetReactionRequest) error {

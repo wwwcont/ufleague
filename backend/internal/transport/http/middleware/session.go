@@ -25,8 +25,10 @@ func NewSessionMiddleware(repo *repository.AuthRepository, manager session.Manag
 
 func (m SessionMiddleware) RequireSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		AddFlowStep(r.Context(), "middleware", "session.require", "start", "require active session")
 		cookie, err := r.Cookie(m.manager.CookieName())
 		if err != nil || cookie.Value == "" {
+			AddFlowStep(r.Context(), "middleware", "session.require", "error", "session cookie missing")
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
@@ -34,15 +36,41 @@ func (m SessionMiddleware) RequireSession(next http.Handler) http.Handler {
 		sessionData, err := m.repo.GetSessionWithUserByHash(r.Context(), m.manager.HashToken(cookie.Value))
 		if err != nil {
 			if errors.Is(err, repository.ErrSessionNotFound) {
+				AddFlowStep(r.Context(), "middleware", "session.require", "error", "session not found")
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
 			slog.Error("session_middleware_load_failed", "err", err, "path", r.URL.Path, "method", r.Method)
+			AddFlowStep(r.Context(), "middleware", "session.require", "error", "session storage error: "+err.Error())
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
 
 		ctx := context.WithValue(r.Context(), contextSession, sessionData)
+		AddFlowStep(ctx, "middleware", "session.require", "ok", "session loaded")
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func (m SessionMiddleware) OptionalSession(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie(m.manager.CookieName())
+		if err != nil || cookie.Value == "" {
+			AddFlowStep(r.Context(), "middleware", "session.optional", "ok", "guest request: cookie missing")
+			next.ServeHTTP(w, r)
+			return
+		}
+		sessionData, err := m.repo.GetSessionWithUserByHash(r.Context(), m.manager.HashToken(cookie.Value))
+		if err != nil {
+			if !errors.Is(err, repository.ErrSessionNotFound) {
+				slog.Error("session_optional_load_failed", "err", err, "path", r.URL.Path, "method", r.Method)
+				AddFlowStep(r.Context(), "middleware", "session.optional", "error", "session storage error: "+err.Error())
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
+		ctx := context.WithValue(r.Context(), contextSession, sessionData)
+		AddFlowStep(ctx, "middleware", "session.optional", "ok", "session attached")
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

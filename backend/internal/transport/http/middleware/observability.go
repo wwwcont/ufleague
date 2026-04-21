@@ -40,6 +40,7 @@ type ErrorFlowReport struct {
 	DurationMS       int64
 	RequestContentTy string
 	ResponsePreview  string
+	FlowSteps        []FlowStep
 }
 
 func NewObservabilityMiddleware(onError func(context.Context, ErrorFlowReport)) *ObservabilityMiddleware {
@@ -60,6 +61,8 @@ func (m *ObservabilityMiddleware) RequestID(next http.Handler) http.Handler {
 func (m *ObservabilityMiddleware) RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
+		r = r.WithContext(InitFlowTrace(r.Context()))
+		AddFlowStep(r.Context(), "http", "request.start", "ok", fmt.Sprintf("%s %s", r.Method, r.URL.Path))
 		useCase := detectBusinessCase(r.Method, r.URL.Path)
 		requestID := r.Header.Get(requestIDHeader)
 		rec := &statusRecorder{ResponseWriter: w, statusCode: http.StatusOK, maxPreview: 1024}
@@ -72,6 +75,7 @@ func (m *ObservabilityMiddleware) RequestLogger(next http.Handler) http.Handler 
 			"remote_addr", r.RemoteAddr,
 		)
 		next.ServeHTTP(rec, r)
+		AddFlowStep(r.Context(), "http", "request.finish", strconv.Itoa(rec.statusCode), rec.preview())
 
 		durationMS := time.Since(start).Milliseconds()
 		atomic.AddUint64(&m.reqCount, 1)
@@ -114,6 +118,7 @@ func (m *ObservabilityMiddleware) RequestLogger(next http.Handler) http.Handler 
 					DurationMS:       durationMS,
 					RequestContentTy: strings.TrimSpace(r.Header.Get("Content-Type")),
 					ResponsePreview:  rec.preview(),
+					FlowSteps:        SnapshotFlowSteps(r.Context()),
 				}
 				go m.onError(context.Background(), report)
 			}
