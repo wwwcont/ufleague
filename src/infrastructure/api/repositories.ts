@@ -136,7 +136,7 @@ const mapMatchEvents = (raw: unknown): Match['events'] => {
     const parsedMinute = payload.minute === undefined || payload.minute === null ? undefined : Number(payload.minute)
     const minute = Number.isFinite(parsedMinute) && Number(parsedMinute) >= 0 ? Number(parsedMinute) : undefined
     const rawType = String(payload.type ?? 'goal')
-    const normalizedType: Match['events'][number]['type'] = rawType === 'yellow_card' || rawType === 'red_card' || rawType === 'substitution' ? rawType : 'goal'
+    const normalizedType: Match['events'][number]['type'] = rawType === 'own_goal' || rawType === 'yellow_card' || rawType === 'red_card' || rawType === 'substitution' ? rawType : 'goal'
     acc.push({
       id: String(payload.id ?? `match_event_${index}`),
       minute,
