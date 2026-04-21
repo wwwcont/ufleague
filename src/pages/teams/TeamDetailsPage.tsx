@@ -17,6 +17,7 @@ import { EventFeedSection } from '../../components/events'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { canManageTeam } from '../../domain/services/accessControl'
+import { buildPlayerStatsMap, buildTeamHistorySummary } from '../../domain/services/teamPlayerStats'
 import { ApiError } from '../../infrastructure/api/repositories'
 import { useUserPreferences } from '../../hooks/app/useUserPreferences'
 import {
@@ -96,19 +97,13 @@ export const TeamDetailsPage = () => {
   const teamMatches = allTeamMatches.slice(0, 3)
   const hasMoreMatches = allTeamMatches.length > 3
   const teamMap = Object.fromEntries((teams ?? []).map((item) => [item.id, item]))
-  const recentForm = allTeamMatches
-    .filter((match) => match.status === 'finished')
-    .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`))
-    .slice(0, 5)
-    .map((match) => {
-      const isHome = match.homeTeamId === team.id
-      const ownScore = isHome ? match.score.home : match.score.away
-      const opponentScore = isHome ? match.score.away : match.score.home
-      if (ownScore > opponentScore) return 'W'
-      if (ownScore < opponentScore) return 'L'
-      return 'D'
-    })
   const canManageCurrentTeam = canManageTeam(session, team)
+  const historySummary = buildTeamHistorySummary(team.id, matches ?? [])
+  const playerStatsMap = buildPlayerStatsMap(players ?? [], matches ?? [])
+  const visiblePlayers = (players ?? [])
+    .filter((player) => canManageCurrentTeam || !player.isHidden)
+    .slice(0, 8)
+    .map((player) => ({ ...player, stats: playerStatsMap.get(player.id) ?? player.stats }))
   const isFavoriteTeam = isFavorite(`team:${team.id}`)
   const actionError = (error: unknown) => {
     if (error instanceof ApiError) return `Ошибка API ${error.status}: ${error.message}`
@@ -317,10 +312,10 @@ export const TeamDetailsPage = () => {
         <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Trophy size={16} className="text-accentYellow" /> ИНФОРМАЦИЯ</h2>
         <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-5">
           <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Позиция:</span> <span className="font-semibold text-textPrimary">#{standing?.position ?? '—'}</span></div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Очки:</span> <span className="font-semibold text-accentYellow">{standing?.points ?? team.statsSummary.points}</span></div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Матчи:</span> {team.statsSummary.played}</div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Форма:</span> {(recentForm.length ? recentForm : team.form).map((item) => formLabel[item] ?? item).join(' ')}</div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Голы:</span> {team.statsSummary.goalsFor}:{team.statsSummary.goalsAgainst}</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Очки:</span> <span className="font-semibold text-accentYellow">{historySummary.points}</span></div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Матчи:</span> {historySummary.played}</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Форма:</span> {(historySummary.form.length ? historySummary.form : team.form).map((item) => formLabel[item] ?? item).join(' ')}</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Голы:</span> {historySummary.goalsFor}:{historySummary.goalsAgainst}</div>
         </div>
       </section>
 
@@ -334,10 +329,7 @@ export const TeamDetailsPage = () => {
           </div>
         </div>
         <div className="space-y-2">
-          {players?.length ? players
-            .filter((player) => canManageCurrentTeam || !player.isHidden)
-            .slice(0, 8)
-            .map((player) => (
+          {visiblePlayers.length ? visiblePlayers.map((player) => (
             <div key={player.id} className="rounded-xl border border-borderSubtle bg-mutedBg p-2">
               <div className="flex items-center justify-between gap-2">
                   <div className="flex-1">

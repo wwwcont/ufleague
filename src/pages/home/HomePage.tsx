@@ -46,8 +46,12 @@ export const HomePage = () => {
   const playerMap = Object.fromEntries((players ?? []).map((player) => [player.id, player]))
   const liveAndUpcoming = (matchList ?? []).filter((m) => m.status === 'live' || m.status === 'scheduled').slice(0, 5)
   const visibleEvents = useMemo(() => events ?? [], [events])
-  const { data: topScorersData } = useTopScorers({ limit: 3 })
-  const topScorers = topScorersData ?? []
+  const { data: topScorersData } = useTopScorers()
+  const topScorers = useMemo(() => (topScorersData ?? []).slice(0, 3), [topScorersData])
+  const topAssistants = useMemo(() => (topScorersData ?? [])
+    .filter((row) => row.assists > 0)
+    .sort((a, b) => b.assists - a.assists || b.goals - a.goals || a.playerId.localeCompare(b.playerId))
+    .slice(0, 3), [topScorersData])
 
   return (
     <PageContainer>
@@ -96,6 +100,42 @@ export const HomePage = () => {
                 <div className="text-right text-xs text-textSecondary">
                   <div><span className="text-textMuted">Г:</span> {row.goals}</div>
                   <div><span className="text-textMuted">А:</span> {row.assists}</div>
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <SectionHeader title="Топ ассистентов" action={<Link to="/top-scorers" className="text-sm text-accentYellow">ВСЕ</Link>} />
+        {topAssistants.length === 0 ? (
+          <p className="rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 text-sm text-textMuted">Пока нет ассистов.</p>
+        ) : (
+          topAssistants.map((row, index) => {
+            const player = playerMap[row.playerId]
+            const team = teamMap[row.teamId]
+            if (!player || !team) return null
+
+            return (
+              <div key={`assist_${row.playerId}`} className="flex items-center gap-3 rounded-xl border border-borderSubtle bg-panelBg px-3 py-2">
+                <span className="w-5 text-sm font-semibold tabular-nums text-textSecondary">{index + 1}</span>
+                <Link to={`/players/${player.id}`} className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-borderSubtle bg-panelSoft text-textMuted transition hover:border-borderStrong">
+                  {player.avatar ? <img src={player.avatar} alt={resolvePlayerDisplayName(player)} className="h-full w-full object-cover" /> : <UserCircle2 size={18} />}
+                </Link>
+                <div className="min-w-0 flex-1">
+                  <Link to={`/players/${player.id}`} className="block truncate text-sm font-medium text-textPrimary transition hover:text-accentYellow">
+                    {resolvePlayerDisplayName(player)}
+                  </Link>
+                  <Link to={`/teams/${team.id}`} className="inline-flex items-center gap-1 text-xs text-textMuted transition hover:text-accentYellow">
+                    <span>-</span>
+                    <TeamAvatar team={team} size="sm" />
+                    <span>{team.shortName}</span>
+                  </Link>
+                </div>
+                <div className="text-right text-xs text-textSecondary">
+                  <div><span className="text-textMuted">А:</span> {row.assists}</div>
+                  <div><span className="text-textMuted">Г:</span> {row.goals}</div>
                 </div>
               </div>
             )

@@ -987,7 +987,7 @@ func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
 		if targetCycleID > 0 && m.TournamentID != targetCycleID {
 			continue
 		}
-		if m.Status == "scheduled" {
+		if m.Status != "finished" || isArchivedMatch(m.ExtraTime) {
 			continue
 		}
 		home := stats[m.HomeTeamID]
@@ -1109,6 +1109,14 @@ func parseMatchEvents(extra map[string]any) []rawMatchEvent {
 	return result
 }
 
+func isArchivedMatch(extra map[string]any) bool {
+	if extra == nil {
+		return false
+	}
+	archived, ok := extra["archived"].(bool)
+	return ok && archived
+}
+
 func topScorersCacheKey(limit int, tournamentID int64) string {
 	return strconv.Itoa(limit) + ":" + strconv.FormatInt(tournamentID, 10)
 }
@@ -1190,6 +1198,9 @@ func (h *Handler) GetTopScorers(w http.ResponseWriter, r *http.Request) {
 		if targetCycleID > 0 && match.TournamentID != targetCycleID {
 			continue
 		}
+		if match.Status != "finished" || isArchivedMatch(match.ExtraTime) {
+			continue
+		}
 		for _, event := range parseMatchEvents(match.ExtraTime) {
 			if event.PlayerID > 0 {
 				if row := rowsByPlayer[event.PlayerID]; row != nil {
@@ -1213,7 +1224,7 @@ func (h *Handler) GetTopScorers(w http.ResponseWriter, r *http.Request) {
 
 	rows := make([]topScorerRow, 0, len(rowsByPlayer))
 	for _, row := range rowsByPlayer {
-		if row.Goals > 0 {
+		if row.Goals > 0 || row.Assists > 0 {
 			rows = append(rows, *row)
 		}
 	}

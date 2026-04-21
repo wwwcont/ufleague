@@ -37,8 +37,9 @@ const formTone: Record<string, string> = {
   '-': 'bg-zinc-700/85 text-white',
 }
 
-const matchHistoryIcon: Record<'goal' | 'yellow_card' | 'red_card', string> = {
+const matchHistoryIcon: Record<'goal' | 'own_goal' | 'yellow_card' | 'red_card', string> = {
   goal: '⚽',
+  own_goal: '🥅',
   yellow_card: '🟨',
   red_card: '🟥',
 }
@@ -153,7 +154,7 @@ export const MatchDetailsPage = () => {
   const [goalAssistId, setGoalAssistId] = useState('')
   const [goalCreateEvent, setGoalCreateEvent] = useState(false)
   const [goalStatus, setGoalStatus] = useState<string | null>(null)
-  const [goalAction, setGoalAction] = useState<'add' | 'remove_selected' | 'remove_last'>('add')
+  const [goalAction, setGoalAction] = useState<'add' | 'add_own_goal' | 'remove_selected' | 'remove_last'>('add')
   const [goalConfirmOpen, setGoalConfirmOpen] = useState(false)
   const [cardsEditorOpen, setCardsEditorOpen] = useState(false)
   const [cardsTeamId, setCardsTeamId] = useState('')
@@ -297,13 +298,20 @@ export const MatchDetailsPage = () => {
     .map((event) => ({ id: event.id, label: event.summary?.trim() || event.title?.trim() || 'Событие' }))
     .slice(0, 3)
   const playersById = Object.fromEntries(players.map((player) => [player.id, player]))
+  const getGoalAwardedTeamId = (event: Match['events'][number]) => {
+    if (!event.teamId) return null
+    if (event.type === 'goal') return event.teamId
+    if (event.type === 'own_goal') return event.teamId === home.id ? away.id : home.id
+    return event.teamId
+  }
   const historyEvents = localEvents
-    .filter((event) => (event.type === 'goal' || event.type === 'yellow_card' || event.type === 'red_card') && event.teamId)
+    .filter((event) => (event.type === 'goal' || event.type === 'own_goal' || event.type === 'yellow_card' || event.type === 'red_card') && event.teamId)
     .sort((a, b) => (b.minute ?? 0) - (a.minute ?? 0))
-  const historyHome = historyEvents.filter((event) => event.teamId === home.id)
-  const historyAway = historyEvents.filter((event) => event.teamId === away.id)
-  const lastGoalEvent = [...localEvents].reverse().find((event) => event.type === 'goal' && event.teamId)
-  const lastGoalTeamShortName = lastGoalEvent?.teamId ? (teamMap[lastGoalEvent.teamId]?.shortName ?? '—') : '—'
+  const historyHome = historyEvents.filter((event) => getGoalAwardedTeamId(event) === home.id)
+  const historyAway = historyEvents.filter((event) => getGoalAwardedTeamId(event) === away.id)
+  const lastGoalEvent = [...localEvents].reverse().find((event) => (event.type === 'goal' || event.type === 'own_goal') && event.teamId)
+  const lastGoalTeamId = lastGoalEvent ? getGoalAwardedTeamId(lastGoalEvent) : null
+  const lastGoalTeamShortName = lastGoalTeamId ? (teamMap[lastGoalTeamId]?.shortName ?? '—') : '—'
   const timingNote = (() => {
     if (match.status === 'live' || match.status === 'half_time') return 'Матч в процессе'
     if (match.status === 'scheduled') return getTimeToKickoff(match.date, match.time) ?? 'Скоро'
@@ -509,6 +517,7 @@ export const MatchDetailsPage = () => {
               </select>
               <div className="flex gap-2">
                 <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => { setGoalAction('add'); setGoalCreateEvent(false); setGoalConfirmOpen(true) }}>Добавить</button>
+                <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg border border-rose-400/60 bg-rose-400/15 px-3 py-2 text-xs font-semibold text-rose-200 disabled:opacity-50" onClick={() => { setGoalAction('add_own_goal'); setGoalCreateEvent(false); setGoalConfirmOpen(true) }}>Автогол</button>
                 <button type="button" disabled={!goalTeamId || !goalScorerId} className="w-full rounded-lg border border-borderSubtle px-3 py-2 text-xs font-semibold text-textPrimary disabled:opacity-50" onClick={() => { setGoalAction('remove_selected'); setGoalConfirmOpen(true) }}>Убавить</button>
               </div>
               <button
@@ -529,10 +538,11 @@ export const MatchDetailsPage = () => {
             <p className="text-sm font-semibold text-textPrimary">Подтвердить изменение счета</p>
             <p className="mt-1 text-xs text-textMuted">
               {goalAction === 'add' && 'Добавить гол выбранной команде?'}
+              {goalAction === 'add_own_goal' && 'Добавить автогол? Гол пойдет в счет соперника.'}
               {goalAction === 'remove_selected' && 'Убрать гол у выбранной команды и выбранного игрока?'}
               {goalAction === 'remove_last' && `Убрать последний гол (${lastGoalTeamShortName})?`}
             </p>
-            {goalAction === 'add' && (
+            {(goalAction === 'add' || goalAction === 'add_own_goal') && (
               <label className="mt-3 flex items-center justify-between rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-xs text-textSecondary">
                 Создать событие в ленте матча
                 <input type="checkbox" checked={goalCreateEvent} onChange={(event) => setGoalCreateEvent(event.target.checked)} />
@@ -547,26 +557,31 @@ export const MatchDetailsPage = () => {
                 )
 
                 const result = (() => {
-                  if (goalAction === 'add') {
+                  if (goalAction === 'add' || goalAction === 'add_own_goal') {
+                    const scoredForTeamId = goalAction === 'add_own_goal'
+                      ? (goalTeamId === home.id ? away.id : home.id)
+                      : goalTeamId
                     const createdEvent = {
                       id: `goal_${Date.now()}`,
-                      type: 'goal',
+                      type: goalAction === 'add_own_goal' ? 'own_goal' : 'goal',
                       teamId: goalTeamId,
                       playerId: goalScorerId,
-                      assistPlayerId: goalAssistId || undefined,
-                      note: goalAssistId ? `ассист: ${goalAssistId}` : undefined,
+                      assistPlayerId: goalAction === 'add_own_goal' ? undefined : (goalAssistId || undefined),
+                      note: goalAction === 'add_own_goal'
+                        ? 'Автогол'
+                        : (goalAssistId ? `ассист: ${goalAssistId}` : undefined),
                     } satisfies Match['events'][number]
                     return {
                       nextEvents: [...localEvents, createdEvent],
-                      nextScore: applyScoreDelta(effectiveScore, goalTeamId, 1),
+                      nextScore: applyScoreDelta(effectiveScore, scoredForTeamId, 1),
                       notFoundMessage: null,
                       createdEvent,
                     }
                   }
 
                   const targetEvent = goalAction === 'remove_last'
-                    ? [...localEvents].reverse().find((event) => event.type === 'goal' && event.teamId)
-                    : [...localEvents].reverse().find((event) => event.type === 'goal' && event.teamId === goalTeamId && event.playerId === goalScorerId)
+                    ? [...localEvents].reverse().find((event) => (event.type === 'goal' || event.type === 'own_goal') && event.teamId)
+                    : [...localEvents].reverse().find((event) => (event.type === 'goal' || event.type === 'own_goal') && event.teamId === goalTeamId && event.playerId === goalScorerId)
 
                   if (!targetEvent?.teamId) {
                     return {
@@ -581,9 +596,12 @@ export const MatchDetailsPage = () => {
 
                   const idx = localEvents.findIndex((event) => event.id === targetEvent.id)
                   const trimmedEvents = idx >= 0 ? localEvents.filter((_, eventIdx) => eventIdx !== idx) : localEvents
+                  const scoreTeamId = targetEvent.type === 'own_goal'
+                    ? (targetEvent.teamId === home.id ? away.id : home.id)
+                    : targetEvent.teamId
                   return {
                     nextEvents: trimmedEvents,
-                    nextScore: applyScoreDelta(effectiveScore, targetEvent.teamId, -1),
+                    nextScore: applyScoreDelta(effectiveScore, scoreTeamId, -1),
                     notFoundMessage: null,
                     createdEvent: null,
                   }
@@ -602,14 +620,17 @@ export const MatchDetailsPage = () => {
                 try {
                   if (goalCreateEvent && result.createdEvent) {
                     const scorer = players.find((player) => player.id === goalScorerId)?.displayName ?? `Игрок #${goalScorerId}`
+                    const ownGoalForTeam = goalTeamId === home.id ? away : home
                     const createdFeed = await eventsRepository.createEventForScope?.({
                       scopeType: 'match',
                       scopeId: match.id,
-                      title: 'Гол',
-                      summary: goalAssistId ? `${scorer} • ассист ${goalAssistId}` : scorer,
-                      body: goalAssistId
-                        ? `${scorer} забил. Ассист: ${goalAssistId}.`
-                        : `${scorer} забил гол.`,
+                      title: goalAction === 'add_own_goal' ? 'Автогол' : 'Гол',
+                      summary: goalAction === 'add_own_goal'
+                        ? `${scorer} (в пользу ${ownGoalForTeam.shortName})`
+                        : (goalAssistId ? `${scorer} • ассист ${goalAssistId}` : scorer),
+                      body: goalAction === 'add_own_goal'
+                        ? `${scorer} забил автогол. Мяч записан в пользу ${ownGoalForTeam.name}.`
+                        : (goalAssistId ? `${scorer} забил. Ассист: ${goalAssistId}.` : `${scorer} забил гол.`),
                     })
                     if (createdFeed?.id) {
                       persistedEvents = nextEvents.map((event) => (
@@ -971,7 +992,7 @@ export const MatchDetailsPage = () => {
               <p className="px-1 text-xs text-textMuted">—</p>
             ) : historyHome.map((event) => (
               <div key={event.id} className="flex items-center gap-1.5 px-1 text-xs text-textPrimary">
-                <span>{matchHistoryIcon[event.type as 'goal' | 'yellow_card' | 'red_card']}</span>
+                <span>{matchHistoryIcon[event.type as 'goal' | 'own_goal' | 'yellow_card' | 'red_card']}</span>
                 <span>{getPlayerLastName(playersById[event.playerId ?? '']?.displayName)}</span>
               </div>
             ))}
@@ -983,7 +1004,7 @@ export const MatchDetailsPage = () => {
             ) : historyAway.map((event) => (
               <div key={event.id} className="flex items-center justify-end gap-1.5 px-1 text-xs text-textPrimary">
                 <span>{getPlayerLastName(playersById[event.playerId ?? '']?.displayName)}</span>
-                <span>{matchHistoryIcon[event.type as 'goal' | 'yellow_card' | 'red_card']}</span>
+                <span>{matchHistoryIcon[event.type as 'goal' | 'own_goal' | 'yellow_card' | 'red_card']}</span>
               </div>
             ))}
           </div>
