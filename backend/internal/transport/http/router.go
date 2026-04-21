@@ -1224,7 +1224,7 @@ func (h *Handler) GetTopScorers(w http.ResponseWriter, r *http.Request) {
 
 	rows := make([]topScorerRow, 0, len(rowsByPlayer))
 	for _, row := range rowsByPlayer {
-		if row.Goals > 0 {
+		if row.Goals > 0 || row.Assists > 0 {
 			rows = append(rows, *row)
 		}
 	}
