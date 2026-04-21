@@ -987,7 +987,7 @@ func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
 		if targetCycleID > 0 && m.TournamentID != targetCycleID {
 			continue
 		}
-		if m.Status == "scheduled" {
+		if m.Status != "finished" || isArchivedMatch(m.ExtraTime) {
 			continue
 		}
 		home := stats[m.HomeTeamID]
@@ -1109,6 +1109,14 @@ func parseMatchEvents(extra map[string]any) []rawMatchEvent {
 	return result
 }
 
+func isArchivedMatch(extra map[string]any) bool {
+	if extra == nil {
+		return false
+	}
+	archived, ok := extra["archived"].(bool)
+	return ok && archived
+}
+
 func topScorersCacheKey(limit int, tournamentID int64) string {
 	return strconv.Itoa(limit) + ":" + strconv.FormatInt(tournamentID, 10)
 }
@@ -1188,6 +1196,9 @@ func (h *Handler) GetTopScorers(w http.ResponseWriter, r *http.Request) {
 
 	for _, match := range matches {
 		if targetCycleID > 0 && match.TournamentID != targetCycleID {
+			continue
+		}
+		if match.Status != "finished" || isArchivedMatch(match.ExtraTime) {
 			continue
 		}
 		for _, event := range parseMatchEvents(match.ExtraTime) {

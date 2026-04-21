@@ -4,18 +4,21 @@ import { EyeOff, Pencil, UserPlus, Users, X } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
 import { usePlayers } from '../../hooks/data/usePlayers'
+import { useMatches } from '../../hooks/data/useMatches'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { canManageTeam } from '../../domain/services/accessControl'
 import { PlayerRow } from '../../components/data-display/PlayerRow'
 import { EmptyState } from '../../components/ui/EmptyState'
 import type { PublicUserCard } from '../../domain/entities/types'
+import { buildPlayerStatsMap } from '../../domain/services/teamPlayerStats'
 import { notifyInfo, notifySuccess, toRussianMessage } from '../../lib/notifications'
 
 export const TeamRosterPage = () => {
   const { teamId } = useParams()
   const { data: team } = useTeamDetails(teamId)
   const { data: players } = usePlayers(teamId)
+  const { data: matches } = useMatches()
   const { session } = useSession()
   const { teamsRepository, usersRepository } = useRepositories()
   const [inviteUsername, setInviteUsername] = useState('')
@@ -45,8 +48,10 @@ export const TeamRosterPage = () => {
 
   const visiblePlayers = (() => {
     const source = (players ?? []).filter((item) => !removedIds.includes(item.id))
-    if (canManageCurrentTeam) return source
-    return source.filter((item) => !effectiveHidden.has(item.id))
+    const statsMap = buildPlayerStatsMap(source, matches ?? [])
+    const withStats = source.map((item) => ({ ...item, stats: statsMap.get(item.id) ?? item.stats }))
+    if (canManageCurrentTeam) return withStats
+    return withStats.filter((item) => !effectiveHidden.has(item.id))
   })()
 
   return (
