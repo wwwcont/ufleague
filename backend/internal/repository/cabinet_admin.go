@@ -387,6 +387,29 @@ func (r *CabinetAdminRepository) DeleteTeamWithDependencies(ctx context.Context,
 	return affected, nil
 }
 
+func (r *CabinetAdminRepository) DeleteMatchWithDependencies(ctx context.Context, matchID int64) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err = tx.Exec(ctx, `DELETE FROM comments WHERE entity_type='match' AND entity_id=$1`, matchID); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE event_feed_items SET deleted_at=NOW(), updated_at=NOW() WHERE scope_type='match' AND scope_id=$1`, matchID); err != nil {
+		return err
+	}
+	tag, err := tx.Exec(ctx, `DELETE FROM matches WHERE id=$1`, matchID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return tx.Commit(ctx)
+}
+
 func (r *CabinetAdminRepository) ListAuditActionsByActor(ctx context.Context, userID int64, limit int) ([]domain.UserActionItem, error) {
 	type actionRecord struct {
 		id        int64
@@ -583,6 +606,8 @@ func actionRoute(targetType, targetID string, metadata map[string]any) string {
 		return "/teams/" + targetID
 	case "player":
 		return "/players/" + targetID
+	case "match":
+		return "/matches/" + targetID
 	case "event":
 		return "/events/" + targetID
 	case "comment":
@@ -604,6 +629,46 @@ func actionRoute(targetType, targetID string, metadata map[string]any) string {
 		return "/"
 	}
 }
+
+func (r *CabinetAdminRepository) ListEntityChangeHistory(ctx context.Context, limit int) ([]domain.UserActionItem, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT al.id, al.action, al.target_type, al.target_id, COALESCE(al.metadata, '{}'::jsonb), al.created_at, COALESCE(u.display_name, '')
+		FROM audit_logs al
+		LEFT JOIN users u ON u.id = al.actor_user_id
+		WHERE al.target_type IN ('team', 'player', 'match')
+		  AND al.action IN ('team.update', 'player.update', 'match.update')
+		ORDER BY al.created_at DESC
+		LIMIT $1
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.UserActionItem, 0, limit)
+	for rows.Next() {
+		var item domain.UserActionItem
+		var createdAt time.Time
+		var metadataRaw []byte
+		var actorName string
+		if err = rows.Scan(&item.ID, &item.Action, &item.TargetType, &item.TargetID, &metadataRaw, &createdAt, &actorName); err != nil {
+			return nil, err
+		}
+		item.Metadata = map[string]any{}
+		_ = json.Unmarshal(metadataRaw, &item.Metadata)
+		if actorName != "" {
+			item.Metadata["actor_name"] = actorName
+		}
+		item.CreatedAt = createdAt.Unix()
+		item.Route = actionRoute(item.TargetType, item.TargetID, item.Metadata)
+		out = append(out, item)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (r *CabinetAdminRepository) ModerateDeleteComment(ctx context.Context, commentID int64) error {
 	_, err := r.pool.Exec(ctx, `UPDATE comments SET deleted_at=NOW(), updated_at=NOW() WHERE id=$1 AND deleted_at IS NULL`, commentID)
 	return err

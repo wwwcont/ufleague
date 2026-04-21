@@ -494,6 +494,9 @@ export const matchesRepository: MatchesRepository = {
       }),
     })
   },
+  async adminDeleteMatch(matchId) {
+    await api(`/api/admin/matches/${matchId}`, { method: 'DELETE' })
+  },
 }
 export const standingsRepository: StandingsRepository = {
   async getStandings(_tournamentId) {
@@ -931,6 +934,18 @@ export const cabinetRepository: CabinetRepository = {
   },
   async getMyActions() {
     const rows = await api<any[]>(`/api/me/actions`)
+    return rows.map((item) => ({
+      id: String(item.id),
+      action: String(item.action ?? ''),
+      targetType: String(item.target_type ?? ''),
+      targetId: String(item.target_id ?? ''),
+      createdAt: item.created_at ? new Date(Number(item.created_at) * 1000).toISOString() : new Date().toISOString(),
+      route: String(item.route ?? '/'),
+      metadata: (item.metadata ?? {}) as Record<string, unknown>,
+    }))
+  },
+  async getPageChangeHistory() {
+    const rows = await api<any[]>(`/api/admin/page-change-history`)
     return rows.map((item) => ({
       id: String(item.id),
       action: String(item.action ?? ''),

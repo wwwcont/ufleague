@@ -306,9 +306,7 @@ export const MatchDetailsPage = () => {
   }
   const historyEvents = localEvents
     .filter((event) => (event.type === 'goal' || event.type === 'own_goal' || event.type === 'yellow_card' || event.type === 'red_card') && event.teamId)
-    .sort((a, b) => (b.minute ?? 0) - (a.minute ?? 0))
-  const historyHome = historyEvents.filter((event) => getGoalAwardedTeamId(event) === home.id)
-  const historyAway = historyEvents.filter((event) => getGoalAwardedTeamId(event) === away.id)
+    .sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0))
   const lastGoalEvent = [...localEvents].reverse().find((event) => (event.type === 'goal' || event.type === 'own_goal') && event.teamId)
   const lastGoalTeamId = lastGoalEvent ? getGoalAwardedTeamId(lastGoalEvent) : null
   const lastGoalTeamShortName = lastGoalTeamId ? (teamMap[lastGoalTeamId]?.shortName ?? '—') : '—'
@@ -985,29 +983,47 @@ export const MatchDetailsPage = () => {
         <div className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary">
           <Timer size={15} className="text-accentYellow" /> История матча
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1 rounded-xl border border-borderSubtle bg-mutedBg p-2">
-            <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-textMuted">{home.shortName}</p>
-            {historyHome.length === 0 ? (
-              <p className="px-1 text-xs text-textMuted">—</p>
-            ) : historyHome.map((event) => (
-              <div key={event.id} className="flex items-center gap-1.5 px-1 text-xs text-textPrimary">
-                <span>{matchHistoryIcon[event.type as 'goal' | 'own_goal' | 'yellow_card' | 'red_card']}</span>
-                <span>{getPlayerLastName(playersById[event.playerId ?? '']?.displayName)}</span>
-              </div>
-            ))}
+        <div className="space-y-1 rounded-xl border border-borderSubtle bg-mutedBg p-2">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-textMuted">
+            <p>{home.shortName}</p>
+            <p className="text-center">Мин</p>
+            <p className="text-right">{away.shortName}</p>
           </div>
-          <div className="space-y-1 rounded-xl border border-borderSubtle bg-mutedBg p-2">
-            <p className="px-1 text-right text-[11px] font-semibold uppercase tracking-[0.08em] text-textMuted">{away.shortName}</p>
-            {historyAway.length === 0 ? (
-              <p className="px-1 text-right text-xs text-textMuted">—</p>
-            ) : historyAway.map((event) => (
-              <div key={event.id} className="flex items-center justify-end gap-1.5 px-1 text-xs text-textPrimary">
-                <span>{getPlayerLastName(playersById[event.playerId ?? '']?.displayName)}</span>
-                <span>{matchHistoryIcon[event.type as 'goal' | 'own_goal' | 'yellow_card' | 'red_card']}</span>
+          {historyEvents.length === 0 ? (
+            <p className="px-1 text-xs text-textMuted">—</p>
+          ) : historyEvents.map((event) => {
+            const awardedTeamId = getGoalAwardedTeamId(event)
+            const isHomeEvent = awardedTeamId === home.id
+            const scorer = getPlayerLastName(playersById[event.playerId ?? '']?.displayName)
+            const assist = event.type === 'goal' && event.assistPlayerId
+              ? getPlayerLastName(playersById[event.assistPlayerId]?.displayName)
+              : ''
+            const playerLabel = assist ? `${scorer} (${assist})` : scorer
+            const minuteLabel = `${event.minute ?? 0}'`
+            const icon = matchHistoryIcon[event.type as 'goal' | 'own_goal' | 'yellow_card' | 'red_card']
+
+            return (
+              <div key={event.id} className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-1 text-xs text-textPrimary">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  {isHomeEvent ? (
+                    <>
+                      <span>{icon}</span>
+                      <span className="truncate">{playerLabel}</span>
+                    </>
+                  ) : null}
+                </div>
+                <span className="text-center tabular-nums text-textMuted">{minuteLabel}</span>
+                <div className="flex min-w-0 items-center justify-end gap-1.5 text-right">
+                  {!isHomeEvent ? (
+                    <>
+                      <span className="truncate">{playerLabel}</span>
+                      <span>{icon}</span>
+                    </>
+                  ) : null}
+                </div>
               </div>
-            ))}
-          </div>
+            )
+          })}
         </div>
       </section>
 

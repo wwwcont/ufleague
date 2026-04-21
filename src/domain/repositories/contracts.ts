@@ -44,6 +44,7 @@ export interface MatchesRepository {
   getMatchById(matchId: string): Promise<Match | null>
   createMatch?(input: { homeTeamId: string; awayTeamId: string; startAt: string; status: Match['status']; venue: string; referee?: string; broadcastUrl?: string; stage?: string; tieId?: string; tournamentId?: string }): Promise<{ id: string } | void>
   updateMatch?(matchId: string, patch: Partial<{ status: Match['status']; homeScore: number; awayScore: number; venue: string; startAt: string; broadcastUrl: string; diskUrl: string; matchEvents: Match['events']; stage: string; tour: string; referee: string; currentMinute: number; clockAnchorAt: string | null; archived: boolean }>): Promise<void>
+  adminDeleteMatch?(matchId: string): Promise<void>
 }
 
 export interface StandingsRepository {
@@ -122,6 +123,7 @@ export interface CabinetRepository {
   superadminAssignRestrictions(input: { userId: string; restrictions: string[] }): Promise<void>
   superadminSetGlobalSetting(input: { key: string; value: Record<string, unknown> }): Promise<void>
   getMyActions?(): Promise<Array<{ id: string; action: string; targetType: string; targetId: string; createdAt: string; route: string; metadata?: Record<string, unknown> }>>
+  getPageChangeHistory?(): Promise<Array<{ id: string; action: string; targetType: string; targetId: string; createdAt: string; route: string; metadata?: Record<string, unknown> }>>
   getMyNotifications?(): Promise<Array<{ id: string; notificationType: string; title: string; body: string; route: string; status: string; createdAt: string }>>
   getTelegramNotificationsEnabled?(): Promise<boolean>
   setTelegramNotificationsEnabled?(enabled: boolean): Promise<void>

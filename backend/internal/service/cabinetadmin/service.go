@@ -38,7 +38,9 @@ type Repository interface {
 	GetUserRoles(ctx context.Context, userID int64) ([]domain.Role, error)
 	SetTeamArchived(ctx context.Context, teamID int64, archived bool) error
 	DeleteTeamWithDependencies(ctx context.Context, teamID int64) ([]int64, error)
+	DeleteMatchWithDependencies(ctx context.Context, matchID int64) error
 	ListAuditActionsByActor(ctx context.Context, userID int64, limit int) ([]domain.UserActionItem, error)
+	ListEntityChangeHistory(ctx context.Context, limit int) ([]domain.UserActionItem, error)
 }
 
 type Service struct {
@@ -343,6 +345,16 @@ func (s Service) AdminDeleteTeam(ctx context.Context, actor domain.User, teamID 
 	return s.repo.AddAuditLog(ctx, actor.ID, "admin.delete_team", "team", strconv.FormatInt(teamID, 10), map[string]any{"affected_user_ids": affectedUsers})
 }
 
+func (s Service) AdminDeleteMatch(ctx context.Context, actor domain.User, matchID int64) error {
+	if !s.policy.CanAdminModerate(actor) {
+		return fmt.Errorf("forbidden")
+	}
+	if err := s.repo.DeleteMatchWithDependencies(ctx, matchID); err != nil {
+		return err
+	}
+	return s.repo.AddAuditLog(ctx, actor.ID, "admin.delete_match", "match", strconv.FormatInt(matchID, 10), map[string]any{"safe_delete": true})
+}
+
 func (s Service) AdminBlockComments(ctx context.Context, actor domain.User, userID int64, req domain.CommentBlockRequest) error {
 	if !s.policy.CanAdminModerate(actor) {
 		return fmt.Errorf("forbidden")
@@ -447,4 +459,18 @@ func (s Service) GetMyActions(ctx context.Context, user domain.User, limit int) 
 		limit = 50
 	}
 	return s.repo.ListAuditActionsByActor(ctx, user.ID, limit)
+}
+
+func (s Service) GetEntityChangeHistory(ctx context.Context, user domain.User, limit int) ([]domain.UserActionItem, error) {
+	if !s.policy.CanAdminModerate(user) {
+		return nil, fmt.Errorf("forbidden")
+	}
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	return s.repo.ListEntityChangeHistory(ctx, limit)
+}
+
+func (s Service) AddAuditLog(ctx context.Context, actorID int64, action, targetType, targetID string, metadata map[string]any) error {
+	return s.repo.AddAuditLog(ctx, actorID, action, targetType, targetID, metadata)
 }
