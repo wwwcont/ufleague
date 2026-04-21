@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Search, UserCircle2 } from 'lucide-react'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { MatchCard } from '../../components/data-display/MatchCard'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { SectionHeader } from '../../components/ui/SectionHeader'
@@ -37,6 +37,7 @@ const fallbackTeam = (id: string): Team => ({
 })
 
 export const HomePage = () => {
+  const [selectedMetric, setSelectedMetric] = useState<'goals' | 'assists'>('goals')
   const { data: matchList } = useMatches()
   const { data: teams } = useTeams()
   const { data: players } = usePlayers()
@@ -52,6 +53,7 @@ export const HomePage = () => {
     .filter((row) => row.assists > 0)
     .sort((a, b) => b.assists - a.assists || b.goals - a.goals || a.playerId.localeCompare(b.playerId))
     .slice(0, 3), [topScorersData])
+  const topPlayers = selectedMetric === 'goals' ? topScorers : topAssistants
 
   return (
     <PageContainer>
@@ -72,17 +74,35 @@ export const HomePage = () => {
       </div>
 
       <div className="space-y-2">
-        <SectionHeader title="Топ бомбардиров" action={<Link to="/top-scorers" className="text-sm text-accentYellow">ВСЕ</Link>} />
-        {topScorers.length === 0 ? (
-          <p className="rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 text-sm text-textMuted">Пока никто не забил.</p>
+        <SectionHeader title="Топ игроков" action={<Link to={`/top-players?metric=${selectedMetric}`} className="text-sm text-accentYellow">ВСЕ</Link>} />
+        <div className="grid grid-cols-2 gap-2 rounded-2xl border border-borderSubtle bg-panelBg p-1">
+          <button
+            type="button"
+            onClick={() => setSelectedMetric('goals')}
+            className={`rounded-xl px-3 py-2 text-sm font-medium transition ${selectedMetric === 'goals' ? 'bg-accentYellow text-app' : 'text-textSecondary hover:text-textPrimary'}`}
+          >
+            Топ бомбардиров
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedMetric('assists')}
+            className={`rounded-xl px-3 py-2 text-sm font-medium transition ${selectedMetric === 'assists' ? 'bg-accentYellow text-app' : 'text-textSecondary hover:text-textPrimary'}`}
+          >
+            Топ ассистентов
+          </button>
+        </div>
+        {topPlayers.length === 0 ? (
+          <p className="rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 text-sm text-textMuted">
+            {selectedMetric === 'goals' ? 'Пока никто не забил.' : 'Пока нет ассистов.'}
+          </p>
         ) : (
-          topScorers.map((row, index) => {
+          topPlayers.map((row, index) => {
             const player = playerMap[row.playerId]
             const team = teamMap[row.teamId]
             if (!player || !team) return null
 
             return (
-              <div key={row.playerId} className="flex items-center gap-3 rounded-xl border border-borderSubtle bg-panelBg px-3 py-2">
+              <div key={`${selectedMetric}_${row.playerId}`} className="flex items-center gap-3 rounded-xl border border-borderSubtle bg-panelBg px-3 py-2">
                 <span className="w-5 text-sm font-semibold tabular-nums text-textSecondary">{index + 1}</span>
                 <Link to={`/players/${player.id}`} className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-borderSubtle bg-panelSoft text-textMuted transition hover:border-borderStrong">
                   {player.avatar ? <img src={player.avatar} alt={resolvePlayerDisplayName(player)} className="h-full w-full object-cover" /> : <UserCircle2 size={18} />}
@@ -98,44 +118,17 @@ export const HomePage = () => {
                   </Link>
                 </div>
                 <div className="text-right text-xs text-textSecondary">
-                  <div><span className="text-textMuted">Г:</span> {row.goals}</div>
-                  <div><span className="text-textMuted">А:</span> {row.assists}</div>
-                </div>
-              </div>
-            )
-          })
-        )}
-      </div>
-
-      <div className="space-y-2">
-        <SectionHeader title="Топ ассистентов" action={<Link to="/top-scorers" className="text-sm text-accentYellow">ВСЕ</Link>} />
-        {topAssistants.length === 0 ? (
-          <p className="rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 text-sm text-textMuted">Пока нет ассистов.</p>
-        ) : (
-          topAssistants.map((row, index) => {
-            const player = playerMap[row.playerId]
-            const team = teamMap[row.teamId]
-            if (!player || !team) return null
-
-            return (
-              <div key={`assist_${row.playerId}`} className="flex items-center gap-3 rounded-xl border border-borderSubtle bg-panelBg px-3 py-2">
-                <span className="w-5 text-sm font-semibold tabular-nums text-textSecondary">{index + 1}</span>
-                <Link to={`/players/${player.id}`} className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-borderSubtle bg-panelSoft text-textMuted transition hover:border-borderStrong">
-                  {player.avatar ? <img src={player.avatar} alt={resolvePlayerDisplayName(player)} className="h-full w-full object-cover" /> : <UserCircle2 size={18} />}
-                </Link>
-                <div className="min-w-0 flex-1">
-                  <Link to={`/players/${player.id}`} className="block truncate text-sm font-medium text-textPrimary transition hover:text-accentYellow">
-                    {resolvePlayerDisplayName(player)}
-                  </Link>
-                  <Link to={`/teams/${team.id}`} className="inline-flex items-center gap-1 text-xs text-textMuted transition hover:text-accentYellow">
-                    <span>-</span>
-                    <TeamAvatar team={team} size="sm" />
-                    <span>{team.shortName}</span>
-                  </Link>
-                </div>
-                <div className="text-right text-xs text-textSecondary">
-                  <div><span className="text-textMuted">А:</span> {row.assists}</div>
-                  <div><span className="text-textMuted">Г:</span> {row.goals}</div>
+                  {selectedMetric === 'goals' ? (
+                    <>
+                      <div><span className="text-textMuted">Г:</span> {row.goals}</div>
+                      <div><span className="text-textMuted">А:</span> {row.assists}</div>
+                    </>
+                  ) : (
+                    <>
+                      <div><span className="text-textMuted">А:</span> {row.assists}</div>
+                      <div><span className="text-textMuted">Г:</span> {row.goals}</div>
+                    </>
+                  )}
                 </div>
               </div>
             )
