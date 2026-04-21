@@ -62,7 +62,10 @@ export const getTimeToKickoff = (date: string, time: string) => {
   const totalMinutes = Math.floor(diffMs / 60000)
   const hours = Math.floor(totalMinutes / 60)
   const minutes = totalMinutes % 60
+  const days = Math.floor(hours / 24)
+  const remainingHours = hours % 24
 
+  if (days > 0) return `через ${days}д ${remainingHours}ч`
   if (hours > 0) return `через ${hours}ч ${minutes}м`
   return `через ${minutes}м`
 }

@@ -66,7 +66,7 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   'my-user': { title: 'Профиль пользователя', description: 'Быстрый переход в карточку пользователя.', tips: ['Открывается ваш user-профиль.', 'Редактирование доступно владельцу.'] },
   'my-actions': { title: 'Мои действия', description: 'История ваших действий.', tips: [] },
   'my-notifications': { title: 'Мои уведомления', description: 'Ваши уведомления.', tips: [] },
-  favorites: { title: 'Избранное', description: 'Список любимых команд и игроков.', tips: ['Элементы идут единым списком.', 'Оформление соответствует карточкам поиска.'] },
+  favorites: { title: 'Избранное', description: 'Список любимых команд и игроков.', tips: [] },
   'user-settings': { title: 'Настройки', description: 'Персональные настройки пользователя.', tips: ['Секция подготовлена под будущий функционал.'] },
   'player-profile': { title: 'Профиль игрока', description: 'Игровой профиль пользователя (отдельно от user-профиля).', tips: ['Переходите в user-профиль для ФИО/био.', 'Проверяйте связь user ↔ player profile.'] },
   'my-player': { title: 'Профиль игрока', description: 'Мгновенный переход в профиль игрока.', tips: ['Используется playerProfileId из сессии.', 'Если profile не привязан — показывается сообщение.'] },
@@ -523,7 +523,7 @@ export const CabinetSectionPage = () => {
           <h2 className="text-lg font-semibold text-textPrimary">{section}</h2>
           <div className="mt-3 rounded-xl border border-dashed border-borderStrong bg-mutedBg p-3 text-sm text-textSecondary">
             <p className="flex items-center gap-2"><AlertTriangle size={14} className="text-accentYellow" /> Недостаточно прав для этого раздела.</p>
-            <p className="mt-1 text-xs text-textMuted">Минимальная роль: {minRole}. Активные роли: {currentRoles.join(', ')}.</p>
+            <p className="mt-1 text-xs text-textMuted">Активные роли: {currentRoles.join(', ')}.</p>
           </div>
           <Link to="/profile" className="mt-4 inline-flex text-sm text-accentYellow">← Назад в кабинет</Link>
         </section>
@@ -542,7 +542,6 @@ export const CabinetSectionPage = () => {
             <h2 className="mt-2 text-lg font-semibold text-textPrimary">{meta.title}</h2>
             <p className="mt-1 text-sm text-textSecondary">{meta.description}</p>
           </div>
-          <span className="rounded-full border border-borderSubtle px-2 py-0.5 text-[11px] text-textMuted">min role: {minRole}</span>
         </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {meta.tips.map((tip) => (
