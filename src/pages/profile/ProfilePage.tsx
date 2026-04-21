@@ -38,6 +38,7 @@ const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
     { title: 'Управление командой', description: 'Создать команду или перейти к разделам капитана.', route: '/profile/team', icon: 'shield' },
   ],
   admin: [
+    { title: 'История изменений страниц', description: 'Кто и что менял в командах, игроках и матчах.', route: '/profile/page-change-history', icon: 'shield' },
     { title: 'Выдать права', description: 'Найти пользователя и выдать роль капитана/игрока.', route: '/profile/grant-access', icon: 'shield' },
     { title: 'Забрать права', description: 'Снять captain/admin права у пользователя.', route: '/profile/revoke-access', icon: 'shield' },
     { title: 'Выдать ограничение', description: 'Ограничить публикацию комментариев.', route: '/profile/issue-restriction', icon: 'shield' },
@@ -46,6 +47,7 @@ const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
     { title: 'Архив команд', description: 'Скрытые команды и связанные матчи.', route: '/profile/teams-archive', icon: 'shield' },
   ],
   superadmin: [
+    { title: 'История изменений страниц', description: 'Кто и что менял в командах, игроках и матчах.', route: '/profile/page-change-history', icon: 'shield' },
     { title: 'Выдать права', description: 'Найти пользователя и выдать роль капитана/игрока/админа.', route: '/profile/grant-access', icon: 'shield' },
     { title: 'Забрать права', description: 'Снять captain/admin права у пользователя.', route: '/profile/revoke-access', icon: 'shield' },
     { title: 'Выдать ограничение', description: 'Ограничить публикацию комментариев.', route: '/profile/issue-restriction', icon: 'shield' },

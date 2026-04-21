@@ -45,6 +45,7 @@ const sectionRoles: Record<string, UserRole> = {
   'revoke-access': 'admin',
   'issue-restriction': 'admin',
   'create-match': 'admin',
+  'page-change-history': 'admin',
   'matches-archive': 'admin',
   'teams-archive': 'admin',
   'team-socials': 'captain',
@@ -80,6 +81,7 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   'revoke-access': { title: 'Забрать права', description: 'Снятие captain/admin прав.', tips: ['Сначала найдите пользователя по @username.', 'Действие требует подтверждения.'] },
   'issue-restriction': { title: 'Выдать ограничение', description: 'Ограничение комментирования пользователя.', tips: ['Укажите причину ограничения.', 'Можно выдать постоянный или временный блок.'] },
   'create-match': { title: 'Создать матч', description: 'Быстрое создание матча турнира.', tips: ['Выберите домашнюю и гостевую команды.', 'Проверьте RFC3339 для даты старта.'] },
+  'page-change-history': { title: 'История изменений страниц', description: 'Журнал изменений информации по игрокам, командам и матчам.', tips: ['Показывает что изменили, на что и кто выполнил правку.', 'Каждая запись ведет на измененную страницу.'] },
   'matches-archive': { title: 'Архив матчей', description: 'Скрытые матчи, исключенные из лент и статистики.', tips: ['Откройте матч из архива для проверки.', 'При необходимости верните матч обратно.'] },
   'teams-archive': { title: 'Архив команд', description: 'Скрытые команды. Их матчи автоматически архивируются.', tips: ['Архивирование команды отправляет связанные матчи в архив.', 'Возврат команды из архива возвращает и ее матчи.'] },
   roster: { title: 'Управление составом', description: 'Состав команды с действиями по каждому игроку.', tips: ['Откроется страница команды в режиме состава.', 'Кнопки: глаз, карандаш, крестик.'] },
@@ -211,6 +213,7 @@ export const CabinetSectionPage = () => {
     notifyError(toRussianMessage(normalized))
   }, [status])
   const [myActions, setMyActions] = useState<Array<{ id: string; action: string; targetType: string; targetId: string; route: string; createdAt: string; metadata?: Record<string, unknown> }>>([])
+  const [pageChangeHistory, setPageChangeHistory] = useState<Array<{ id: string; action: string; targetType: string; targetId: string; route: string; createdAt: string; metadata?: Record<string, unknown> }>>([])
   const [myNotifications, setMyNotifications] = useState<Array<{ id: string; notificationType: string; title: string; body: string; route: string; status: string; createdAt: string }>>([])
   const [telegramNotificationsEnabled, setTelegramNotificationsEnabled] = useState(true)
   const [telegramSettingsLoading, setTelegramSettingsLoading] = useState(false)
@@ -443,6 +446,18 @@ export const CabinetSectionPage = () => {
         metadata: item.metadata,
       })))
     }).catch(() => setMyActions([]))
+  }, [cabinetRepository, navigate, section, session.isAuthenticated])
+
+  useEffect(() => {
+    if (section !== 'page-change-history') return
+    if (!session.isAuthenticated) {
+      navigate('/login', { replace: true })
+      return
+    }
+    if (!cabinetRepository.getPageChangeHistory) return
+    void cabinetRepository.getPageChangeHistory().then((items) => {
+      setPageChangeHistory(items)
+    }).catch((error) => setStatus(`error: ${(error as Error).message}`))
   }, [cabinetRepository, navigate, section, session.isAuthenticated])
 
   useEffect(() => {
@@ -731,6 +746,35 @@ export const CabinetSectionPage = () => {
               <p className="mt-2 text-xs text-accentYellow">Перейти к источнику →</p>
             </Link>
           )) : <p className="text-xs text-textMuted">Пока нет уведомлений.</p>}
+        </section>
+      )}
+
+      {section === 'page-change-history' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          {pageChangeHistory.length ? pageChangeHistory.map((item) => {
+            const actorName = String(item.metadata?.actor_name ?? 'Неизвестно')
+            const rawChanges = (item.metadata?.changes ?? {}) as Record<string, { from?: unknown; to?: unknown }>
+            const changeLines = Object.entries(rawChanges)
+              .map(([field, value]) => `${field}: ${String(value?.from ?? '—')} → ${String(value?.to ?? '—')}`)
+              .slice(0, 4)
+            const title = item.targetType === 'player'
+              ? `Изменение игрока #${item.targetId}`
+              : item.targetType === 'team'
+                ? `Изменение команды #${item.targetId}`
+                : `Изменение матча #${item.targetId}`
+            return (
+              <Link key={item.id} to={item.route || '/'} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
+                <p className="text-sm font-semibold text-textPrimary">{title}</p>
+                <p className="mt-1 text-xs text-textMuted">{new Date(item.createdAt).toLocaleString('ru-RU')} · {actorName}</p>
+                {changeLines.length ? (
+                  <div className="mt-2 space-y-1">
+                    {changeLines.map((line) => <p key={line} className="text-xs text-textSecondary">{line}</p>)}
+                  </div>
+                ) : <p className="mt-2 text-xs text-textMuted">Изменения не детализированы.</p>}
+                <p className="mt-2 text-xs text-accentYellow">Открыть страницу →</p>
+              </Link>
+            )
+          }) : <p className="text-xs text-textMuted">Пока нет изменений страниц.</p>}
         </section>
       )}
 
@@ -1460,7 +1504,7 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'my-notifications', 'favorites', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'create-match', 'matches-archive', 'teams-archive', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
+      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'my-notifications', 'favorites', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'create-match', 'page-change-history', 'matches-archive', 'teams-archive', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
           Раздел синхронизирован по правам доступа и готов к расширению бизнес-формами.
         </section>

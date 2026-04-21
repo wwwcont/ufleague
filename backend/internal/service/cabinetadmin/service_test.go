@@ -110,6 +110,9 @@ func (f *fakeRepo) DeleteTeamWithDependencies(context.Context, int64) ([]int64, 
 func (f *fakeRepo) ListAuditActionsByActor(context.Context, int64, int) ([]domain.UserActionItem, error) {
 	return nil, nil
 }
+func (f *fakeRepo) ListEntityChangeHistory(context.Context, int) ([]domain.UserActionItem, error) {
+	return nil, nil
+}
 
 func TestEnsureCaptainPlayerProfileCreatesProfileWhenMissing(t *testing.T) {
 	repo := &fakeRepo{}

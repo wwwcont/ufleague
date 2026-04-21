@@ -941,6 +941,18 @@ export const cabinetRepository: CabinetRepository = {
       metadata: (item.metadata ?? {}) as Record<string, unknown>,
     }))
   },
+  async getPageChangeHistory() {
+    const rows = await api<any[]>(`/api/admin/page-change-history`)
+    return rows.map((item) => ({
+      id: String(item.id),
+      action: String(item.action ?? ''),
+      targetType: String(item.target_type ?? ''),
+      targetId: String(item.target_id ?? ''),
+      createdAt: item.created_at ? new Date(Number(item.created_at) * 1000).toISOString() : new Date().toISOString(),
+      route: String(item.route ?? '/'),
+      metadata: (item.metadata ?? {}) as Record<string, unknown>,
+    }))
+  },
   async getMyNotifications() {
     const rows = await api<any[]>(`/api/me/notifications`)
     return rows.map((item) => ({

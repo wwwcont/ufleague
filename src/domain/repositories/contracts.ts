@@ -122,6 +122,7 @@ export interface CabinetRepository {
   superadminAssignRestrictions(input: { userId: string; restrictions: string[] }): Promise<void>
   superadminSetGlobalSetting(input: { key: string; value: Record<string, unknown> }): Promise<void>
   getMyActions?(): Promise<Array<{ id: string; action: string; targetType: string; targetId: string; createdAt: string; route: string; metadata?: Record<string, unknown> }>>
+  getPageChangeHistory?(): Promise<Array<{ id: string; action: string; targetType: string; targetId: string; createdAt: string; route: string; metadata?: Record<string, unknown> }>>
   getMyNotifications?(): Promise<Array<{ id: string; notificationType: string; title: string; body: string; route: string; status: string; createdAt: string }>>
   getTelegramNotificationsEnabled?(): Promise<boolean>
   setTelegramNotificationsEnabled?(enabled: boolean): Promise<void>

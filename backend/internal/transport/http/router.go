@@ -165,6 +165,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Post("/admin/users/{id}/captain-role", h.AdminAssignCaptainRole)
 		r.With(sessionMW.RequireSession).Delete("/admin/users/{id}/captain-role", h.AdminRevokeCaptainRole)
 		r.With(sessionMW.RequireSession).Delete("/admin/users/{id}/player", h.AdminRemovePlayerFromUser)
+		r.With(sessionMW.RequireSession).Get("/admin/page-change-history", h.AdminGetPageChangeHistory)
 		r.With(sessionMW.RequireSession).Post("/superadmin/users/{id}/roles", h.SuperadminAssignRoles)
 		r.With(sessionMW.RequireSession).Post("/superadmin/users/{id}/permissions", h.SuperadminAssignPermissions)
 		r.With(sessionMW.RequireSession).Post("/superadmin/users/{id}/restrictions", h.SuperadminAssignRestrictions)
@@ -853,11 +854,13 @@ func (h Handler) UpdateTeam(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", 400)
 		return
 	}
+	before, _ := h.tournament.GetTeam(r.Context(), id)
 	item, err := h.tournament.UpdateTeam(r.Context(), current.User, id, req)
 	if err != nil {
 		handleDomainErr(w, err)
 		return
 	}
+	h.logEntityUpdate(r.Context(), current.User, "team", id, buildTeamChanges(before, item))
 	writeJSON(w, 200, item)
 }
 func (h Handler) ListPlayers(w http.ResponseWriter, r *http.Request) {
@@ -916,11 +919,13 @@ func (h Handler) UpdatePlayer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", 400)
 		return
 	}
+	before, _ := h.tournament.GetPlayer(r.Context(), id)
 	item, err := h.tournament.UpdatePlayer(r.Context(), current.User, id, req)
 	if err != nil {
 		handleDomainErr(w, err)
 		return
 	}
+	h.logEntityUpdate(r.Context(), current.User, "player", id, buildPlayerChanges(before, item))
 	writeJSON(w, 200, item)
 }
 func (h Handler) ListMatches(w http.ResponseWriter, r *http.Request) {
@@ -1573,11 +1578,13 @@ func (h Handler) UpdateMatch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "bad request", 400)
 		return
 	}
+	before, _ := h.tournament.GetMatch(r.Context(), id)
 	item, err := h.tournament.UpdateMatch(r.Context(), current.User, id, req)
 	if err != nil {
 		handleDomainErr(w, err)
 		return
 	}
+	h.logEntityUpdate(r.Context(), current.User, "match", id, buildMatchChanges(before, item))
 	writeJSON(w, 200, item)
 }
 
@@ -1928,6 +1935,26 @@ func (h Handler) GetMyActions(w http.ResponseWriter, r *http.Request) {
 	items, err := h.cabinet.GetMyActions(r.Context(), current.User, limit)
 	if err != nil {
 		http.Error(w, "failed", 400)
+		return
+	}
+	writeJSON(w, 200, items)
+}
+
+func (h Handler) AdminGetPageChangeHistory(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	limit := 100
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			limit = parsed
+		}
+	}
+	items, err := h.cabinet.GetEntityChangeHistory(r.Context(), current.User, limit)
+	if err != nil {
+		handleDomainErr(w, err)
 		return
 	}
 	writeJSON(w, 200, items)
@@ -2356,6 +2383,57 @@ func (h Handler) SuperadminSetGlobalSetting(w http.ResponseWriter, r *http.Reque
 	}
 	writeJSON(w, 200, map[string]string{"status": "ok"})
 }
+
+func (h Handler) logEntityUpdate(ctx context.Context, actor domain.User, targetType string, targetID int64, changes map[string]map[string]any) {
+	if len(changes) == 0 {
+		return
+	}
+	_ = h.cabinet.AddAuditLog(ctx, actor.ID, fmt.Sprintf("%s.update", targetType), targetType, strconv.FormatInt(targetID, 10), map[string]any{
+		"changes":    changes,
+		"actor_name": actor.DisplayName,
+	})
+}
+
+func buildTeamChanges(before, after domain.Team) map[string]map[string]any {
+	changes := map[string]map[string]any{}
+	appendChange(changes, "name", before.Name, after.Name)
+	appendChange(changes, "short_name", before.ShortName, after.ShortName)
+	appendChange(changes, "description", before.Description, after.Description)
+	appendChange(changes, "logo_url", before.LogoURL, after.LogoURL)
+	appendChange(changes, "socials", before.Socials, after.Socials)
+	return changes
+}
+
+func buildPlayerChanges(before, after domain.Player) map[string]map[string]any {
+	changes := map[string]map[string]any{}
+	appendChange(changes, "full_name", before.FullName, after.FullName)
+	appendChange(changes, "nickname", before.Nickname, after.Nickname)
+	appendChange(changes, "avatar_url", before.AvatarURL, after.AvatarURL)
+	appendChange(changes, "position", before.Position, after.Position)
+	appendChange(changes, "shirt_number", before.ShirtNumber, after.ShirtNumber)
+	appendChange(changes, "team_id", before.TeamID, after.TeamID)
+	return changes
+}
+
+func buildMatchChanges(before, after domain.Match) map[string]map[string]any {
+	changes := map[string]map[string]any{}
+	appendChange(changes, "start_at", before.StartAt.Unix(), after.StartAt.Unix())
+	appendChange(changes, "status", before.Status, after.Status)
+	appendChange(changes, "home_score", before.HomeScore, after.HomeScore)
+	appendChange(changes, "away_score", before.AwayScore, after.AwayScore)
+	appendChange(changes, "venue", before.Venue, after.Venue)
+	return changes
+}
+
+func appendChange(changes map[string]map[string]any, field string, from, to any) {
+	fromJSON, _ := json.Marshal(from)
+	toJSON, _ := json.Marshal(to)
+	if string(fromJSON) == string(toJSON) {
+		return
+	}
+	changes[field] = map[string]any{"from": from, "to": to}
+}
+
 func handleDomainErr(w http.ResponseWriter, err error) {
 	if errors.Is(err, tournament.ErrForbidden) || errors.Is(err, eventsservice.ErrForbidden) || errors.Is(err, commentservice.ErrForbidden) || strings.Contains(err.Error(), "forbidden") {
 		http.Error(w, "Недостаточно прав", 403)

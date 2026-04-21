@@ -502,6 +502,12 @@ export const cabinetRepository: CabinetRepository = {
       { id: 'a2', action: 'event.create', targetType: 'event', targetId: '1', createdAt: new Date(Date.now() - 3600_000).toISOString(), route: '/events/1', metadata: { title: 'Mock event' } },
     ]
   },
+  async getPageChangeHistory() {
+    return [
+      { id: 'h1', action: 'player.update', targetType: 'player', targetId: '1', createdAt: new Date().toISOString(), route: '/players/1', metadata: { actor_name: 'Admin', changes: { full_name: { from: 'И. Иванов', to: 'Иван Иванов' } } } },
+      { id: 'h2', action: 'match.update', targetType: 'match', targetId: '1', createdAt: new Date(Date.now() - 1800_000).toISOString(), route: '/matches/1', metadata: { actor_name: 'Admin', changes: { venue: { from: 'Старый стадион', to: 'Новый стадион' } } } },
+    ]
+  },
   async getTournamentCycles() {
     return mockTournamentCycles
   },
