@@ -494,6 +494,9 @@ export const matchesRepository: MatchesRepository = {
       }),
     })
   },
+  async adminDeleteMatch(matchId) {
+    await api(`/api/admin/matches/${matchId}`, { method: 'DELETE' })
+  },
 }
 export const standingsRepository: StandingsRepository = {
   async getStandings(_tournamentId) {

@@ -1326,6 +1326,16 @@ export const CabinetSectionPage = () => {
                       setStatus(`error: ${(error as Error).message}`)
                     }
                   }}>Вернуть из архива</button>
+                  <button type="button" className="mt-2 ml-2 rounded-lg border border-red-700/50 px-3 py-1.5 text-xs text-red-300" onClick={async () => {
+                    if (!window.confirm('Безопасно удалить матч из архива? Будут удалены связанные комментарии и события матча.')) return
+                    try {
+                      await matchesRepository.adminDeleteMatch?.(item.id)
+                      setStatus('ok: match deleted with dependencies')
+                      setArchivedMatches((prev) => prev.filter((match) => match.id !== item.id))
+                    } catch (error) {
+                      setStatus(`error: ${(error as Error).message}`)
+                    }
+                  }}>Удалить матч безопасно</button>
                 </div>
               ))}
             </div>

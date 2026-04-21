@@ -387,6 +387,29 @@ func (r *CabinetAdminRepository) DeleteTeamWithDependencies(ctx context.Context,
 	return affected, nil
 }
 
+func (r *CabinetAdminRepository) DeleteMatchWithDependencies(ctx context.Context, matchID int64) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err = tx.Exec(ctx, `DELETE FROM comments WHERE entity_type='match' AND entity_id=$1`, matchID); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE event_feed_items SET deleted_at=NOW(), updated_at=NOW() WHERE scope_type='match' AND scope_id=$1`, matchID); err != nil {
+		return err
+	}
+	tag, err := tx.Exec(ctx, `DELETE FROM matches WHERE id=$1`, matchID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return tx.Commit(ctx)
+}
+
 func (r *CabinetAdminRepository) ListAuditActionsByActor(ctx context.Context, userID int64, limit int) ([]domain.UserActionItem, error) {
 	type actionRecord struct {
 		id        int64

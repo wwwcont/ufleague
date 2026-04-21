@@ -38,6 +38,7 @@ type Repository interface {
 	GetUserRoles(ctx context.Context, userID int64) ([]domain.Role, error)
 	SetTeamArchived(ctx context.Context, teamID int64, archived bool) error
 	DeleteTeamWithDependencies(ctx context.Context, teamID int64) ([]int64, error)
+	DeleteMatchWithDependencies(ctx context.Context, matchID int64) error
 	ListAuditActionsByActor(ctx context.Context, userID int64, limit int) ([]domain.UserActionItem, error)
 	ListEntityChangeHistory(ctx context.Context, limit int) ([]domain.UserActionItem, error)
 }
@@ -342,6 +343,16 @@ func (s Service) AdminDeleteTeam(ctx context.Context, actor domain.User, teamID 
 		}
 	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "admin.delete_team", "team", strconv.FormatInt(teamID, 10), map[string]any{"affected_user_ids": affectedUsers})
+}
+
+func (s Service) AdminDeleteMatch(ctx context.Context, actor domain.User, matchID int64) error {
+	if !s.policy.CanAdminModerate(actor) {
+		return fmt.Errorf("forbidden")
+	}
+	if err := s.repo.DeleteMatchWithDependencies(ctx, matchID); err != nil {
+		return err
+	}
+	return s.repo.AddAuditLog(ctx, actor.ID, "admin.delete_match", "match", strconv.FormatInt(matchID, 10), map[string]any{"safe_delete": true})
 }
 
 func (s Service) AdminBlockComments(ctx context.Context, actor domain.User, userID int64, req domain.CommentBlockRequest) error {

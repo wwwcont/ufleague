@@ -159,6 +159,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Post("/admin/teams/{id}/transfer-captain", h.AdminTransferCaptain)
 		r.With(sessionMW.RequireSession).Post("/admin/teams/{id}/archive", h.AdminArchiveTeam)
 		r.With(sessionMW.RequireSession).Delete("/admin/teams/{id}", h.AdminDeleteTeam)
+		r.With(sessionMW.RequireSession).Delete("/admin/matches/{id}", h.AdminDeleteMatch)
 		r.With(sessionMW.RequireSession).Get("/admin/users/{id}/profile", h.AdminGetUserProfile)
 		r.With(sessionMW.RequireSession).Patch("/admin/users/{id}/profile", h.AdminUpdateUserProfile)
 		r.With(sessionMW.RequireSession).Post("/admin/users/{id}/comment-block", h.AdminBlockComments)
@@ -2181,6 +2182,23 @@ func (h Handler) AdminDeleteTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err = h.cabinet.AdminDeleteTeam(r.Context(), current.User, teamID); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+func (h Handler) AdminDeleteMatch(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	matchID, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	if err = h.cabinet.AdminDeleteMatch(r.Context(), current.User, matchID); err != nil {
 		handleDomainErr(w, err)
 		return
 	}

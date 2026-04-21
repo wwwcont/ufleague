@@ -240,6 +240,10 @@ export const matchesRepository: MatchesRepository = {
   async createMatch() {
     return { id: `match_mock_${Date.now()}` }
   },
+  async adminDeleteMatch(matchId) {
+    inMemoryMatches = inMemoryMatches.filter((match) => match.id !== matchId)
+    saveState()
+  },
 }
 
 export const standingsRepository: StandingsRepository = {
