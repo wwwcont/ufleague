@@ -14,6 +14,7 @@ import { usePlayers } from '../../hooks/data/usePlayers'
 import { useTopScorers } from '../../hooks/data/useTopScorers'
 import { resolvePlayerDisplayName } from '../../domain/services/playerLeaderboard'
 import { TeamAvatar } from '../../components/ui/TeamAvatar'
+import { sortMatchesByRelevance } from '../../domain/services/matchSorting'
 
 const fallbackTeam = (id: string): Team => ({
   id,
@@ -45,7 +46,7 @@ export const HomePage = () => {
 
   const teamMap = Object.fromEntries((teams ?? []).map((t) => [t.id, t]))
   const playerMap = Object.fromEntries((players ?? []).map((player) => [player.id, player]))
-  const liveAndUpcoming = (matchList ?? []).filter((m) => m.status === 'live' || m.status === 'scheduled').slice(0, 5)
+  const liveAndUpcoming = sortMatchesByRelevance((matchList ?? []).filter((m) => m.status === 'live' || m.status === 'half_time' || m.status === 'scheduled')).slice(0, 5)
   const visibleEvents = useMemo(() => events ?? [], [events])
   const { data: topScorersData } = useTopScorers()
   const topScorers = useMemo(() => (topScorersData ?? []).slice(0, 3), [topScorersData])

@@ -100,10 +100,15 @@ export const TeamDetailsPage = () => {
   const canManageCurrentTeam = canManageTeam(session, team)
   const historySummary = buildTeamHistorySummary(team.id, matches ?? [])
   const playerStatsMap = buildPlayerStatsMap(players ?? [], matches ?? [])
-  const visiblePlayers = (players ?? [])
-    .filter((player) => canManageCurrentTeam || !player.isHidden)
-    .slice(0, 8)
-    .map((player) => ({ ...player, stats: playerStatsMap.get(player.id) ?? player.stats }))
+  const visiblePlayers = (() => {
+    const withStats = (players ?? []).map((player) => ({ ...player, stats: playerStatsMap.get(player.id) ?? player.stats }))
+    const captain = team.captainUserId
+      ? (withStats.find((player) => player.userId === team.captainUserId) ?? withStats.find((player) => player.id === team.captainUserId) ?? null)
+      : null
+    const base = withStats.filter((player) => canManageCurrentTeam || !player.isHidden || player.id === captain?.id)
+    if (!captain) return base.slice(0, 8)
+    return [captain, ...base.filter((player) => player.id !== captain.id)].slice(0, 8)
+  })()
   const captainPlayerId = team.captainUserId
     ? (visiblePlayers.find((player) => player.userId === team.captainUserId)?.id
       ?? visiblePlayers.find((player) => player.id === team.captainUserId)?.id
@@ -352,9 +357,6 @@ export const TeamDetailsPage = () => {
             </div>
           )) : <p className="text-sm text-textMuted">Состав пока не загружен.</p>}
         </div>
-        {!captainPlayerId && team.captainUserId && (
-          <p className="mt-2 text-xs text-textMuted">Капитан назначен, но не найден в видимом составе (user #{team.captainUserId}).</p>
-        )}
       </section>
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
