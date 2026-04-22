@@ -279,6 +279,57 @@ func (r *CabinetAdminRepository) SetTeamArchived(ctx context.Context, teamID int
 	return tx.Commit(ctx)
 }
 
+func (r *CabinetAdminRepository) AddManualStatAdjustment(ctx context.Context, input domain.ManualStatAdjustment) (domain.ManualStatAdjustment, error) {
+	row := r.pool.QueryRow(ctx, `
+		INSERT INTO manual_stat_adjustments (tournament_cycle_id, entity_type, entity_id, field, delta, author_user_id)
+		VALUES ($1,$2,$3,$4,$5,$6)
+		RETURNING id, tournament_cycle_id, entity_type, entity_id, field, delta, author_user_id, EXTRACT(EPOCH FROM created_at)::bigint
+	`, input.TournamentCycleID, input.EntityType, input.EntityID, input.Field, input.Delta, input.AuthorUserID)
+	var item domain.ManualStatAdjustment
+	if err := row.Scan(&item.ID, &item.TournamentCycleID, &item.EntityType, &item.EntityID, &item.Field, &item.Delta, &item.AuthorUserID, &item.CreatedAtUnix); err != nil {
+		return domain.ManualStatAdjustment{}, err
+	}
+	return item, nil
+}
+
+func (r *CabinetAdminRepository) DeleteManualStatAdjustment(ctx context.Context, adjustmentID int64) error {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM manual_stat_adjustments WHERE id=$1`, adjustmentID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
+func (r *CabinetAdminRepository) ListManualStatAdjustments(ctx context.Context, tournamentID int64) ([]domain.ManualStatAdjustment, error) {
+	query := `
+		SELECT id, tournament_cycle_id, entity_type, entity_id, field, delta, author_user_id, EXTRACT(EPOCH FROM created_at)::bigint
+		FROM manual_stat_adjustments
+	`
+	args := []any{}
+	if tournamentID > 0 {
+		query += ` WHERE tournament_cycle_id=$1`
+		args = append(args, tournamentID)
+	}
+	query += ` ORDER BY id DESC LIMIT 500`
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]domain.ManualStatAdjustment, 0, 64)
+	for rows.Next() {
+		var item domain.ManualStatAdjustment
+		if err = rows.Scan(&item.ID, &item.TournamentCycleID, &item.EntityType, &item.EntityID, &item.Field, &item.Delta, &item.AuthorUserID, &item.CreatedAtUnix); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 func (r *CabinetAdminRepository) DeleteTeamWithDependencies(ctx context.Context, teamID int64) ([]int64, error) {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {

@@ -52,6 +52,8 @@ const sectionRoles: Record<string, UserRole> = {
   'page-change-history': 'admin',
   'matches-archive': 'admin',
   'teams-archive': 'admin',
+  'stats-manual-edit': 'admin',
+  'stats-change-history': 'admin',
   'team-socials': 'captain',
   roster: 'captain',
   moderation: 'admin',
@@ -91,6 +93,8 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   'page-change-history': { title: 'История изменений страниц', description: 'Журнал изменений информации по игрокам, командам и матчам.', tips: ['Показывает что изменили, на что и кто выполнил правку.', 'Каждая запись ведет на измененную страницу.'] },
   'matches-archive': { title: 'Архив матчей', description: 'Скрытые матчи, исключенные из лент и статистики.', tips: ['Откройте матч из архива для проверки.', 'При необходимости верните матч обратно.'] },
   'teams-archive': { title: 'Архив команд', description: 'Скрытые команды. Их матчи автоматически архивируются.', tips: ['Архивирование команды отправляет связанные матчи в архив.', 'Возврат команды из архива возвращает и ее матчи.'] },
+  'stats-manual-edit': { title: 'Изменить статистику вручную', description: 'Ручные корректировки статистики команд и игроков по турнирам.', tips: ['Изменения сохраняются как отдельные записи.', 'Корректировки можно удалить через историю.'] },
+  'stats-change-history': { title: 'Список изменений статистики', description: 'История всех ручных правок статистики.', tips: ['Записи привязаны к турниру и автору.', 'Удаление отменяет конкретную корректировку.'] },
   roster: { title: 'Управление составом', description: 'Состав команды с действиями по каждому игроку.', tips: ['Откроется страница команды в режиме состава.', 'Кнопки: глаз, карандаш, крестик.'] },
   'team-events': { title: 'События команды', description: 'Лента событий вашей команды.', tips: ['Кнопка создания доступна только капитану этой команды.', 'Редактирование/удаление скрыто для остальных.'] },
   'team-socials': { title: 'Соцсети команды', description: 'Обновление публичных ссылок команды.', tips: ['Формат ввода: key=value.', 'Сохраняйте только валидные URL.'] },
@@ -306,6 +310,11 @@ export const CabinetSectionPage = () => {
   const [bracketCapacityDraft, setBracketCapacityDraft] = useState<4 | 8 | 16 | 32>(16)
   const [userAccessRows, setUserAccessRows] = useState<Array<{ id: string; displayName: string; telegramUsername?: string; roles: UserRole[]; restrictions: string[]; playerId?: string; teamId?: string; isOnline: boolean }>>([])
   const [confirmDialog, setConfirmDialog] = useState<null | { title: string; description: string; confirmLabel?: string; onConfirm: () => Promise<void> }>(null)
+  const [statEntityType, setStatEntityType] = useState<'all' | 'team' | 'player'>('all')
+  const [statEntityId, setStatEntityId] = useState('')
+  const [statField, setStatField] = useState('goals')
+  const [statDelta, setStatDelta] = useState('0')
+  const [statsHistory, setStatsHistory] = useState<Array<{ id: string; tournamentId: string; entityType: 'team' | 'player'; entityId: string; field: string; delta: number; authorUserId: string; createdAt: string }>>([])
 
   const currentRoles = useMemo<UserRole[]>(
     () => (session.user.roles?.length ? session.user.roles : [session.user.role]),
@@ -327,7 +336,7 @@ export const CabinetSectionPage = () => {
   )
 
   useEffect(() => {
-    if (section !== 'tournament') return
+    if (!(section === 'tournament' || section === 'stats-manual-edit' || section === 'stats-change-history')) return
     if (!cabinetRepository.getTournamentCycles) return
 
     void cabinetRepository.getTournamentCycles().then((cycles) => {
@@ -353,6 +362,26 @@ export const CabinetSectionPage = () => {
       .then((list) => setArchivedTeams(list.filter((team) => team.archived)))
       .catch(() => setArchivedTeams([]))
   }, [section, status, teamsRepository])
+
+  useEffect(() => {
+    if (section !== 'stats-manual-edit') return
+    const params = new URLSearchParams(window.location.search)
+    const entityType = params.get('entityType')
+    const entityId = params.get('entityId')
+    if (entityType === 'team' || entityType === 'player') {
+      setStatEntityType(entityType)
+      setStatField(entityType === 'team' ? 'wins' : 'goals')
+    }
+    if (entityId) setStatEntityId(entityId)
+  }, [section])
+
+  useEffect(() => {
+    if (section !== 'stats-change-history') return
+    if (!cabinetRepository.getManualStatAdjustments) return
+    void cabinetRepository.getManualStatAdjustments(selectedCycleId || undefined)
+      .then((items) => setStatsHistory(items))
+      .catch(() => setStatsHistory([]))
+  }, [cabinetRepository, section, selectedCycleId, status])
 
   useEffect(() => {
     if (!(section === 'admins-list' || section === 'captains-list' || section === 'ban-list')) return
@@ -1505,6 +1534,77 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
+      {section === 'stats-manual-edit' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-3">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <select value={selectedCycleId} onChange={(e) => setSelectedCycleId(e.target.value)} className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+              <option value="">Турнир</option>
+              {tournamentCycles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+            <select value={statEntityType} onChange={(e) => setStatEntityType(e.target.value as typeof statEntityType)} className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+              <option value="all">Все</option>
+              <option value="team">Команды</option>
+              <option value="player">Игроки</option>
+            </select>
+            <select value={statEntityId} onChange={(e) => setStatEntityId(e.target.value)} className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+              <option value="">Сущность</option>
+              {(statEntityType === 'all' || statEntityType === 'team') && (teams ?? []).map((item) => <option key={`team:${item.id}`} value={item.id}>Команда: {item.name}</option>)}
+              {(statEntityType === 'all' || statEntityType === 'player') && (players ?? []).map((item) => <option key={`player:${item.id}`} value={item.id}>Игрок: {item.displayName}</option>)}
+            </select>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[1fr,120px,120px,120px]">
+            <select value={statField} onChange={(e) => setStatField(e.target.value)} className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+              {(statEntityType === 'team' ? ['wins', 'losses', 'draws', 'goals_for', 'goals_against', 'matches'] : ['matches', 'goals', 'assists', 'yellow_cards', 'red_cards']).map((field) => <option key={field} value={field}>{field}</option>)}
+            </select>
+            <input type="number" min={0} step={1} value={statDelta} onChange={(e) => setStatDelta(e.target.value.replace(/[^\d]/g, ''))} className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <button type="button" disabled={!Number(statDelta)} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => {
+              setConfirmDialog({
+                title: '⚠️ Подтвердить ручную корректировку?',
+                description: 'Изменение внесет статистику в обход системы. Его можно удалить в истории изменений.',
+                confirmLabel: 'Прибавить',
+                onConfirm: async () => {
+                  await cabinetRepository.addManualStatAdjustment?.({ tournamentId: selectedCycleId, entityType: statEntityType === 'team' ? 'team' : 'player', entityId: statEntityId, field: statField, delta: Number(statDelta) })
+                  setStatus('ok: manual adjustment added')
+                },
+              })
+            }}>Прибавить</button>
+            <button type="button" disabled={!Number(statDelta)} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={() => {
+              setConfirmDialog({
+                title: '⚠️ Подтвердить ручную корректировку?',
+                description: 'Изменение внесет статистику в обход системы. Его можно удалить в истории изменений.',
+                confirmLabel: 'Убавить',
+                onConfirm: async () => {
+                  await cabinetRepository.addManualStatAdjustment?.({ tournamentId: selectedCycleId, entityType: statEntityType === 'team' ? 'team' : 'player', entityId: statEntityId, field: statField, delta: -Number(statDelta) })
+                  setStatus('ok: manual adjustment added')
+                },
+              })
+            }}>Убавить</button>
+          </div>
+        </section>
+      )}
+
+      {section === 'stats-change-history' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          {statsHistory.length === 0 ? <p className="text-sm text-textMuted">История изменений пуста.</p> : statsHistory.map((item) => (
+            <div key={item.id} className="rounded-lg border border-borderSubtle bg-mutedBg p-3">
+              <p className="text-sm text-textPrimary">#{item.id} · {item.entityType} {item.entityId} · {item.field}: {item.delta > 0 ? '+' : ''}{item.delta}</p>
+              <p className="text-xs text-textMuted">Турнир: {item.tournamentId} · Автор: {item.authorUserId} · {new Date(item.createdAt).toLocaleString('ru-RU')}</p>
+              <button type="button" className="mt-2 rounded-lg border border-red-700/50 px-3 py-1.5 text-xs text-red-300" onClick={() => {
+                setConfirmDialog({
+                  title: 'Удалить изменение?',
+                  description: 'Корректировка будет удалена из истории и перестанет влиять на статистику.',
+                  confirmLabel: 'Удалить',
+                  onConfirm: async () => {
+                    await cabinetRepository.deleteManualStatAdjustment?.(item.id)
+                    setStatus('ok: manual adjustment removed')
+                  },
+                })
+              }}>Удалить</button>
+            </div>
+          ))}
+        </section>
+      )}
+
       {section === 'moderation' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
           <input value={commentId} onChange={(e) => setCommentId(e.target.value)} placeholder="comment id" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
@@ -1666,7 +1766,7 @@ export const CabinetSectionPage = () => {
         }}
       />
 
-      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'my-notifications', 'favorites', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'admins-list', 'captains-list', 'ban-list', 'create-match', 'page-change-history', 'matches-archive', 'teams-archive', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
+      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'my-notifications', 'favorites', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'admins-list', 'captains-list', 'ban-list', 'create-match', 'page-change-history', 'matches-archive', 'teams-archive', 'stats-manual-edit', 'stats-change-history', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
           Раздел синхронизирован по правам доступа и готов к расширению бизнес-формами.
         </section>

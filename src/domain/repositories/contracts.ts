@@ -38,6 +38,7 @@ export interface PlayersRepository {
   getTopScorers?(options?: { limit?: number; tournamentId?: string }): Promise<TopScorer[]>
   createPlayer?(input: { userId: string; teamId: string; fullName: string; position: string; shirtNumber: number; avatarUrl?: string }): Promise<void>
   updatePlayer?(playerId: string, patch: Partial<Pick<Player, 'displayName' | 'position' | 'number' | 'avatar' | 'bio' | 'age' | 'socials'>>): Promise<void>
+  adminArchivePlayer?(playerId: string, archived: boolean): Promise<void>
 }
 
 export interface MatchesRepository {
@@ -134,4 +135,7 @@ export interface CabinetRepository {
   setActiveTournamentCycle?(cycleId: string): Promise<void>
   updateTournamentBracketSettings?(cycleId: string, settings: { teamCapacity: 4 | 8 | 16 | 32 }): Promise<void>
   getUserAccessMatrix?(): Promise<UserAccessRow[]>
+  addManualStatAdjustment?(input: { tournamentId: string; entityType: 'team' | 'player'; entityId: string; field: string; delta: number }): Promise<void>
+  getManualStatAdjustments?(tournamentId?: string): Promise<Array<{ id: string; tournamentId: string; entityType: 'team' | 'player'; entityId: string; field: string; delta: number; authorUserId: string; createdAt: string }>>
+  deleteManualStatAdjustment?(adjustmentId: string): Promise<void>
 }

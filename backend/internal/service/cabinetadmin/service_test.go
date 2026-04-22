@@ -116,6 +116,13 @@ func (f *fakeRepo) ListAuditActionsByActor(context.Context, int64, int) ([]domai
 func (f *fakeRepo) ListEntityChangeHistory(context.Context, int) ([]domain.UserActionItem, error) {
 	return nil, nil
 }
+func (f *fakeRepo) AddManualStatAdjustment(context.Context, domain.ManualStatAdjustment) (domain.ManualStatAdjustment, error) {
+	return domain.ManualStatAdjustment{}, nil
+}
+func (f *fakeRepo) DeleteManualStatAdjustment(context.Context, int64) error { return nil }
+func (f *fakeRepo) ListManualStatAdjustments(context.Context, int64) ([]domain.ManualStatAdjustment, error) {
+	return nil, nil
+}
 
 func TestEnsureCaptainPlayerProfileCreatesProfileWhenMissing(t *testing.T) {
 	repo := &fakeRepo{}

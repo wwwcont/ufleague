@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { Star, UserCircle2 } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
@@ -13,7 +13,7 @@ import { useMatches } from '../../hooks/data/useMatches'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { ApiError } from '../../infrastructure/api/repositories'
-import { canManagePlayer } from '../../domain/services/accessControl'
+import { canManagePlayer, isAdmin } from '../../domain/services/accessControl'
 import {
   EditableImageField,
   EditableSection,
@@ -27,6 +27,7 @@ import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from
 import { useUserPreferences } from '../../hooks/app/useUserPreferences'
 import { CircularImageCropField } from '../../components/ui/CircularImageCropField'
 import { buildCircularCropUploadFile, type CircleCrop } from '../../lib/image-upload'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 const getInitials = (name: string) => name.split(' ').map((part) => part[0]).join('').slice(0, 2)
 
@@ -42,6 +43,7 @@ const positionLabel: Record<string, string> = {
 
 export const PlayerDetailsPage = () => {
   const { playerId } = useParams()
+  const navigate = useNavigate()
   const { data: player } = usePlayerDetails(playerId)
   const { data: team } = useTeamDetails(player?.teamId)
   const { data: playerFeed } = useEvents({ entityType: 'player', entityId: playerId, limit: 4 })
@@ -81,6 +83,7 @@ export const PlayerDetailsPage = () => {
   const [newEventTitle, setNewEventTitle] = useState('')
   const [newEventSummary, setNewEventSummary] = useState('')
   const [newEventBlocks, setNewEventBlocks] = useState<EventContentBlock[]>([])
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false)
 
   useEffect(() => {
     if (!player) return
@@ -114,6 +117,7 @@ export const PlayerDetailsPage = () => {
   if (!player) return <PageContainer><EmptyState title="Игрок не найден" /></PageContainer>
 
   const canEditPlayer = canManagePlayer(session, player, team)
+  const canAdminPlayer = isAdmin(session)
   const isFavoritePlayer = isFavorite(`player:${player.id}`)
   const goalsFromMatches = (matches ?? []).flatMap((match) => match.events).filter((event) => event.type === 'goal' && event.playerId === player.id).length
   const assistsFromMatches = (matches ?? []).flatMap((match) => match.events).filter((event) => event.type === 'goal' && event.assistPlayerId === player.id).length
@@ -531,7 +535,33 @@ export const PlayerDetailsPage = () => {
         </section>
       )}
 
+      {canAdminPlayer && (
+        <section className="rounded-2xl border border-amber-500/30 bg-panelBg p-4 shadow-soft">
+          <h2 className="text-base font-semibold text-textPrimary">Администрирование</h2>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <button type="button" onClick={() => setArchiveConfirmOpen(true)} className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-left">
+              {player.isHidden ? 'Разархивировать игрока' : 'Скрыть игрока'}
+            </button>
+            <button type="button" onClick={() => navigate(`/profile/stats-manual-edit?entityType=player&entityId=${player.id}`)} className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-left">
+              Изменить статистику вручную
+            </button>
+          </div>
+        </section>
+      )}
+
       <CommentsSection entityType="player" entityId={player.id} title="Комментарии" />
+      <ConfirmDialog
+        open={archiveConfirmOpen}
+        title={player.isHidden ? 'Разархивировать игрока?' : 'Скрыть игрока?'}
+        description={player.isHidden ? 'Игрок снова появится в составе, поиске и таблицах.' : 'Игрок будет скрыт из состава, таблиц и поиска.'}
+        confirmLabel={player.isHidden ? 'Разархивировать' : 'Скрыть'}
+        onCancel={() => setArchiveConfirmOpen(false)}
+        onConfirm={async () => {
+          await playersRepository.adminArchivePlayer?.(player.id, !player.isHidden)
+          setArchiveConfirmOpen(false)
+          window.location.reload()
+        }}
+      />
     </PageContainer>
   )
 }

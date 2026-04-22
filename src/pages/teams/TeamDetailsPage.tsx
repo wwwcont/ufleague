@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { CalendarClock, Pencil, ShieldCheck, Star, Trophy, Users } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
@@ -20,6 +20,7 @@ import { canManageTeam } from '../../domain/services/accessControl'
 import { buildPlayerStatsMap, buildTeamHistorySummary } from '../../domain/services/teamPlayerStats'
 import { ApiError } from '../../infrastructure/api/repositories'
 import { useUserPreferences } from '../../hooks/app/useUserPreferences'
+import { isAdmin } from '../../domain/services/accessControl'
 import {
   EditableSection,
   EditableTextField,
@@ -28,12 +29,14 @@ import {
 } from '../../components/ui/editable'
 import { CircularImageCropField } from '../../components/ui/CircularImageCropField'
 import { buildCircularCropUploadFile, type CircleCrop } from '../../lib/image-upload'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 const formLabel: Record<string, string> = { W: 'В', D: 'Н', L: 'П' }
 const tournamentFallbackLogo = '/assets/logos/tournament.svg'
 
 export const TeamDetailsPage = () => {
   const { teamId } = useParams()
+  const navigate = useNavigate()
   const { data: team } = useTeamDetails(teamId)
   const { data: players } = usePlayers(teamId)
   const { data: teamFeed } = useEvents({ entityType: 'team', entityId: teamId, limit: 4 })
@@ -65,6 +68,7 @@ export const TeamDetailsPage = () => {
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoCrop, setLogoCrop] = useState<CircleCrop>({ x: 0, y: 0, zoom: 1 })
   const [localTeamFeed, setLocalTeamFeed] = useState(teamFeed ?? [])
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false)
 
   useEffect(() => {
     if (!team) return
@@ -98,6 +102,7 @@ export const TeamDetailsPage = () => {
   const hasMoreMatches = allTeamMatches.length > 3
   const teamMap = Object.fromEntries((teams ?? []).map((item) => [item.id, item]))
   const canManageCurrentTeam = canManageTeam(session, team)
+  const canAdminTeam = isAdmin(session)
   const historySummary = buildTeamHistorySummary(team.id, matches ?? [])
   const playerStatsMap = buildPlayerStatsMap(players ?? [], matches ?? [])
   const visiblePlayers = (() => {
@@ -393,7 +398,32 @@ export const TeamDetailsPage = () => {
       </section>
 
       <CommentsSection entityType="team" entityId={team.id} title="Комментарии" />
+      {canAdminTeam && (
+        <section className="rounded-2xl border border-amber-500/30 bg-panelBg p-4 shadow-soft">
+          <h2 className="text-base font-semibold text-textPrimary">Администрирование</h2>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <button type="button" onClick={() => setArchiveConfirmOpen(true)} className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-left">
+              {team.archived ? 'Разархивировать команду' : 'Архивировать команду'}
+            </button>
+            <button type="button" onClick={() => navigate(`/profile/stats-manual-edit?entityType=team&entityId=${team.id}`)} className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-left">
+              Изменить статистику вручную
+            </button>
+          </div>
+        </section>
+      )}
       <p className="text-xs text-textMuted flex items-center gap-1"><ShieldCheck size={12} className="text-accentYellow" /> События команды создаются капитанами/админами через события и ЛК.</p>
+      <ConfirmDialog
+        open={archiveConfirmOpen}
+        title={team.archived ? 'Разархивировать команду?' : 'Архивировать команду?'}
+        description={team.archived ? 'Команда снова станет видимой в турнирных разделах.' : 'Команда и связанные матчи будут скрыты из обычных разделов.'}
+        confirmLabel={team.archived ? 'Разархивировать' : 'Архивировать'}
+        onCancel={() => setArchiveConfirmOpen(false)}
+        onConfirm={async () => {
+          await teamsRepository.adminArchiveTeam?.(team.id, !team.archived)
+          setArchiveConfirmOpen(false)
+          window.location.reload()
+        }}
+      />
     </PageContainer>
   )
 }

@@ -48,6 +48,8 @@ const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
     { title: 'Создать матч', description: 'Создание нового матча турнира.', route: '/profile/create-match', icon: 'shield' },
     { title: 'Архив матчей', description: 'Скрытые матчи и возврат из архива.', route: '/profile/matches-archive', icon: 'shield' },
     { title: 'Архив команд', description: 'Скрытые команды и связанные матчи.', route: '/profile/teams-archive', icon: 'shield' },
+    { title: 'Изменить статистику вручную', description: 'Ручные корректировки статистики игроков и команд.', route: '/profile/stats-manual-edit', icon: 'shield' },
+    { title: 'Список изменений статистики', description: 'История ручных корректировок и удаление записей.', route: '/profile/stats-change-history', icon: 'shield' },
   ],
   superadmin: [
     { title: 'Список администраторов', description: 'Кто имеет admin/superadmin роли.', route: '/profile/admins-list', icon: 'shield' },
@@ -60,6 +62,8 @@ const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
     { title: 'Создать матч', description: 'Создание нового матча турнира.', route: '/profile/create-match', icon: 'shield' },
     { title: 'Архив матчей', description: 'Скрытые матчи и возврат из архива.', route: '/profile/matches-archive', icon: 'shield' },
     { title: 'Архив команд', description: 'Скрытые команды и связанные матчи.', route: '/profile/teams-archive', icon: 'shield' },
+    { title: 'Изменить статистику вручную', description: 'Ручные корректировки статистики игроков и команд.', route: '/profile/stats-manual-edit', icon: 'shield' },
+    { title: 'Список изменений статистики', description: 'История ручных корректировок и удаление записей.', route: '/profile/stats-change-history', icon: 'shield' },
   ],
 }
 
