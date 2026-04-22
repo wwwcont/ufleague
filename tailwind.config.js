@@ -13,8 +13,8 @@ export default {
         textMuted: '#9a9a9a',
         borderSubtle: '#2c2c2c',
         borderStrong: '#3a3a3a',
-        accentYellow: '#e3c14b',
-        accentYellowSoft: '#8f7a34',
+        accentYellow: '#c9ab4f',
+        accentYellowSoft: '#7a6932',
         statusLive: '#ef5350',
       },
       borderRadius: {
