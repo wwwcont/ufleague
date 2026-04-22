@@ -9,6 +9,7 @@ import type {
   Player,
   TopScorer,
   PublicEvent,
+  UserAccessRow,
   PublicUserCard,
   SearchResult,
   StandingRow,
@@ -132,4 +133,5 @@ export interface CabinetRepository {
   deleteTournamentCycle?(cycleId: string): Promise<void>
   setActiveTournamentCycle?(cycleId: string): Promise<void>
   updateTournamentBracketSettings?(cycleId: string, settings: { teamCapacity: 4 | 8 | 16 | 32 }): Promise<void>
+  getUserAccessMatrix?(): Promise<UserAccessRow[]>
 }

@@ -38,6 +38,18 @@ type PublicUserCard struct {
 	TeamID           *int64     `json:"team_id,omitempty"`
 }
 
+type UserAccessRow struct {
+	ID               int64      `json:"id"`
+	DisplayName      string     `json:"display_name"`
+	TelegramUsername string     `json:"telegram_username,omitempty"`
+	Roles            []Role     `json:"roles"`
+	Restrictions     []string   `json:"restrictions"`
+	PlayerID         *int64     `json:"player_id,omitempty"`
+	TeamID           *int64     `json:"team_id,omitempty"`
+	LastSeenAt       *time.Time `json:"last_seen_at,omitempty"`
+	IsOnline         bool       `json:"is_online"`
+}
+
 type Session struct {
 	ID        string    `json:"id"`
 	UserID    int64     `json:"user_id"`

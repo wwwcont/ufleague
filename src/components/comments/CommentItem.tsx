@@ -88,7 +88,6 @@ export const CommentItem = ({ comment, onReply, onEdit, onDelete, onReact, isThr
         <CommentActions
           canDelete={comment.canDelete}
           canEdit={comment.canEdit}
-          showModeration={comment.canDelete && !comment.isOwn}
           onReply={() => onReply(comment.id, comment.authorName)}
           onEdit={() => setIsEditing(true)}
           onDelete={() => onDelete(comment.id)}

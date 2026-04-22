@@ -12,7 +12,7 @@ import type {
   UsersRepository,
   UploadsRepository,
 } from '../../domain/repositories/contracts'
-import type { AuthSession, BackendMeDTO, CommentAuthorState, CommentNode, Match, Player, PlayoffGrid, PublicEvent, PublicUserCard, SearchResult, StandingRow, Team, TopScorer, UserRole } from '../../domain/entities/types'
+import type { AuthSession, BackendMeDTO, CommentAuthorState, CommentNode, Match, Player, PlayoffGrid, PublicEvent, PublicUserCard, SearchResult, StandingRow, Team, TopScorer, UserAccessRow, UserRole } from '../../domain/entities/types'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
 import { normalizeImageForUpload } from '../../lib/image-upload'
 import { notifyError, toRussianMessage } from '../../lib/notifications'
@@ -276,6 +276,18 @@ const mapUserCard = (u: any): PublicUserCard => ({
   displayName: String(u.display_name ?? 'Пользователь'),
   telegramUsername: u.telegram_username ? String(u.telegram_username) : undefined,
   statuses: Array.isArray(u.roles) ? u.roles : [],
+  lastSeenAt: u.last_seen_at ? String(u.last_seen_at) : undefined,
+  isOnline: Boolean(u.is_online),
+  playerId: u.player_id ? String(u.player_id) : undefined,
+  teamId: u.team_id ? String(u.team_id) : undefined,
+})
+
+const mapUserAccessRow = (u: any): UserAccessRow => ({
+  id: String(u.id),
+  displayName: String(u.display_name ?? 'Пользователь'),
+  telegramUsername: u.telegram_username ? String(u.telegram_username) : undefined,
+  roles: Array.isArray(u.roles) ? u.roles : [],
+  restrictions: Array.isArray(u.restrictions) ? u.restrictions.map((item: unknown) => String(item)) : [],
   lastSeenAt: u.last_seen_at ? String(u.last_seen_at) : undefined,
   isOnline: Boolean(u.is_online),
   playerId: u.player_id ? String(u.player_id) : undefined,
@@ -998,6 +1010,10 @@ export const cabinetRepository: CabinetRepository = {
   },
   async updateTournamentBracketSettings(cycleId, settings) {
     await api(`/api/admin/tournament/cycles/${cycleId}/settings`, { method: 'PATCH', body: JSON.stringify({ bracket_team_capacity: settings.teamCapacity }) })
+  },
+  async getUserAccessMatrix() {
+    const rows = await api<any[]>('/api/admin/access-matrix')
+    return rows.map(mapUserAccessRow)
   },
 }
 

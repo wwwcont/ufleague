@@ -13,6 +13,7 @@ import { EmptyState } from '../../components/ui/EmptyState'
 import type { PublicUserCard } from '../../domain/entities/types'
 import { buildPlayerStatsMap } from '../../domain/services/teamPlayerStats'
 import { notifyInfo, notifySuccess, toRussianMessage } from '../../lib/notifications'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 
 export const TeamRosterPage = () => {
   const { teamId } = useParams()
@@ -27,6 +28,7 @@ export const TeamRosterPage = () => {
   const [status, setStatus] = useState<string | null>(null)
   const [hiddenIds, setHiddenIds] = useState<string[]>([])
   const [removedIds, setRemovedIds] = useState<string[]>([])
+  const [deletePlayerId, setDeletePlayerId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!status) return
@@ -60,8 +62,8 @@ export const TeamRosterPage = () => {
     return [captain, ...base.filter((item) => item.id !== captain.id)]
   })()
   const captainPlayerId = team.captainUserId
-    ? (visiblePlayers.find((player) => player.userId === team.captainUserId)?.id
-      ?? visiblePlayers.find((player) => player.id === team.captainUserId)?.id
+    ? ((players ?? []).find((player) => player.userId === team.captainUserId)?.id
+      ?? (players ?? []).find((player) => player.id === team.captainUserId)?.id
       ?? null)
     : null
 
@@ -154,14 +156,7 @@ export const TeamRosterPage = () => {
                         <Pencil size={12} />
                       </Link>
                       <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/40 text-red-300" onClick={async () => {
-                        if (!window.confirm('Удалить игрока из состава команды?')) return
-                        try {
-                          await teamsRepository.captainSetRosterVisibility?.(team.id, player.id, false)
-                          setRemovedIds((prev) => [...prev, player.id])
-                          setStatus('Игрок удален из состава команды')
-                        } catch (error) {
-                          setStatus((error as Error).message)
-                        }
+                        setDeletePlayerId(player.id)
                       }} aria-label="Удалить">
                         <X size={12} />
                       </button>
@@ -174,6 +169,25 @@ export const TeamRosterPage = () => {
         </div>
         {status && <p className="mt-3 text-xs text-textMuted">{status}</p>}
       </section>
+      <ConfirmDialog
+        open={Boolean(deletePlayerId)}
+        title="Удалить игрока из состава?"
+        description="Игрок будет убран из текущего состава команды."
+        confirmLabel="Удалить"
+        onCancel={() => setDeletePlayerId(null)}
+        onConfirm={async () => {
+          if (!deletePlayerId) return
+          try {
+            await teamsRepository.captainSetRosterVisibility?.(team.id, deletePlayerId, false)
+            setRemovedIds((prev) => [...prev, deletePlayerId])
+            setStatus('Игрок удален из состава команды')
+          } catch (error) {
+            setStatus((error as Error).message)
+          } finally {
+            setDeletePlayerId(null)
+          }
+        }}
+      />
     </PageContainer>
   )
 }
