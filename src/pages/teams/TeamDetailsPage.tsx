@@ -160,6 +160,14 @@ export const TeamDetailsPage = () => {
         <div className="relative z-10">
           {!heroEditing && session.isAuthenticated && (
             <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+              {canAdminTeam && (
+                <Link
+                  to={`/profile/page-change-history?targetType=team&targetId=${encodeURIComponent(team.id)}&returnTo=${encodeURIComponent(`/teams/${team.id}`)}`}
+                  className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle bg-black/30 px-2 py-1 text-xs text-textSecondary"
+                >
+                  История изменений
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={() => toggleFavorite(`team:${team.id}`)}

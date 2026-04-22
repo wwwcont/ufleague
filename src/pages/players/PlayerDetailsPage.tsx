@@ -171,7 +171,15 @@ export const PlayerDetailsPage = () => {
             }}
           />
           {session.isAuthenticated && (
-            <div className="mb-3 flex justify-end">
+            <div className="mb-3 flex flex-wrap justify-end gap-2">
+              {canAdminPlayer && (
+                <Link
+                  to={`/profile/page-change-history?targetType=player&targetId=${encodeURIComponent(player.id)}&returnTo=${encodeURIComponent(`/players/${player.id}`)}`}
+                  className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle bg-black/30 px-2 py-1 text-xs text-textSecondary"
+                >
+                  История изменений
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={() => toggleFavorite(`player:${player.id}`)}
