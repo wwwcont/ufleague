@@ -283,10 +283,10 @@ func (r *CabinetAdminRepository) AddManualStatAdjustment(ctx context.Context, in
 	row := r.pool.QueryRow(ctx, `
 		INSERT INTO manual_stat_adjustments (tournament_cycle_id, entity_type, entity_id, field, delta, author_user_id)
 		VALUES ($1,$2,$3,$4,$5,$6)
-		RETURNING id, tournament_cycle_id, entity_type, entity_id, field, delta, author_user_id, EXTRACT(EPOCH FROM created_at)::bigint
+		RETURNING id, tournament_cycle_id, entity_type, entity_id, field, delta, author_user_id, ''::text, EXTRACT(EPOCH FROM created_at)::bigint
 	`, input.TournamentCycleID, input.EntityType, input.EntityID, input.Field, input.Delta, input.AuthorUserID)
 	var item domain.ManualStatAdjustment
-	if err := row.Scan(&item.ID, &item.TournamentCycleID, &item.EntityType, &item.EntityID, &item.Field, &item.Delta, &item.AuthorUserID, &item.CreatedAtUnix); err != nil {
+	if err := row.Scan(&item.ID, &item.TournamentCycleID, &item.EntityType, &item.EntityID, &item.Field, &item.Delta, &item.AuthorUserID, &item.AuthorTelegramTag, &item.CreatedAtUnix); err != nil {
 		return domain.ManualStatAdjustment{}, err
 	}
 	return item, nil
@@ -305,15 +305,16 @@ func (r *CabinetAdminRepository) DeleteManualStatAdjustment(ctx context.Context,
 
 func (r *CabinetAdminRepository) ListManualStatAdjustments(ctx context.Context, tournamentID int64) ([]domain.ManualStatAdjustment, error) {
 	query := `
-		SELECT id, tournament_cycle_id, entity_type, entity_id, field, delta, author_user_id, EXTRACT(EPOCH FROM created_at)::bigint
-		FROM manual_stat_adjustments
+		SELECT msa.id, msa.tournament_cycle_id, msa.entity_type, msa.entity_id, msa.field, msa.delta, msa.author_user_id, COALESCE(u.telegram_username, ''), EXTRACT(EPOCH FROM msa.created_at)::bigint
+		FROM manual_stat_adjustments msa
+		LEFT JOIN users u ON u.id = msa.author_user_id
 	`
 	args := []any{}
 	if tournamentID > 0 {
-		query += ` WHERE tournament_cycle_id=$1`
+		query += ` WHERE msa.tournament_cycle_id=$1`
 		args = append(args, tournamentID)
 	}
-	query += ` ORDER BY id DESC LIMIT 500`
+	query += ` ORDER BY msa.id DESC LIMIT 500`
 	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -322,7 +323,7 @@ func (r *CabinetAdminRepository) ListManualStatAdjustments(ctx context.Context, 
 	items := make([]domain.ManualStatAdjustment, 0, 64)
 	for rows.Next() {
 		var item domain.ManualStatAdjustment
-		if err = rows.Scan(&item.ID, &item.TournamentCycleID, &item.EntityType, &item.EntityID, &item.Field, &item.Delta, &item.AuthorUserID, &item.CreatedAtUnix); err != nil {
+		if err = rows.Scan(&item.ID, &item.TournamentCycleID, &item.EntityType, &item.EntityID, &item.Field, &item.Delta, &item.AuthorUserID, &item.AuthorTelegramTag, &item.CreatedAtUnix); err != nil {
 			return nil, err
 		}
 		items = append(items, item)

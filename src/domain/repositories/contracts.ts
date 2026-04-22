@@ -136,6 +136,6 @@ export interface CabinetRepository {
   updateTournamentBracketSettings?(cycleId: string, settings: { teamCapacity: 4 | 8 | 16 | 32 }): Promise<void>
   getUserAccessMatrix?(): Promise<UserAccessRow[]>
   addManualStatAdjustment?(input: { tournamentId: string; entityType: 'team' | 'player'; entityId: string; field: string; delta: number }): Promise<void>
-  getManualStatAdjustments?(tournamentId?: string): Promise<Array<{ id: string; tournamentId: string; entityType: 'team' | 'player'; entityId: string; field: string; delta: number; authorUserId: string; createdAt: string }>>
+  getManualStatAdjustments?(tournamentId?: string): Promise<Array<{ id: string; tournamentId: string; entityType: 'team' | 'player'; entityId: string; field: string; delta: number; authorUserId: string; authorTelegramUsername?: string; createdAt: string }>>
   deleteManualStatAdjustment?(adjustmentId: string): Promise<void>
 }
