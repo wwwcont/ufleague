@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, ChevronRight, LayoutPanelTop } from 'lucide-react'
 import type { Match, PublicUserCard, Team, UserRole } from '../../domain/entities/types'
 import { PageContainer } from '../../layouts/containers/PageContainer'
@@ -9,6 +9,7 @@ import { toAppRoute } from '../../lib/links'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { useTeams } from '../../hooks/data/useTeams'
 import { usePlayers } from '../../hooks/data/usePlayers'
+import { useMatches } from '../../hooks/data/useMatches'
 import { useUserPreferences } from '../../hooks/app/useUserPreferences'
 import { CircularImageCropField } from '../../components/ui/CircularImageCropField'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
@@ -202,13 +203,62 @@ const formatActionDetails = (action: string, metadata?: Record<string, unknown>)
   return null
 }
 
+const pageChangeTargetTypeLabels: Record<string, string> = {
+  team: 'Команда',
+  player: 'Игрок',
+  match: 'Матч',
+  user: 'Пользователь',
+}
+
+const pageChangeFieldLabels: Record<string, string> = {
+  name: 'Название',
+  short_name: 'Короткое название',
+  description: 'Описание',
+  logo_url: 'Логотип',
+  socials: 'Соцсети',
+  full_name: 'ФИО',
+  nickname: 'Псевдоним',
+  avatar_url: 'Аватар',
+  position: 'Позиция',
+  shirt_number: 'Номер',
+  team_id: 'Команда',
+  start_at: 'Дата и время',
+  status: 'Статус',
+  home_score: 'Счет хозяев',
+  away_score: 'Счет гостей',
+  venue: 'Стадион',
+  display_name: 'Отображаемое имя',
+  first_name: 'Имя',
+  last_name: 'Фамилия',
+  bio: 'О себе',
+}
+
+const stringifyChangeValue = (value: unknown) => {
+  if (value === null || value === undefined || value === '') return '—'
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+const formatPageChangeValue = (field: string, value: unknown, teamNames: Map<string, string>) => {
+  if (field === 'team_id') {
+    return teamNames.get(String(value ?? '')) ?? stringifyChangeValue(value)
+  }
+  if (field === 'start_at') {
+    const unix = Number(value)
+    if (Number.isFinite(unix) && unix > 0) return new Date(unix * 1000).toLocaleString('ru-RU')
+  }
+  return stringifyChangeValue(value)
+}
+
 export const CabinetSectionPage = () => {
   const { section } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { session, refreshSession } = useSession()
   const { cabinetRepository, teamsRepository, playersRepository, matchesRepository, uploadsRepository, usersRepository } = useRepositories()
   const { data: teams } = useTeams()
   const { data: players } = usePlayers()
+  const { data: matches } = useMatches()
   const { favoriteEntityKeys } = useUserPreferences()
 
   const [status, setStatus] = useState('')
@@ -228,8 +278,11 @@ export const CabinetSectionPage = () => {
   }, [status])
   const [myActions, setMyActions] = useState<Array<{ id: string; action: string; targetType: string; targetId: string; route: string; createdAt: string; metadata?: Record<string, unknown> }>>([])
   const [pageChangeHistory, setPageChangeHistory] = useState<Array<{ id: string; action: string; targetType: string; targetId: string; route: string; createdAt: string; metadata?: Record<string, unknown> }>>([])
-  const [pageChangeSearch, setPageChangeSearch] = useState('')
-  const [pageChangeFilter, setPageChangeFilter] = useState<'all' | 'team' | 'match' | 'player'>('all')
+  const [pageChangeSearch, setPageChangeSearch] = useState(searchParams.get('query') ?? '')
+  const [pageChangeFilter, setPageChangeFilter] = useState<'all' | 'team' | 'match' | 'player'>(() => {
+    const targetType = searchParams.get('targetType')
+    return targetType === 'team' || targetType === 'match' || targetType === 'player' ? targetType : 'all'
+  })
   const [deleteArchivedMatchId, setDeleteArchivedMatchId] = useState<string | null>(null)
   const [myNotifications, setMyNotifications] = useState<Array<{ id: string; notificationType: string; title: string; body: string; route: string; status: string; createdAt: string }>>([])
   const [telegramNotificationsEnabled, setTelegramNotificationsEnabled] = useState(true)
@@ -514,7 +567,11 @@ export const CabinetSectionPage = () => {
 
   const filteredPageChangeHistory = useMemo(() => {
     const query = pageChangeSearch.trim().toLowerCase()
+    const targetTypeFilter = searchParams.get('targetType')?.trim() ?? ''
+    const targetIdFilter = searchParams.get('targetId')?.trim() ?? ''
     return pageChangeHistory.filter((item) => {
+      if (targetTypeFilter && item.targetType !== targetTypeFilter) return false
+      if (targetIdFilter && item.targetId !== targetIdFilter) return false
       const matchesFilter = pageChangeFilter === 'all' || item.targetType === pageChangeFilter
       if (!matchesFilter) return false
       if (!query) return true
@@ -526,7 +583,14 @@ export const CabinetSectionPage = () => {
       const actionLabel = `${item.action} ${item.targetType} ${item.targetId}`.toLowerCase()
       return actorName.includes(query) || changes.includes(query) || actionLabel.includes(query)
     })
-  }, [pageChangeFilter, pageChangeHistory, pageChangeSearch])
+  }, [pageChangeFilter, pageChangeHistory, pageChangeSearch, searchParams])
+
+  const pageChangeTargetNames = useMemo(() => {
+    const teamNames = new Map((teams ?? []).map((item) => [item.id, item.name]))
+    const playerNames = new Map((players ?? []).map((item) => [item.id, item.displayName]))
+    const matchNames = new Map((matches ?? []).map((item) => [item.id, `${teamNames.get(item.homeTeamId) ?? `Команда ${item.homeTeamId}`} — ${teamNames.get(item.awayTeamId) ?? `Команда ${item.awayTeamId}`}`]))
+    return { teamNames, playerNames, matchNames }
+  }, [matches, players, teams])
 
   useEffect(() => {
     if (section !== 'page-change-history') return
@@ -851,6 +915,14 @@ export const CabinetSectionPage = () => {
 
       {section === 'page-change-history' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
+          {searchParams.get('returnTo') && (
+            <Link
+              to={searchParams.get('returnTo') ?? '/'}
+              className="mb-1 inline-flex items-center gap-1 text-xs text-accentYellow"
+            >
+              ← Вернуться на страницу
+            </Link>
+          )}
           <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
             <input
               value={pageChangeSearch}
@@ -873,15 +945,21 @@ export const CabinetSectionPage = () => {
             const actorName = String(item.metadata?.actor_name ?? 'Неизвестно')
             const rawChanges = (item.metadata?.changes ?? {}) as Record<string, { from?: unknown; to?: unknown }>
             const changeLines = Object.entries(rawChanges)
-              .map(([field, value]) => `${field}: ${String(value?.from ?? '—')} → ${String(value?.to ?? '—')}`)
+              .map(([field, value]) => {
+                const label = pageChangeFieldLabels[field] ?? field
+                const from = formatPageChangeValue(field, value?.from, pageChangeTargetNames.teamNames)
+                const to = formatPageChangeValue(field, value?.to, pageChangeTargetNames.teamNames)
+                return `${label}: ${from} → ${to}`
+              })
               .slice(0, 4)
-            const title = item.targetType === 'player'
-              ? `Изменение игрока #${item.targetId}`
+            const targetTitle = item.targetType === 'player'
+              ? (pageChangeTargetNames.playerNames.get(item.targetId) ?? 'Неизвестный игрок')
               : item.targetType === 'team'
-                ? `Изменение команды #${item.targetId}`
+                ? (pageChangeTargetNames.teamNames.get(item.targetId) ?? 'Неизвестная команда')
                 : item.targetType === 'match'
-                  ? `Изменение матча #${item.targetId}`
-                  : `Изменение ${item.targetType} #${item.targetId}`
+                  ? (pageChangeTargetNames.matchNames.get(item.targetId) ?? 'Неизвестный матч')
+                  : `${pageChangeTargetTypeLabels[item.targetType] ?? item.targetType}`
+            const title = `${pageChangeTargetTypeLabels[item.targetType] ?? item.targetType}: ${targetTitle}`
             return (
               <Link key={item.id} to={item.route || '/'} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
                 <p className="text-sm font-semibold text-textPrimary">{title}</p>
