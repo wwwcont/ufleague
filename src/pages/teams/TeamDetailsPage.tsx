@@ -104,6 +104,11 @@ export const TeamDetailsPage = () => {
     .filter((player) => canManageCurrentTeam || !player.isHidden)
     .slice(0, 8)
     .map((player) => ({ ...player, stats: playerStatsMap.get(player.id) ?? player.stats }))
+  const captainPlayerId = team.captainUserId
+    ? (visiblePlayers.find((player) => player.userId === team.captainUserId)?.id
+      ?? visiblePlayers.find((player) => player.id === team.captainUserId)?.id
+      ?? null)
+    : null
   const isFavoriteTeam = isFavorite(`team:${team.id}`)
   const actionError = (error: unknown) => {
     if (error instanceof ApiError) return `Ошибка API ${error.status}: ${error.message}`
@@ -334,7 +339,7 @@ export const TeamDetailsPage = () => {
               <div className="flex items-center justify-between gap-2">
                   <div className="flex-1">
                     <PlayerRow player={player} />
-                    {player.userId === team.captainUserId ? (
+                    {player.id === captainPlayerId ? (
                       <p className="mt-1 px-1 text-[11px] font-semibold text-accentYellow">Капитан команды</p>
                     ) : null}
                   </div>
@@ -347,6 +352,9 @@ export const TeamDetailsPage = () => {
             </div>
           )) : <p className="text-sm text-textMuted">Состав пока не загружен.</p>}
         </div>
+        {!captainPlayerId && team.captainUserId && (
+          <p className="mt-2 text-xs text-textMuted">Капитан назначен, но не найден в видимом составе (user #{team.captainUserId}).</p>
+        )}
       </section>
 
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
