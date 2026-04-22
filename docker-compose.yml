@@ -3,17 +3,17 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: ${UFL_DB_NAME:-football_ui}
-      POSTGRES_USER: ${UFL_DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${UFL_DB_PASSWORD:-postgres}
-    ports:
-      - "${UFL_DB_PORT:-5433}:5432"
+      POSTGRES_USER: ${UFL_DB_USER:-ufleague_app2}
+      POSTGRES_PASSWORD: ${UFL_DB_PASSWORD:-uflapp}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "PGPASSWORD=${UFL_DB_PASSWORD:-postgres} pg_isready -h 127.0.0.1 -U ${UFL_DB_USER:-postgres} -d ${UFL_DB_NAME:-football_ui}"]
+      test: ["CMD-SHELL", "PGPASSWORD=${UFL_DB_PASSWORD:-uflapp} pg_isready -h 127.0.0.1 -U ${UFL_DB_USER:-ufleague_app} -d ${UFL_DB_NAME:-football_ui}"]
       interval: 5s
       timeout: 5s
       retries: 10
+    ports:
+      - "5433:5432"
 
   backend:
     build:
@@ -22,7 +22,7 @@ services:
       APP_ENV: ${APP_ENV:-development}
       HTTP_HOST: 0.0.0.0
       HTTP_PORT: 8082
-      DATABASE_URL: postgres://${UFL_DB_USER:-postgres}:${UFL_DB_PASSWORD:-postgres}@postgres:5432/${UFL_DB_NAME:-football_ui}?sslmode=disable
+      DATABASE_URL: postgres://${UFL_DB_USER:-ufleague_app2}:${UFL_DB_PASSWORD:-uflapp}@postgres:5432/${UFL_DB_NAME:-football_ui}?sslmode=disable
       DEV_LOGIN_ENABLED: ${DEV_LOGIN_ENABLED:-true}
       TELEGRAM_MOCK_LOGIN_ENABLED: ${TELEGRAM_MOCK_LOGIN_ENABLED:-true}
       TELEGRAM_MOCK_CODE: ${TELEGRAM_MOCK_CODE:-UFL-SUPERADMIN-2026}
