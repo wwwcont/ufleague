@@ -86,6 +86,33 @@ body {
     animation-duration: 17s;
     animation-delay: -9s;
   }
+
+  :where([class*='bg-accentYellow']) {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  :where([class*='bg-accentYellow'])::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 0;
+    background:
+      radial-gradient(140% 95% at 12% 8%, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0) 38%),
+      radial-gradient(120% 86% at 85% 16%, rgba(255, 236, 172, 0.2) 0%, rgba(255, 236, 172, 0) 48%),
+      linear-gradient(132deg, rgba(255, 232, 149, 0.16) 0%, rgba(255, 208, 79, 0.02) 45%, rgba(255, 246, 196, 0.12) 100%);
+    opacity: 0.75;
+    mix-blend-mode: screen;
+    animation: yellowGlintDrift 12s ease-in-out infinite alternate;
+  }
+
+  :where([class*='bg-accentYellow']) > * {
+    position: relative;
+    z-index: 1;
+  }
 }
 
 @keyframes typingBlink {
@@ -120,6 +147,21 @@ body {
   }
   100% {
     transform: translate3d(-16px, 20px, 0) scale(0.95);
+  }
+}
+
+@keyframes yellowGlintDrift {
+  0% {
+    transform: translate3d(-2%, -2%, 0) scale(1);
+    opacity: 0.62;
+  }
+  50% {
+    transform: translate3d(1%, 1%, 0) scale(1.02);
+    opacity: 0.82;
+  }
+  100% {
+    transform: translate3d(2%, -1%, 0) scale(0.99);
+    opacity: 0.68;
   }
 }
 
