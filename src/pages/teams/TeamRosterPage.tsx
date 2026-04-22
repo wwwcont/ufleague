@@ -49,10 +49,23 @@ export const TeamRosterPage = () => {
   const visiblePlayers = (() => {
     const source = (players ?? []).filter((item) => !removedIds.includes(item.id))
     const statsMap = buildPlayerStatsMap(source, matches ?? [])
-    const withStats = source.map((item) => ({ ...item, stats: statsMap.get(item.id) ?? item.stats }))
+    const withStats = source
+      .map((item) => ({ ...item, stats: statsMap.get(item.id) ?? item.stats }))
+      .sort((left, right) => {
+        const leftIsCaptain = Boolean(team.captainUserId && (left.userId === team.captainUserId || left.id === team.captainUserId))
+        const rightIsCaptain = Boolean(team.captainUserId && (right.userId === team.captainUserId || right.id === team.captainUserId))
+        if (leftIsCaptain && !rightIsCaptain) return -1
+        if (!leftIsCaptain && rightIsCaptain) return 1
+        return 0
+      })
     if (canManageCurrentTeam) return withStats
     return withStats.filter((item) => !effectiveHidden.has(item.id))
   })()
+  const captainPlayerId = team.captainUserId
+    ? (visiblePlayers.find((player) => player.userId === team.captainUserId)?.id
+      ?? visiblePlayers.find((player) => player.id === team.captainUserId)?.id
+      ?? null)
+    : null
 
   return (
     <PageContainer>
@@ -123,6 +136,7 @@ export const TeamRosterPage = () => {
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex-1">
                     <PlayerRow player={player} />
+                    {player.id === captainPlayerId && <p className="mt-1 text-xs font-semibold text-accentYellow">Капитан команды</p>}
                     {isHidden && <p className="mt-1 text-xs text-textMuted">Скрыт из публичного состава</p>}
                   </div>
                   {canManageCurrentTeam && (

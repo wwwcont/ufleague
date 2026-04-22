@@ -11,6 +11,7 @@ import { useTeams } from '../../hooks/data/useTeams'
 import { usePlayers } from '../../hooks/data/usePlayers'
 import { useUserPreferences } from '../../hooks/app/useUserPreferences'
 import { CircularImageCropField } from '../../components/ui/CircularImageCropField'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { buildCircularCropUploadFile, type CircleCrop } from '../../lib/image-upload'
 
 const roleRank: Record<UserRole, number> = {
@@ -214,6 +215,9 @@ export const CabinetSectionPage = () => {
   }, [status])
   const [myActions, setMyActions] = useState<Array<{ id: string; action: string; targetType: string; targetId: string; route: string; createdAt: string; metadata?: Record<string, unknown> }>>([])
   const [pageChangeHistory, setPageChangeHistory] = useState<Array<{ id: string; action: string; targetType: string; targetId: string; route: string; createdAt: string; metadata?: Record<string, unknown> }>>([])
+  const [pageChangeSearch, setPageChangeSearch] = useState('')
+  const [pageChangeFilter, setPageChangeFilter] = useState<'all' | 'team' | 'match' | 'player'>('all')
+  const [deleteArchivedMatchId, setDeleteArchivedMatchId] = useState<string | null>(null)
   const [myNotifications, setMyNotifications] = useState<Array<{ id: string; notificationType: string; title: string; body: string; route: string; status: string; createdAt: string }>>([])
   const [telegramNotificationsEnabled, setTelegramNotificationsEnabled] = useState(true)
   const [telegramSettingsLoading, setTelegramSettingsLoading] = useState(false)
@@ -447,6 +451,22 @@ export const CabinetSectionPage = () => {
       })))
     }).catch(() => setMyActions([]))
   }, [cabinetRepository, navigate, section, session.isAuthenticated])
+
+  const filteredPageChangeHistory = useMemo(() => {
+    const query = pageChangeSearch.trim().toLowerCase()
+    return pageChangeHistory.filter((item) => {
+      const matchesFilter = pageChangeFilter === 'all' || item.targetType === pageChangeFilter
+      if (!matchesFilter) return false
+      if (!query) return true
+      const actorName = String(item.metadata?.actor_name ?? '').toLowerCase()
+      const changes = Object.entries((item.metadata?.changes ?? {}) as Record<string, { from?: unknown; to?: unknown }>)
+        .map(([field, value]) => `${field} ${String(value?.from ?? '')} ${String(value?.to ?? '')}`)
+        .join(' ')
+        .toLowerCase()
+      const actionLabel = `${item.action} ${item.targetType} ${item.targetId}`.toLowerCase()
+      return actorName.includes(query) || changes.includes(query) || actionLabel.includes(query)
+    })
+  }, [pageChangeFilter, pageChangeHistory, pageChangeSearch])
 
   useEffect(() => {
     if (section !== 'page-change-history') return
@@ -751,7 +771,25 @@ export const CabinetSectionPage = () => {
 
       {section === 'page-change-history' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-2">
-          {pageChangeHistory.length ? pageChangeHistory.map((item) => {
+          <div className="mb-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
+            <input
+              value={pageChangeSearch}
+              onChange={(event) => setPageChangeSearch(event.target.value)}
+              placeholder="Поиск: кто менял, поле, значение…"
+              className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm"
+            />
+            <select
+              value={pageChangeFilter}
+              onChange={(event) => setPageChangeFilter(event.target.value as 'all' | 'team' | 'match' | 'player')}
+              className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm"
+            >
+              <option value="all">Все</option>
+              <option value="team">Команды</option>
+              <option value="match">Матчи</option>
+              <option value="player">Игроки</option>
+            </select>
+          </div>
+          {filteredPageChangeHistory.length ? filteredPageChangeHistory.map((item) => {
             const actorName = String(item.metadata?.actor_name ?? 'Неизвестно')
             const rawChanges = (item.metadata?.changes ?? {}) as Record<string, { from?: unknown; to?: unknown }>
             const changeLines = Object.entries(rawChanges)
@@ -761,7 +799,9 @@ export const CabinetSectionPage = () => {
               ? `Изменение игрока #${item.targetId}`
               : item.targetType === 'team'
                 ? `Изменение команды #${item.targetId}`
-                : `Изменение матча #${item.targetId}`
+                : item.targetType === 'match'
+                  ? `Изменение матча #${item.targetId}`
+                  : `Изменение ${item.targetType} #${item.targetId}`
             return (
               <Link key={item.id} to={item.route || '/'} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
                 <p className="text-sm font-semibold text-textPrimary">{title}</p>
@@ -774,7 +814,7 @@ export const CabinetSectionPage = () => {
                 <p className="mt-2 text-xs text-accentYellow">Открыть страницу →</p>
               </Link>
             )
-          }) : <p className="text-xs text-textMuted">Пока нет изменений страниц.</p>}
+          }) : <p className="text-xs text-textMuted">Ничего не найдено по текущему поиску/фильтру.</p>}
         </section>
       )}
 
@@ -1326,20 +1366,34 @@ export const CabinetSectionPage = () => {
                       setStatus(`error: ${(error as Error).message}`)
                     }
                   }}>Вернуть из архива</button>
-                  <button type="button" className="mt-2 ml-2 rounded-lg border border-red-700/50 px-3 py-1.5 text-xs text-red-300" onClick={async () => {
-                    if (!window.confirm('Безопасно удалить матч из архива? Будут удалены связанные комментарии и события матча.')) return
-                    try {
-                      await matchesRepository.adminDeleteMatch?.(item.id)
-                      setStatus('ok: match deleted with dependencies')
-                      setArchivedMatches((prev) => prev.filter((match) => match.id !== item.id))
-                    } catch (error) {
-                      setStatus(`error: ${(error as Error).message}`)
-                    }
-                  }}>Удалить матч безопасно</button>
+                  <button type="button" className="mt-2 ml-2 rounded-lg bg-red-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600" onClick={() => {
+                    setDeleteArchivedMatchId(item.id)
+                  }}>Удалить</button>
                 </div>
               ))}
             </div>
           )}
+          <ConfirmDialog
+            open={Boolean(deleteArchivedMatchId)}
+            title="Удалить матч из архива?"
+            description="Будут удалены связанные комментарии и события матча. Действие необратимо."
+            confirmLabel="Удалить"
+            onCancel={() => setDeleteArchivedMatchId(null)}
+            onConfirm={() => {
+              if (!deleteArchivedMatchId) return
+              void (async () => {
+                try {
+                  await matchesRepository.adminDeleteMatch?.(deleteArchivedMatchId)
+                  setStatus('ok: match deleted with dependencies')
+                  setArchivedMatches((prev) => prev.filter((match) => match.id !== deleteArchivedMatchId))
+                } catch (error) {
+                  setStatus(`error: ${(error as Error).message}`)
+                } finally {
+                  setDeleteArchivedMatchId(null)
+                }
+              })()
+            }}
+          />
         </section>
       )}
 

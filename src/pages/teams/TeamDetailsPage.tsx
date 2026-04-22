@@ -102,8 +102,20 @@ export const TeamDetailsPage = () => {
   const playerStatsMap = buildPlayerStatsMap(players ?? [], matches ?? [])
   const visiblePlayers = (players ?? [])
     .filter((player) => canManageCurrentTeam || !player.isHidden)
+    .sort((left, right) => {
+      const leftIsCaptain = Boolean(team.captainUserId && (left.userId === team.captainUserId || left.id === team.captainUserId))
+      const rightIsCaptain = Boolean(team.captainUserId && (right.userId === team.captainUserId || right.id === team.captainUserId))
+      if (leftIsCaptain && !rightIsCaptain) return -1
+      if (!leftIsCaptain && rightIsCaptain) return 1
+      return 0
+    })
     .slice(0, 8)
     .map((player) => ({ ...player, stats: playerStatsMap.get(player.id) ?? player.stats }))
+  const captainPlayerId = team.captainUserId
+    ? (visiblePlayers.find((player) => player.userId === team.captainUserId)?.id
+      ?? visiblePlayers.find((player) => player.id === team.captainUserId)?.id
+      ?? null)
+    : null
   const isFavoriteTeam = isFavorite(`team:${team.id}`)
   const actionError = (error: unknown) => {
     if (error instanceof ApiError) return `Ошибка API ${error.status}: ${error.message}`
@@ -334,7 +346,7 @@ export const TeamDetailsPage = () => {
               <div className="flex items-center justify-between gap-2">
                   <div className="flex-1">
                     <PlayerRow player={player} />
-                    {player.userId === team.captainUserId ? (
+                    {player.id === captainPlayerId ? (
                       <p className="mt-1 px-1 text-[11px] font-semibold text-accentYellow">Капитан команды</p>
                     ) : null}
                   </div>
