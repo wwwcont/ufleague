@@ -53,6 +53,11 @@ export const TeamRosterPage = () => {
     if (canManageCurrentTeam) return withStats
     return withStats.filter((item) => !effectiveHidden.has(item.id))
   })()
+  const captainPlayerId = team.captainUserId
+    ? (visiblePlayers.find((player) => player.userId === team.captainUserId)?.id
+      ?? visiblePlayers.find((player) => player.id === team.captainUserId)?.id
+      ?? null)
+    : null
 
   return (
     <PageContainer>
@@ -123,6 +128,7 @@ export const TeamRosterPage = () => {
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex-1">
                     <PlayerRow player={player} />
+                    {player.id === captainPlayerId && <p className="mt-1 text-xs font-semibold text-accentYellow">Капитан команды</p>}
                     {isHidden && <p className="mt-1 text-xs text-textMuted">Скрыт из публичного состава</p>}
                   </div>
                   {canManageCurrentTeam && (
@@ -160,6 +166,9 @@ export const TeamRosterPage = () => {
             )
           }) : <p className="text-sm text-textMuted">Состав пуст.</p>}
         </div>
+        {!captainPlayerId && team.captainUserId && (
+          <p className="mt-2 text-xs text-textMuted">Капитан назначен, но не найден в текущем списке игроков (user #{team.captainUserId}).</p>
+        )}
         {status && <p className="mt-3 text-xs text-textMuted">{status}</p>}
       </section>
     </PageContainer>
