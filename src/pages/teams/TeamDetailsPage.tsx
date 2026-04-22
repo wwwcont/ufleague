@@ -110,8 +110,8 @@ export const TeamDetailsPage = () => {
     return [captain, ...base.filter((player) => player.id !== captain.id)].slice(0, 8)
   })()
   const captainPlayerId = team.captainUserId
-    ? (visiblePlayers.find((player) => player.userId === team.captainUserId)?.id
-      ?? visiblePlayers.find((player) => player.id === team.captainUserId)?.id
+    ? ((players ?? []).find((player) => player.userId === team.captainUserId)?.id
+      ?? (players ?? []).find((player) => player.id === team.captainUserId)?.id
       ?? null)
     : null
   const isFavoriteTeam = isFavorite(`team:${team.id}`)

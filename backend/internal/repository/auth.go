@@ -121,6 +121,80 @@ func (r *AuthRepository) SearchPublicUserCardsByTelegramUsername(ctx context.Con
 	return cards, nil
 }
 
+func (r *AuthRepository) ListUserAccessRows(ctx context.Context, limit int) ([]domain.UserAccessRow, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			u.id,
+			u.display_name,
+			COALESCE(u.telegram_username, ''),
+			COALESCE(
+				ARRAY(
+					SELECT r.code
+					FROM user_roles ur
+					JOIN roles r ON r.id = ur.role_id
+					WHERE ur.user_id = u.id
+					ORDER BY r.code
+				),
+				ARRAY[]::text[]
+			) AS roles,
+			COALESCE(
+				ARRAY(
+					SELECT ur.restriction
+					FROM user_restrictions ur
+					WHERE ur.user_id = u.id
+					ORDER BY ur.restriction
+				),
+				ARRAY[]::text[]
+			) AS restrictions,
+			p.id AS player_id,
+			COALESCE(p.team_id, t.id) AS team_id,
+			MAX(s.last_seen_at) FILTER (WHERE s.revoked_at IS NULL AND s.expires_at > NOW()) AS last_seen_at
+		FROM users u
+		LEFT JOIN LATERAL (
+			SELECT id, team_id
+			FROM players
+			WHERE user_id = u.id
+			ORDER BY id ASC
+			LIMIT 1
+		) p ON true
+		LEFT JOIN teams t ON t.captain_user_id = u.id
+		LEFT JOIN sessions s ON s.user_id = u.id
+		GROUP BY u.id, u.display_name, u.telegram_username, p.id, p.team_id, t.id
+		ORDER BY u.display_name ASC, u.id ASC
+		LIMIT $1
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]domain.UserAccessRow, 0, limit)
+	for rows.Next() {
+		var item domain.UserAccessRow
+		var roleCodes []string
+		var lastSeen *time.Time
+		if err := rows.Scan(&item.ID, &item.DisplayName, &item.TelegramUsername, &roleCodes, &item.Restrictions, &item.PlayerID, &item.TeamID, &lastSeen); err != nil {
+			return nil, err
+		}
+		item.Roles = make([]domain.Role, 0, len(roleCodes))
+		for _, code := range roleCodes {
+			item.Roles = append(item.Roles, domain.Role(code))
+		}
+		if lastSeen != nil {
+			item.LastSeenAt = lastSeen
+			item.IsOnline = time.Since(*lastSeen) <= 5*time.Minute
+		}
+		result = append(result, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 func normalizeTelegramUsername(raw string) string {
 	return strings.TrimPrefix(strings.ToLower(strings.TrimSpace(raw)), "@")
 }

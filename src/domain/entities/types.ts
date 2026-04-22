@@ -355,6 +355,18 @@ export interface PublicUserCard {
   teamId?: ID
 }
 
+export interface UserAccessRow {
+  id: ID
+  displayName: string
+  telegramUsername?: string
+  roles: UserRole[]
+  restrictions: string[]
+  playerId?: ID
+  teamId?: ID
+  lastSeenAt?: string
+  isOnline: boolean
+}
+
 export interface AuthSession {
   isAuthenticated: boolean
   user: SessionUser

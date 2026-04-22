@@ -169,6 +169,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Patch("/captain/teams/{id}/socials", h.CaptainUpdateTeamSocials)
 		r.With(sessionMW.RequireSession).Patch("/captain/teams/{id}/roster/{playerId}", h.CaptainSetRosterVisibility)
 		r.With(sessionMW.RequireSession).Post("/admin/comments/{id}/moderate-delete", h.AdminModerateComment)
+		r.With(sessionMW.RequireSession).Get("/admin/access-matrix", h.AdminListUserAccessMatrix)
 		r.With(sessionMW.RequireSession).Post("/admin/teams/{id}/transfer-captain", h.AdminTransferCaptain)
 		r.With(sessionMW.RequireSession).Post("/admin/teams/{id}/archive", h.AdminArchiveTeam)
 		r.With(sessionMW.RequireSession).Delete("/admin/teams/{id}", h.AdminDeleteTeam)
@@ -2194,6 +2195,24 @@ func (h Handler) AdminModerateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+func (h Handler) AdminListUserAccessMatrix(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	role := strongestRole(current.User.Roles)
+	if role != domain.RoleAdmin && role != domain.RoleSuperadmin {
+		http.Error(w, "forbidden", 403)
+		return
+	}
+	items, err := h.authRepo.ListUserAccessRows(r.Context(), 500)
+	if err != nil {
+		http.Error(w, "failed", 500)
+		return
+	}
+	writeJSON(w, 200, items)
 }
 func (h Handler) AdminTransferCaptain(w http.ResponseWriter, r *http.Request) {
 	current, ok := middleware.CurrentSession(r.Context())

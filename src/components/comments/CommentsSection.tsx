@@ -1,10 +1,11 @@
 import { MessageSquare } from 'lucide-react'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { CommentEntityType } from '../../domain/entities/types'
 import { useEntityComments } from '../../hooks/data/useEntityComments'
 import { CommentComposer } from './CommentComposer'
 import { CommentList } from './CommentList'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 
 interface CommentsSectionProps {
   entityType: CommentEntityType
@@ -14,6 +15,7 @@ interface CommentsSectionProps {
 }
 
 export const CommentsSection = ({ entityType, entityId, title = 'Комментарии', collapsed = true }: CommentsSectionProps) => {
+  const [pendingDeleteCommentId, setPendingDeleteCommentId] = useState<string | null>(null)
   const {
     comments,
     author,
@@ -69,12 +71,24 @@ export const CommentsSection = ({ entityType, entityId, title = 'Коммент�
           comments={visibleComments}
           onReply={(commentId, authorName) => setActiveReplyTo({ id: commentId, author: authorName })}
           onEdit={(commentId, text) => { void editComment(commentId, text) }}
-          onDelete={(commentId) => { void removeComment(commentId) }}
+          onDelete={(commentId) => setPendingDeleteCommentId(commentId)}
           onReact={(commentId, reaction) => { void reactToComment(commentId, reaction) }}
           showRoleBadge={!collapsed}
           showThread={!collapsed}
         />
       )}
+      <ConfirmDialog
+        open={Boolean(pendingDeleteCommentId)}
+        title="Удалить комментарий?"
+        description="Комментарий будет скрыт из обсуждения."
+        confirmLabel="Удалить"
+        onCancel={() => setPendingDeleteCommentId(null)}
+        onConfirm={async () => {
+          if (!pendingDeleteCommentId) return
+          await removeComment(pendingDeleteCommentId)
+          setPendingDeleteCommentId(null)
+        }}
+      />
       {collapsed && comments.length > 0 && (
         <div className="mt-3 text-right">
           <Link to={`/comments/${entityType}/${entityId}`} className="text-sm text-accentYellow hover:underline">
