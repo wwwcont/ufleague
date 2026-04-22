@@ -50,7 +50,7 @@ export const PlayerDetailsPage = () => {
   const { data: matches } = useMatches()
   const { session } = useSession()
   const { isFavorite, toggleFavorite } = useUserPreferences()
-  const { playersRepository, eventsRepository, uploadsRepository, usersRepository } = useRepositories()
+  const { playersRepository, eventsRepository, uploadsRepository, usersRepository, cabinetRepository } = useRepositories()
 
   const [heroEditing, setHeroEditing] = useState(false)
   const [profileEditing, setProfileEditing] = useState(false)
@@ -84,6 +84,7 @@ export const PlayerDetailsPage = () => {
   const [newEventSummary, setNewEventSummary] = useState('')
   const [newEventBlocks, setNewEventBlocks] = useState<EventContentBlock[]>([])
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false)
+  const [playerStatAdjustments, setPlayerStatAdjustments] = useState({ matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 })
 
   useEffect(() => {
     if (!player) return
@@ -114,6 +115,39 @@ export const PlayerDetailsPage = () => {
       .catch(() => undefined)
   }, [player?.userId, usersRepository])
 
+  useEffect(() => {
+    if (!player?.id || !cabinetRepository.getManualStatAdjustments) return
+    void cabinetRepository.getManualStatAdjustments()
+      .then((items) => {
+        const totals = items
+          .filter((item) => item.entityType === 'player' && item.entityId === player.id)
+          .reduce((acc, item) => {
+            switch (item.field) {
+              case 'matches':
+                acc.matches += item.delta
+                break
+              case 'goals':
+                acc.goals += item.delta
+                break
+              case 'assists':
+                acc.assists += item.delta
+                break
+              case 'yellow_cards':
+                acc.yellowCards += item.delta
+                break
+              case 'red_cards':
+                acc.redCards += item.delta
+                break
+              default:
+                break
+            }
+            return acc
+          }, { matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 })
+        setPlayerStatAdjustments(totals)
+      })
+      .catch(() => setPlayerStatAdjustments({ matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 }))
+  }, [cabinetRepository, player?.id])
+
   if (!player) return <PageContainer><EmptyState title="Игрок не найден" /></PageContainer>
 
   const canEditPlayer = canManagePlayer(session, player, team)
@@ -123,6 +157,13 @@ export const PlayerDetailsPage = () => {
   const assistsFromMatches = (matches ?? []).flatMap((match) => match.events).filter((event) => event.type === 'goal' && event.assistPlayerId === player.id).length
   const yellowCardsFromMatches = (matches ?? []).flatMap((match) => match.events).filter((event) => event.type === 'yellow_card' && event.playerId === player.id).length
   const redCardsFromMatches = (matches ?? []).flatMap((match) => match.events).filter((event) => event.type === 'red_card' && event.playerId === player.id).length
+  const adjustedPlayerStats = {
+    appearances: Math.max(0, player.stats.appearances + playerStatAdjustments.matches),
+    goals: Math.max(0, goalsFromMatches + playerStatAdjustments.goals),
+    assists: Math.max(0, assistsFromMatches + playerStatAdjustments.assists),
+    yellowCards: Math.max(0, yellowCardsFromMatches + playerStatAdjustments.yellowCards),
+    redCards: Math.max(0, redCardsFromMatches + playerStatAdjustments.redCards),
+  }
 
   const actionError = (error: unknown) => {
     if (error instanceof ApiError) {
@@ -198,7 +239,7 @@ export const PlayerDetailsPage = () => {
               <h1 className="text-3xl font-bold text-textPrimary">{displayName || player.displayName}</h1>
               <p className="text-sm text-textSecondary">Позиция: {positionLabel[player.position] ?? player.position}</p>
               <p className="text-xs text-textMuted">{player.age ? `${player.age} лет` : 'Возраст не указан'}</p>
-              <p className="text-xs text-textMuted">Голы: {goalsFromMatches} • Ассисты: {assistsFromMatches} • ЖК: {yellowCardsFromMatches} • КК: {redCardsFromMatches}</p>
+              <p className="text-xs text-textMuted">Голы: {adjustedPlayerStats.goals} • Ассисты: {adjustedPlayerStats.assists} • ЖК: {adjustedPlayerStats.yellowCards} • КК: {adjustedPlayerStats.redCards}</p>
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
                 {player.userId && <Link to={`/users/${player.userId}`} className="rounded-lg border border-borderSubtle px-2 py-1">Страница юзера</Link>}
               </div>
@@ -448,11 +489,11 @@ export const PlayerDetailsPage = () => {
       <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 shadow-soft">
         <h2 className="mb-3 text-base font-semibold text-textPrimary">Статистика игрока</h2>
         <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Матчи:</span> {player.stats.appearances}</div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Голы:</span> <span className="font-semibold text-accentYellow">{goalsFromMatches}</span></div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Ассисты:</span> {assistsFromMatches}</div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Желтые карточки:</span> {yellowCardsFromMatches}</div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Красные карточки:</span> {redCardsFromMatches}</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Матчи:</span> {adjustedPlayerStats.appearances}</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Голы:</span> <span className="font-semibold text-accentYellow">{adjustedPlayerStats.goals}</span></div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Ассисты:</span> {adjustedPlayerStats.assists}</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Желтые карточки:</span> {adjustedPlayerStats.yellowCards}</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Красные карточки:</span> {adjustedPlayerStats.redCards}</div>
         </div>
       </section>
 
