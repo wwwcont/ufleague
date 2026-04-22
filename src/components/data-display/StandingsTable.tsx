@@ -4,7 +4,7 @@ import type { StandingRow, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
 
 export const StandingsTable = ({ rows, teamMap }: { rows: StandingRow[]; teamMap: Record<string, Team> }) => (
-  <div className="matte-panel p-2">
+  <div className="matte-panel glow-surface p-2">
     <table className="w-full table-fixed border-separate border-spacing-y-1 text-xs sm:text-sm">
       <thead>
         <tr className="text-[11px] uppercase tracking-[0.11em] text-textMuted">

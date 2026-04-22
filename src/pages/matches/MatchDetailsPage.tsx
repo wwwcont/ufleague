@@ -343,7 +343,7 @@ export const MatchDetailsPage = () => {
 
   return (
     <PageContainer>
-      <section className="relative rounded-2xl border border-borderStrong bg-panelBg px-5 py-6 shadow-matte sm:px-7 sm:py-7">
+      <section className="relative overflow-hidden rounded-2xl border border-borderStrong bg-panelBg px-5 py-6 shadow-matte sm:px-7 sm:py-7">
         {canEditScore && (
           <div className="absolute left-1/2 top-0 z-30 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2">
             <button type="button" onClick={() => setCardsEditorOpen(true)} className="inline-flex items-center rounded-full border border-borderSubtle bg-panelBg px-3 py-1 text-xs font-semibold text-textPrimary shadow-soft">
@@ -370,7 +370,7 @@ export const MatchDetailsPage = () => {
               <img
                 src={home.logoUrl}
                 alt=""
-                className="h-full w-full scale-[1.18] object-cover blur-xl opacity-14 saturate-[0.45] brightness-[0.58] contrast-75 transition-[filter,opacity,transform] duration-1000 ease-out"
+                className="h-full w-full scale-[1.05] object-cover blur-xl opacity-[0.45] saturate-[0.45] brightness-[0.46] contrast-75 transition-[filter,opacity,transform] duration-1000 ease-out"
               />
             )}
           </div>
@@ -379,7 +379,7 @@ export const MatchDetailsPage = () => {
               <img
                 src={away.logoUrl}
                 alt=""
-                className="h-full w-full scale-[1.18] object-cover blur-xl opacity-14 saturate-[0.45] brightness-[0.58] contrast-75 transition-[filter,opacity,transform] duration-1000 ease-out"
+                className="h-full w-full scale-[1.05] object-cover blur-xl opacity-[0.45] saturate-[0.45] brightness-[0.46] contrast-75 transition-[filter,opacity,transform] duration-1000 ease-out"
               />
             )}
           </div>
@@ -984,9 +984,8 @@ export const MatchDetailsPage = () => {
           <Timer size={15} className="text-accentYellow" /> История матча
         </div>
         <div className="space-y-1 rounded-xl border border-borderSubtle bg-mutedBg p-2">
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-textMuted">
+          <div className="grid grid-cols-2 items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-textMuted">
             <p>{home.shortName}</p>
-            <p className="text-center">Мин</p>
             <p className="text-right">{away.shortName}</p>
           </div>
           {historyEvents.length === 0 ? (
@@ -999,11 +998,10 @@ export const MatchDetailsPage = () => {
               ? getPlayerLastName(playersById[event.assistPlayerId]?.displayName)
               : ''
             const playerLabel = assist ? `${scorer} (${assist})` : scorer
-            const minuteLabel = `${event.minute ?? 0}'`
             const icon = matchHistoryIcon[event.type as 'goal' | 'own_goal' | 'yellow_card' | 'red_card']
 
             return (
-              <div key={event.id} className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-1 text-xs text-textPrimary">
+              <div key={event.id} className="grid grid-cols-2 items-center gap-2 px-1 text-xs text-textPrimary">
                 <div className="flex min-w-0 items-center gap-1.5">
                   {isHomeEvent ? (
                     <>
@@ -1012,7 +1010,6 @@ export const MatchDetailsPage = () => {
                     </>
                   ) : null}
                 </div>
-                <span className="text-center tabular-nums text-textMuted">{minuteLabel}</span>
                 <div className="flex min-w-0 items-center justify-end gap-1.5 text-right">
                   {!isHomeEvent ? (
                     <>
