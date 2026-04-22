@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { CalendarClock, Pencil, ShieldCheck, Star, Trophy, Users } from 'lucide-react'
+import { CalendarClock, Pencil, Star, Trophy, Users } from 'lucide-react'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
 import { usePlayers } from '../../hooks/data/usePlayers'
@@ -45,7 +45,7 @@ export const TeamDetailsPage = () => {
   const { data: teams } = useTeams()
   const { session } = useSession()
   const { isFavorite, toggleFavorite } = useUserPreferences()
-  const { teamsRepository, uploadsRepository } = useRepositories()
+  const { teamsRepository, uploadsRepository, cabinetRepository } = useRepositories()
   const [heroEditing, setHeroEditing] = useState(false)
   const [heroSaving, setHeroSaving] = useState(false)
 
@@ -69,6 +69,7 @@ export const TeamDetailsPage = () => {
   const [logoCrop, setLogoCrop] = useState<CircleCrop>({ x: 0, y: 0, zoom: 1 })
   const [localTeamFeed, setLocalTeamFeed] = useState(teamFeed ?? [])
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false)
+  const [teamStatAdjustments, setTeamStatAdjustments] = useState({ matches: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 })
 
   useEffect(() => {
     if (!team) return
@@ -94,6 +95,42 @@ export const TeamDetailsPage = () => {
     setLocalTeamFeed(teamFeed ?? [])
   }, [teamFeed])
 
+  useEffect(() => {
+    if (!team?.id || !cabinetRepository.getManualStatAdjustments) return
+    void cabinetRepository.getManualStatAdjustments()
+      .then((items) => {
+        const totals = items
+          .filter((item) => item.entityType === 'team' && item.entityId === team.id)
+          .reduce((acc, item) => {
+            switch (item.field) {
+              case 'matches':
+                acc.matches += item.delta
+                break
+              case 'wins':
+                acc.wins += item.delta
+                break
+              case 'draws':
+                acc.draws += item.delta
+                break
+              case 'losses':
+                acc.losses += item.delta
+                break
+              case 'goals_for':
+                acc.goalsFor += item.delta
+                break
+              case 'goals_against':
+                acc.goalsAgainst += item.delta
+                break
+              default:
+                break
+            }
+            return acc
+          }, { matches: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 })
+        setTeamStatAdjustments(totals)
+      })
+      .catch(() => setTeamStatAdjustments({ matches: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 }))
+  }, [cabinetRepository, team?.id])
+
   if (!team) return <PageContainer><EmptyState title="Команда не найдена" /></PageContainer>
 
   const standing = standings?.find((row) => row.teamId === team.id)
@@ -104,6 +141,16 @@ export const TeamDetailsPage = () => {
   const canManageCurrentTeam = canManageTeam(session, team)
   const canAdminTeam = isAdmin(session)
   const historySummary = buildTeamHistorySummary(team.id, matches ?? [])
+  const adjustedTeamSummary = {
+    played: Math.max(0, historySummary.played + teamStatAdjustments.matches),
+    won: Math.max(0, historySummary.won + teamStatAdjustments.wins),
+    drawn: Math.max(0, historySummary.drawn + teamStatAdjustments.draws),
+    lost: Math.max(0, historySummary.lost + teamStatAdjustments.losses),
+    goalsFor: Math.max(0, historySummary.goalsFor + teamStatAdjustments.goalsFor),
+    goalsAgainst: Math.max(0, historySummary.goalsAgainst + teamStatAdjustments.goalsAgainst),
+    points: Math.max(0, historySummary.points + teamStatAdjustments.wins * 3 + teamStatAdjustments.draws),
+    form: historySummary.form,
+  }
   const playerStatsMap = buildPlayerStatsMap(players ?? [], matches ?? [])
   const visiblePlayers = (() => {
     const withStats = (players ?? []).map((player) => ({ ...player, stats: playerStatsMap.get(player.id) ?? player.stats }))
@@ -160,14 +207,6 @@ export const TeamDetailsPage = () => {
         <div className="relative z-10">
           {!heroEditing && session.isAuthenticated && (
             <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
-              {canAdminTeam && (
-                <Link
-                  to={`/profile/page-change-history?targetType=team&targetId=${encodeURIComponent(team.id)}&returnTo=${encodeURIComponent(`/teams/${team.id}`)}`}
-                  className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle bg-black/30 px-2 py-1 text-xs text-textSecondary"
-                >
-                  История изменений
-                </Link>
-              )}
               <button
                 type="button"
                 onClick={() => toggleFavorite(`team:${team.id}`)}
@@ -335,10 +374,10 @@ export const TeamDetailsPage = () => {
         <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-textPrimary"><Trophy size={16} className="text-accentYellow" /> ИНФОРМАЦИЯ</h2>
         <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-5">
           <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Позиция:</span> <span className="font-semibold text-textPrimary">#{standing?.position ?? '—'}</span></div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Очки:</span> <span className="font-semibold text-accentYellow">{historySummary.points}</span></div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Матчи:</span> {historySummary.played}</div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Форма:</span> {(historySummary.form.length ? historySummary.form : team.form).map((item) => formLabel[item] ?? item).join(' ')}</div>
-          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Голы:</span> {historySummary.goalsFor}:{historySummary.goalsAgainst}</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Очки:</span> <span className="font-semibold text-accentYellow">{adjustedTeamSummary.points}</span></div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Матчи:</span> {adjustedTeamSummary.played}</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Форма:</span> {(adjustedTeamSummary.form.length ? adjustedTeamSummary.form : team.form).map((item) => formLabel[item] ?? item).join(' ')}</div>
+          <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Голы:</span> {adjustedTeamSummary.goalsFor}:{adjustedTeamSummary.goalsAgainst}</div>
         </div>
       </section>
 
@@ -410,6 +449,12 @@ export const TeamDetailsPage = () => {
         <section className="rounded-2xl border border-amber-500/30 bg-panelBg p-4 shadow-soft">
           <h2 className="text-base font-semibold text-textPrimary">Администрирование</h2>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <Link
+              to={`/profile/page-change-history?targetType=team&targetId=${encodeURIComponent(team.id)}&returnTo=${encodeURIComponent(`/teams/${team.id}`)}`}
+              className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-left"
+            >
+              История изменений
+            </Link>
             <button type="button" onClick={() => setArchiveConfirmOpen(true)} className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-left">
               {team.archived ? 'Разархивировать команду' : 'Архивировать команду'}
             </button>
@@ -419,7 +464,6 @@ export const TeamDetailsPage = () => {
           </div>
         </section>
       )}
-      <p className="text-xs text-textMuted flex items-center gap-1"><ShieldCheck size={12} className="text-accentYellow" /> События команды создаются капитанами/админами через события и ЛК.</p>
       <ConfirmDialog
         open={archiveConfirmOpen}
         title={team.archived ? 'Разархивировать команду?' : 'Архивировать команду?'}

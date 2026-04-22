@@ -12,7 +12,7 @@ import type {
   UsersRepository,
   UploadsRepository,
 } from '../../domain/repositories/contracts'
-import type { AuthSession, BackendMeDTO, CommentAuthorState, CommentNode, Match, Player, PlayoffGrid, PublicEvent, PublicUserCard, SearchResult, StandingRow, Team, TopScorer, UserAccessRow, UserRole } from '../../domain/entities/types'
+import type { AuthSession, BackendMeDTO, CommentAuthorState, CommentNode, Match, Player, PlayoffGrid, PublicEvent, PublicUserCard, SearchResult, Team, TopScorer, UserAccessRow, UserRole } from '../../domain/entities/types'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
 import { buildPlayerStatsMap } from '../../domain/services/teamPlayerStats'
 import { normalizeImageForUpload } from '../../lib/image-upload'
@@ -523,59 +523,21 @@ export const matchesRepository: MatchesRepository = {
   },
 }
 export const standingsRepository: StandingsRepository = {
-  async getStandings(_tournamentId) {
-    const teams = (await api<any[]>('/api/teams')).map(mapTeam)
-    const matches = (await api<any[]>('/api/matches')).map(mapMatch).filter((match) => !match.archived && match.status === 'finished')
-    const stats = new Map<string, StandingRow>()
-
-    teams.forEach((team) => {
-      stats.set(team.id, {
-        position: 0,
-        teamId: team.id,
-        played: 0,
-        won: 0,
-        drawn: 0,
-        lost: 0,
-        goalsFor: 0,
-        goalsAgainst: 0,
-        goalDiff: 0,
-        points: 0,
-      })
-    })
-
-    matches.forEach((match) => {
-      const home = stats.get(match.homeTeamId)
-      const away = stats.get(match.awayTeamId)
-      if (!home || !away) return
-
-      home.played += 1
-      away.played += 1
-      home.goalsFor += match.score.home
-      home.goalsAgainst += match.score.away
-      away.goalsFor += match.score.away
-      away.goalsAgainst += match.score.home
-
-      if (match.score.home > match.score.away) {
-        home.won += 1
-        away.lost += 1
-        home.points += 3
-      } else if (match.score.home < match.score.away) {
-        away.won += 1
-        home.lost += 1
-        away.points += 3
-      } else {
-        home.drawn += 1
-        away.drawn += 1
-        home.points += 1
-        away.points += 1
-      }
-    })
-
-    const rows = [...stats.values()].map((row) => ({ ...row, goalDiff: row.goalsFor - row.goalsAgainst }))
-      .sort((a, b) => b.points - a.points || b.goalDiff - a.goalDiff || b.goalsFor - a.goalsFor || a.teamId.localeCompare(b.teamId))
-      .map((row, index) => ({ ...row, position: index + 1 }))
-
-    return rows
+  async getStandings(tournamentId) {
+    const suffix = tournamentId ? `?tournamentId=${encodeURIComponent(tournamentId)}` : ''
+    const rows = await api<any[]>(`/api/stats/standings${suffix}`)
+    return rows.map((row) => ({
+      position: Number(row.position ?? 0),
+      teamId: String(row.team_id),
+      played: Number(row.played ?? 0),
+      won: Number(row.won ?? 0),
+      drawn: Number(row.drawn ?? 0),
+      lost: Number(row.lost ?? 0),
+      goalsFor: Number(row.goals_for ?? 0),
+      goalsAgainst: Number(row.goals_against ?? 0),
+      goalDiff: Number(row.goal_diff ?? 0),
+      points: Number(row.points ?? 0),
+    }))
   },
 }
 export const playoffGridRepository: PlayoffGridRepository = {

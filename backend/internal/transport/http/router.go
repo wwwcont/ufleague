@@ -1080,12 +1080,6 @@ func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	rows := make([]domain.StandingRow, 0, len(stats))
-	for _, row := range stats {
-		row.GoalDiff = row.GoalsFor - row.GoalsAgainst
-		row.Points = row.GoalDiff + row.Won
-		rows = append(rows, *row)
-	}
 	if adjustments, err := h.cabinet.AdminListManualStatAdjustments(r.Context(), domain.User{Roles: []domain.Role{domain.RoleAdmin}}, targetCycleID); err == nil {
 		for _, item := range adjustments {
 			if item.EntityType != "team" {
@@ -1110,6 +1104,12 @@ func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
 				row.Played += item.Delta
 			}
 		}
+	}
+	rows := make([]domain.StandingRow, 0, len(stats))
+	for _, row := range stats {
+		row.GoalDiff = row.GoalsFor - row.GoalsAgainst
+		row.Points = row.GoalDiff + row.Won
+		rows = append(rows, *row)
 	}
 
 	sort.Slice(rows, func(i, j int) bool {
