@@ -1108,16 +1108,13 @@ func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
 	rows := make([]domain.StandingRow, 0, len(stats))
 	for _, row := range stats {
 		row.GoalDiff = row.GoalsFor - row.GoalsAgainst
-		row.Points = row.GoalDiff + row.Won
+		row.Points = row.Won*3 + row.Drawn
 		rows = append(rows, *row)
 	}
 
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].Points != rows[j].Points {
 			return rows[i].Points > rows[j].Points
-		}
-		if rows[i].Won != rows[j].Won {
-			return rows[i].Won > rows[j].Won
 		}
 		if rows[i].GoalDiff != rows[j].GoalDiff {
 			return rows[i].GoalDiff > rows[j].GoalDiff
