@@ -58,7 +58,7 @@ export const HomePage = () => {
 
   return (
     <PageContainer>
-      <Link to="/search" state={{ fromHome: true }} viewTransition className="home-search-trigger flex items-center gap-2 rounded-2xl border border-borderSubtle bg-panelBg px-4 py-2.5 text-sm text-textSecondary shadow-soft transition hover:-translate-y-0.5 hover:text-textPrimary" aria-label="Открыть поиск">
+      <Link to="/search" state={{ fromHome: true }} viewTransition className="home-search-trigger glass-surface flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm text-textSecondary shadow-soft transition hover:-translate-y-0.5 hover:text-textPrimary" aria-label="Открыть поиск">
         <Search size={15} className="text-accentYellow" />
         <span className="text-textMuted/70">Поиск по турниру</span>
       </Link>
@@ -67,7 +67,7 @@ export const HomePage = () => {
       <div className="space-y-1.5">
         {eventsLoading && <p className="text-sm text-textMuted">Загрузка событий...</p>}
         {!eventsLoading && visibleEvents.map((event) => (
-          <Link key={event.id} to={`/events/${event.id}`} className="flex items-center gap-3 rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 transition hover:border-borderStrong">
+          <Link key={event.id} to={`/events/${event.id}`} className="glass-surface flex items-center gap-3 rounded-xl px-3 py-2 transition hover:border-borderStrong">
             <span className="shrink-0 rounded-md border border-borderSubtle bg-mutedBg px-2 py-1 text-[11px] tabular-nums text-textMuted">{formatTimeOnlyMsk(event.timestamp)}</span>
             <span className="truncate text-sm text-textPrimary">{event.title}</span>
           </Link>
@@ -76,7 +76,7 @@ export const HomePage = () => {
 
       <div className="space-y-2">
         <SectionHeader title="Топ игроков" action={<Link to={`/top-players?metric=${selectedMetric}`} className="text-sm text-accentYellow">ВСЕ</Link>} />
-        <div className="grid grid-cols-2 gap-2 rounded-2xl border border-borderSubtle bg-panelBg p-1">
+        <div className="glass-surface grid grid-cols-2 gap-2 rounded-2xl p-1">
           <button
             type="button"
             onClick={() => setSelectedMetric('goals')}
@@ -93,7 +93,7 @@ export const HomePage = () => {
           </button>
         </div>
         {topPlayers.length === 0 ? (
-          <p className="rounded-xl border border-borderSubtle bg-panelBg px-3 py-2 text-sm text-textMuted">
+          <p className="glass-surface rounded-xl px-3 py-2 text-sm text-textMuted">
             {selectedMetric === 'goals' ? 'Пока никто не забил.' : 'Пока нет ассистов.'}
           </p>
         ) : (
@@ -103,7 +103,7 @@ export const HomePage = () => {
             if (!player || !team) return null
 
             return (
-              <div key={`${selectedMetric}_${row.playerId}`} className="flex items-center gap-3 rounded-xl border border-borderSubtle bg-panelBg px-3 py-2">
+              <div key={`${selectedMetric}_${row.playerId}`} className="glass-surface flex items-center gap-3 rounded-xl px-3 py-2">
                 <span className="w-5 text-sm font-semibold tabular-nums text-textSecondary">{index + 1}</span>
                 <Link to={`/players/${player.id}`} className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-borderSubtle bg-panelSoft text-textMuted transition hover:border-borderStrong">
                   {player.avatar ? <img src={player.avatar} alt={resolvePlayerDisplayName(player)} className="h-full w-full object-cover" /> : <UserCircle2 size={18} />}
