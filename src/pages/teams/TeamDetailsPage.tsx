@@ -160,14 +160,6 @@ export const TeamDetailsPage = () => {
         <div className="relative z-10">
           {!heroEditing && session.isAuthenticated && (
             <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
-              {canAdminTeam && (
-                <Link
-                  to={`/profile/page-change-history?targetType=team&targetId=${encodeURIComponent(team.id)}&returnTo=${encodeURIComponent(`/teams/${team.id}`)}`}
-                  className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle bg-black/30 px-2 py-1 text-xs text-textSecondary"
-                >
-                  История изменений
-                </Link>
-              )}
               <button
                 type="button"
                 onClick={() => toggleFavorite(`team:${team.id}`)}
@@ -410,6 +402,12 @@ export const TeamDetailsPage = () => {
         <section className="rounded-2xl border border-amber-500/30 bg-panelBg p-4 shadow-soft">
           <h2 className="text-base font-semibold text-textPrimary">Администрирование</h2>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <Link
+              to={`/profile/page-change-history?targetType=team&targetId=${encodeURIComponent(team.id)}&returnTo=${encodeURIComponent(`/teams/${team.id}`)}`}
+              className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-left"
+            >
+              История изменений
+            </Link>
             <button type="button" onClick={() => setArchiveConfirmOpen(true)} className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-left">
               {team.archived ? 'Разархивировать команду' : 'Архивировать команду'}
             </button>
