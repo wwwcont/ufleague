@@ -53,6 +53,7 @@ const sectionRoles: Record<string, UserRole> = {
   'page-change-history': 'admin',
   'matches-archive': 'admin',
   'teams-archive': 'admin',
+  'tournament-management': 'admin',
   'stats-manual-edit': 'admin',
   'stats-change-history': 'admin',
   'team-socials': 'captain',
@@ -94,6 +95,7 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   'page-change-history': { title: 'История изменений страниц', description: 'Журнал изменений информации по игрокам, командам и матчам.', tips: ['Показывает что изменили, на что и кто выполнил правку.', 'Каждая запись ведет на измененную страницу.'] },
   'matches-archive': { title: 'Архив матчей', description: 'Скрытые матчи, исключенные из лент и статистики.', tips: ['Откройте матч из архива для проверки.', 'При необходимости верните матч обратно.'] },
   'teams-archive': { title: 'Архив команд', description: 'Скрытые команды. Их матчи автоматически архивируются.', tips: ['Архивирование команды отправляет связанные матчи в архив.', 'Возврат команды из архива возвращает и ее матчи.'] },
+  'tournament-management': { title: 'Управление турниром', description: 'Центр админ-инструментов по статистике и истории изменений турнира.', tips: ['Здесь собраны статистические и контрольные разделы админов.', 'Откройте нужный подпункт для работы с корректировками и журналами.'] },
   'stats-manual-edit': { title: 'Изменить статистику вручную', description: 'Ручные корректировки статистики команд и игроков по турнирам.', tips: ['Изменения сохраняются как отдельные записи.', 'Корректировки можно удалить через историю.'] },
   'stats-change-history': { title: 'Список изменений статистики', description: 'История всех ручных правок статистики.', tips: ['Записи привязаны к турниру и автору.', 'Удаление отменяет конкретную корректировку.'] },
   roster: { title: 'Управление составом', description: 'Состав команды с действиями по каждому игроку.', tips: ['Откроется страница команды в режиме состава.', 'Кнопки: глаз, карандаш, крестик.'] },
@@ -824,6 +826,26 @@ export const CabinetSectionPage = () => {
               <p className="mt-2 text-xs text-accentYellow">Перейти к источнику →</p>
             </Link>
           )) : <p className="text-xs text-textMuted">Пока нет уведомлений.</p>}
+        </section>
+      )}
+
+      {section === 'tournament-management' && (
+        <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-3">
+          <p className="text-sm text-textSecondary">Выберите раздел управления турниром:</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[
+              { title: 'Изменить статистику вручную', description: 'Ручные корректировки статистики команд и игроков.', route: '/profile/stats-manual-edit' },
+              { title: 'Список изменений статистики', description: 'История корректировок с возможностью удаления.', route: '/profile/stats-change-history' },
+              { title: 'История изменений страниц', description: 'Журнал правок по игрокам, командам и матчам.', route: '/profile/page-change-history' },
+              { title: 'Список администраторов', description: 'Пользователи с ролями admin/superadmin.', route: '/profile/admins-list' },
+              { title: 'Бан-лист', description: 'Пользователи с активными ограничениями.', route: '/profile/ban-list' },
+            ].map((item) => (
+              <Link key={item.route} to={item.route} className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 hover:border-accentYellow/50">
+                <p className="text-sm font-semibold text-textPrimary">{item.title}</p>
+                <p className="mt-1 text-xs text-textSecondary">{item.description}</p>
+              </Link>
+            ))}
+          </div>
         </section>
       )}
 
@@ -1784,7 +1806,7 @@ export const CabinetSectionPage = () => {
         }}
       />
 
-      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'my-notifications', 'favorites', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'admins-list', 'captains-list', 'ban-list', 'create-match', 'page-change-history', 'matches-archive', 'teams-archive', 'stats-manual-edit', 'stats-change-history', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
+      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'my-notifications', 'favorites', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'admins-list', 'captains-list', 'ban-list', 'create-match', 'page-change-history', 'matches-archive', 'teams-archive', 'tournament-management', 'stats-manual-edit', 'stats-change-history', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
           Раздел синхронизирован по правам доступа и готов к расширению бизнес-формами.
         </section>
