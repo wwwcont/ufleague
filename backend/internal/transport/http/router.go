@@ -1086,30 +1086,28 @@ func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
 		row.Points = row.GoalDiff + row.Won
 		rows = append(rows, *row)
 	}
-	if targetCycleID > 0 {
-		if adjustments, err := h.cabinet.AdminListManualStatAdjustments(r.Context(), domain.User{Roles: []domain.Role{domain.RoleAdmin}}, targetCycleID); err == nil {
-			for _, item := range adjustments {
-				if item.EntityType != "team" {
-					continue
-				}
-				row := stats[item.EntityID]
-				if row == nil {
-					continue
-				}
-				switch item.Field {
-				case "wins":
-					row.Won += item.Delta
-				case "losses":
-					row.Lost += item.Delta
-				case "draws":
-					row.Drawn += item.Delta
-				case "goals_for":
-					row.GoalsFor += item.Delta
-				case "goals_against":
-					row.GoalsAgainst += item.Delta
-				case "matches":
-					row.Played += item.Delta
-				}
+	if adjustments, err := h.cabinet.AdminListManualStatAdjustments(r.Context(), domain.User{Roles: []domain.Role{domain.RoleAdmin}}, targetCycleID); err == nil {
+		for _, item := range adjustments {
+			if item.EntityType != "team" {
+				continue
+			}
+			row := stats[item.EntityID]
+			if row == nil {
+				continue
+			}
+			switch item.Field {
+			case "wins":
+				row.Won += item.Delta
+			case "losses":
+				row.Lost += item.Delta
+			case "draws":
+				row.Drawn += item.Delta
+			case "goals_for":
+				row.GoalsFor += item.Delta
+			case "goals_against":
+				row.GoalsAgainst += item.Delta
+			case "matches":
+				row.Played += item.Delta
 			}
 		}
 	}
@@ -1287,28 +1285,26 @@ func (h *Handler) GetTopScorers(w http.ResponseWriter, r *http.Request) {
 		}
 		rowsByPlayer[player.ID] = &topScorerRow{PlayerID: player.ID, TeamID: *player.TeamID}
 	}
-	if targetCycleID > 0 {
-		if adjustments, err := h.cabinet.AdminListManualStatAdjustments(r.Context(), domain.User{Roles: []domain.Role{domain.RoleAdmin}}, targetCycleID); err == nil {
-			for _, item := range adjustments {
-				if item.EntityType != "player" {
-					continue
-				}
-				row := rowsByPlayer[item.EntityID]
-				if row == nil {
-					continue
-				}
-				switch item.Field {
-				case "matches":
-					// no direct field in top scorers payload
-				case "goals":
-					row.Goals += item.Delta
-				case "assists":
-					row.Assists += item.Delta
-				case "yellow_cards":
-					row.YellowCards += item.Delta
-				case "red_cards":
-					row.RedCards += item.Delta
-				}
+	if adjustments, err := h.cabinet.AdminListManualStatAdjustments(r.Context(), domain.User{Roles: []domain.Role{domain.RoleAdmin}}, targetCycleID); err == nil {
+		for _, item := range adjustments {
+			if item.EntityType != "player" {
+				continue
+			}
+			row := rowsByPlayer[item.EntityID]
+			if row == nil {
+				continue
+			}
+			switch item.Field {
+			case "matches":
+				// no direct field in top scorers payload
+			case "goals":
+				row.Goals += item.Delta
+			case "assists":
+				row.Assists += item.Delta
+			case "yellow_cards":
+				row.YellowCards += item.Delta
+			case "red_cards":
+				row.RedCards += item.Delta
 			}
 		}
 	}
@@ -1607,13 +1603,35 @@ func (h Handler) Search(w http.ResponseWriter, r *http.Request) {
 		if strings.EqualFold(strings.TrimSpace(player.Position), "hidden") {
 			continue
 		}
-		if strings.Contains(strings.ToLower(player.FullName+" "+player.Position), query) {
+		playerName := strings.TrimSpace(strings.Join([]string{player.FullName, player.Nickname}, " "))
+		if playerName == "" {
+			playerName = "Игрок " + strconv.FormatInt(player.ID, 10)
+		}
+		teamName := ""
+		if player.TeamID != nil {
+			teamName = teamNameByID[*player.TeamID]
+		}
+		raw := strings.ToLower(strings.Join([]string{
+			player.FullName,
+			player.Nickname,
+			player.Position,
+			teamName,
+			strconv.FormatInt(player.ID, 10),
+		}, " "))
+		subtitleParts := make([]string, 0, 2)
+		if strings.TrimSpace(player.Position) != "" {
+			subtitleParts = append(subtitleParts, strings.TrimSpace(player.Position))
+		}
+		if strings.TrimSpace(teamName) != "" {
+			subtitleParts = append(subtitleParts, strings.TrimSpace(teamName))
+		}
+		if strings.Contains(raw, query) {
 			results = append(results, domain.SearchResult{
 				ID:       "player_" + strconv.FormatInt(player.ID, 10),
 				Type:     "player",
 				EntityID: strconv.FormatInt(player.ID, 10),
-				Title:    player.FullName,
-				Subtitle: player.Position,
+				Title:    playerName,
+				Subtitle: strings.Join(subtitleParts, " • "),
 				Route:    "/players/" + strconv.FormatInt(player.ID, 10),
 			})
 		}
