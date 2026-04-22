@@ -340,9 +340,9 @@ export const CabinetSectionPage = () => {
   )
   const statEntityOptions = useMemo(() => {
     if (statEntityType === 'team') {
-      return (teams ?? []).map((item) => ({ id: item.id, label: `Команда: ${item.name}` }))
+      return (teams ?? []).map((item) => ({ id: item.id, label: item.name, subtitle: `Команда • ${item.shortName || item.id}` }))
     }
-    return (players ?? []).map((item) => ({ id: item.id, label: `Игрок: ${item.displayName}` }))
+    return (players ?? []).map((item) => ({ id: item.id, label: item.displayName, subtitle: `Игрок • ${item.position}` }))
   }, [players, statEntityType, teams])
   const filteredStatEntityOptions = useMemo(() => {
     const normalized = statEntitySearch.trim().toLowerCase()
@@ -1580,16 +1580,41 @@ export const CabinetSectionPage = () => {
               setStatEntityType(e.target.value as typeof statEntityType)
               setStatEntityId('')
               setStatEntitySearch('')
+              setStatField(e.target.value === 'team' ? 'wins' : 'goals')
             }} className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
               <option value="team">Команды</option>
               <option value="player">Игроки</option>
             </select>
           </div>
           <SearchField value={statEntitySearch} onChange={setStatEntitySearch} placeholder={statEntityType === 'team' ? 'Поиск команды' : 'Поиск игрока'} className="h-11 rounded-lg border border-borderSubtle bg-mutedBg" />
-          <select value={statEntityId} onChange={(e) => setStatEntityId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-2">
-            <option value="">Выберите {statEntityType === 'team' ? 'команду' : 'игрока'}</option>
-            {filteredStatEntityOptions.map((item) => <option key={`${statEntityType}:${item.id}`} value={item.id}>{item.label}</option>)}
-          </select>
+          <div className="space-y-2">
+            {!statEntityId && (
+              <p className="text-xs text-textMuted">Выберите {statEntityType === 'team' ? 'команду' : 'игрока'} карточкой ниже. Повторный клик снимает выбор.</p>
+            )}
+            <div className="grid gap-2 sm:grid-cols-2">
+              {filteredStatEntityOptions.map((item) => {
+                const isSelected = statEntityId === item.id
+                if (statEntityId && !isSelected) return null
+                return (
+                  <button
+                    key={`${statEntityType}:${item.id}`}
+                    type="button"
+                    onClick={() => setStatEntityId((prev) => prev === item.id ? '' : item.id)}
+                    className={`rounded-xl border px-3 py-3 text-left transition ${isSelected ? 'border-accentYellow bg-accentYellow/10' : 'border-borderSubtle bg-mutedBg hover:border-accentYellow/40'}`}
+                  >
+                    <p className="text-sm font-semibold text-textPrimary">{item.label}</p>
+                    <p className="mt-1 text-xs text-textMuted">{item.subtitle}</p>
+                    <p className="mt-1 text-[11px] text-textMuted">ID: {item.id}</p>
+                  </button>
+                )
+              })}
+            </div>
+            {filteredStatEntityOptions.length === 0 && (
+              <p className="rounded-lg border border-dashed border-borderSubtle bg-mutedBg px-3 py-2 text-xs text-textMuted">
+                Ничего не найдено по этому запросу.
+              </p>
+            )}
+          </div>
           {!!statEntityId && <div className="grid gap-2 sm:grid-cols-[1fr,120px,120px,120px]">
             <select value={statField} onChange={(e) => setStatField(e.target.value)} className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
               {(statEntityType === 'team' ? ['wins', 'losses', 'draws', 'goals_for', 'goals_against', 'matches'] : ['matches', 'goals', 'assists', 'yellow_cards', 'red_cards']).map((field) => <option key={field} value={field}>{field}</option>)}
