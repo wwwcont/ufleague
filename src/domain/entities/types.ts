@@ -244,6 +244,17 @@ export interface UserSession {
   displayName?: string
 }
 
+export interface ManualStatAdjustment {
+  id: ID
+  tournamentId: ID
+  entityType: 'team' | 'player'
+  entityId: ID
+  field: string
+  delta: number
+  authorUserId: ID
+  createdAt: string
+}
+
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
 
 export type CommentEntityType = 'match' | 'team' | 'player' | 'event'

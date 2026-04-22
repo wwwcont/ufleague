@@ -446,6 +446,9 @@ export const playersRepository: PlayersRepository = {
       }),
     })
   },
+  async adminArchivePlayer(playerId, archived) {
+    await api(`/api/admin/players/${playerId}/archive`, { method: 'POST', body: JSON.stringify({ archived }) })
+  },
 }
 export const matchesRepository: MatchesRepository = {
   async getMatches(options) {
@@ -1014,6 +1017,35 @@ export const cabinetRepository: CabinetRepository = {
   async getUserAccessMatrix() {
     const rows = await api<any[]>('/api/admin/access-matrix')
     return rows.map(mapUserAccessRow)
+  },
+  async addManualStatAdjustment(input) {
+    await api('/api/admin/stats/adjustments', {
+      method: 'POST',
+      body: JSON.stringify({
+        tournament_cycle_id: Number(input.tournamentId),
+        entity_type: input.entityType,
+        entity_id: Number(input.entityId),
+        field: input.field,
+        delta: input.delta,
+      }),
+    })
+  },
+  async getManualStatAdjustments(tournamentId) {
+    const suffix = tournamentId ? `?tournamentId=${encodeURIComponent(tournamentId)}` : ''
+    const rows = await api<any[]>(`/api/admin/stats/adjustments${suffix}`)
+    return rows.map((item) => ({
+      id: String(item.id),
+      tournamentId: String(item.tournament_cycle_id),
+      entityType: item.entity_type === 'team' ? 'team' : 'player',
+      entityId: String(item.entity_id),
+      field: String(item.field ?? ''),
+      delta: Number(item.delta ?? 0),
+      authorUserId: String(item.author_user_id),
+      createdAt: item.created_at ? new Date(Number(item.created_at) * 1000).toISOString() : new Date().toISOString(),
+    }))
+  },
+  async deleteManualStatAdjustment(adjustmentId) {
+    await api(`/api/admin/stats/adjustments/${adjustmentId}`, { method: 'DELETE' })
   },
 }
 

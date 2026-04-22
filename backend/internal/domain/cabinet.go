@@ -59,3 +59,14 @@ type UserActionItem struct {
 	CreatedAt  int64          `json:"created_at"`
 	Route      string         `json:"route"`
 }
+
+type ManualStatAdjustment struct {
+	ID                int64  `json:"id"`
+	TournamentCycleID int64  `json:"tournament_cycle_id"`
+	EntityType        string `json:"entity_type"`
+	EntityID          int64  `json:"entity_id"`
+	Field             string `json:"field"`
+	Delta             int    `json:"delta"`
+	AuthorUserID      int64  `json:"author_user_id"`
+	CreatedAtUnix     int64  `json:"created_at"`
+}

@@ -172,8 +172,12 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Get("/admin/access-matrix", h.AdminListUserAccessMatrix)
 		r.With(sessionMW.RequireSession).Post("/admin/teams/{id}/transfer-captain", h.AdminTransferCaptain)
 		r.With(sessionMW.RequireSession).Post("/admin/teams/{id}/archive", h.AdminArchiveTeam)
+		r.With(sessionMW.RequireSession).Post("/admin/players/{id}/archive", h.AdminArchivePlayer)
 		r.With(sessionMW.RequireSession).Delete("/admin/teams/{id}", h.AdminDeleteTeam)
 		r.With(sessionMW.RequireSession).Delete("/admin/matches/{id}", h.AdminDeleteMatch)
+		r.With(sessionMW.RequireSession).Get("/admin/stats/adjustments", h.AdminListManualStatAdjustments)
+		r.With(sessionMW.RequireSession).Post("/admin/stats/adjustments", h.AdminCreateManualStatAdjustment)
+		r.With(sessionMW.RequireSession).Delete("/admin/stats/adjustments/{id}", h.AdminDeleteManualStatAdjustment)
 		r.With(sessionMW.RequireSession).Get("/admin/users/{id}/profile", h.AdminGetUserProfile)
 		r.With(sessionMW.RequireSession).Patch("/admin/users/{id}/profile", h.AdminUpdateUserProfile)
 		r.With(sessionMW.RequireSession).Post("/admin/users/{id}/comment-block", h.AdminBlockComments)
@@ -918,7 +922,14 @@ func (h Handler) ListPlayers(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed", 500)
 		return
 	}
-	writeJSON(w, 200, items)
+	visible := make([]domain.Player, 0, len(items))
+	for _, player := range items {
+		if strings.EqualFold(strings.TrimSpace(player.Position), "hidden") {
+			continue
+		}
+		visible = append(visible, player)
+	}
+	writeJSON(w, 200, visible)
 }
 func (h Handler) GetPlayer(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(chi.URLParam(r, "id"))
@@ -1074,6 +1085,33 @@ func (h Handler) GetStandings(w http.ResponseWriter, r *http.Request) {
 		row.GoalDiff = row.GoalsFor - row.GoalsAgainst
 		row.Points = row.GoalDiff + row.Won
 		rows = append(rows, *row)
+	}
+	if targetCycleID > 0 {
+		if adjustments, err := h.cabinet.AdminListManualStatAdjustments(r.Context(), domain.User{Roles: []domain.Role{domain.RoleAdmin}}, targetCycleID); err == nil {
+			for _, item := range adjustments {
+				if item.EntityType != "team" {
+					continue
+				}
+				row := stats[item.EntityID]
+				if row == nil {
+					continue
+				}
+				switch item.Field {
+				case "wins":
+					row.Won += item.Delta
+				case "losses":
+					row.Lost += item.Delta
+				case "draws":
+					row.Drawn += item.Delta
+				case "goals_for":
+					row.GoalsFor += item.Delta
+				case "goals_against":
+					row.GoalsAgainst += item.Delta
+				case "matches":
+					row.Played += item.Delta
+				}
+			}
+		}
 	}
 
 	sort.Slice(rows, func(i, j int) bool {
@@ -1241,10 +1279,38 @@ func (h *Handler) GetTopScorers(w http.ResponseWriter, r *http.Request) {
 
 	rowsByPlayer := make(map[int64]*topScorerRow, len(players))
 	for _, player := range players {
+		if strings.EqualFold(strings.TrimSpace(player.Position), "hidden") {
+			continue
+		}
 		if player.TeamID == nil || *player.TeamID == 0 {
 			continue
 		}
 		rowsByPlayer[player.ID] = &topScorerRow{PlayerID: player.ID, TeamID: *player.TeamID}
+	}
+	if targetCycleID > 0 {
+		if adjustments, err := h.cabinet.AdminListManualStatAdjustments(r.Context(), domain.User{Roles: []domain.Role{domain.RoleAdmin}}, targetCycleID); err == nil {
+			for _, item := range adjustments {
+				if item.EntityType != "player" {
+					continue
+				}
+				row := rowsByPlayer[item.EntityID]
+				if row == nil {
+					continue
+				}
+				switch item.Field {
+				case "matches":
+					// no direct field in top scorers payload
+				case "goals":
+					row.Goals += item.Delta
+				case "assists":
+					row.Assists += item.Delta
+				case "yellow_cards":
+					row.YellowCards += item.Delta
+				case "red_cards":
+					row.RedCards += item.Delta
+				}
+			}
+		}
 	}
 
 	for _, match := range matches {
@@ -1538,6 +1604,9 @@ func (h Handler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 	players, _ := h.tournament.ListPlayers(r.Context())
 	for _, player := range players {
+		if strings.EqualFold(strings.TrimSpace(player.Position), "hidden") {
+			continue
+		}
 		if strings.Contains(strings.ToLower(player.FullName+" "+player.Position), query) {
 			results = append(results, domain.SearchResult{
 				ID:       "player_" + strconv.FormatInt(player.ID, 10),
@@ -2255,6 +2324,91 @@ func (h Handler) AdminArchiveTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err = h.cabinet.AdminArchiveTeam(r.Context(), current.User, teamID, req.Archived); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+func (h Handler) AdminArchivePlayer(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	playerID, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	var req struct {
+		Archived bool `json:"archived"`
+	}
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	if err = h.cabinet.AdminSetPlayerHidden(r.Context(), current.User, playerID, req.Archived); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
+func (h Handler) AdminCreateManualStatAdjustment(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	var req domain.ManualStatAdjustment
+	if json.NewDecoder(r.Body).Decode(&req) != nil {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	if req.TournamentCycleID <= 0 || req.EntityID <= 0 || req.Delta == 0 || strings.TrimSpace(req.Field) == "" || (req.EntityType != "team" && req.EntityType != "player") {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	item, err := h.cabinet.AdminAddManualStatAdjustment(r.Context(), current.User, req)
+	if err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 201, item)
+}
+func (h Handler) AdminListManualStatAdjustments(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	tournamentID := int64(0)
+	if raw := strings.TrimSpace(r.URL.Query().Get("tournamentId")); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || parsed <= 0 {
+			http.Error(w, "bad tournamentId", 400)
+			return
+		}
+		tournamentID = parsed
+	}
+	items, err := h.cabinet.AdminListManualStatAdjustments(r.Context(), current.User, tournamentID)
+	if err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, items)
+}
+func (h Handler) AdminDeleteManualStatAdjustment(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	adjustmentID, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	if err = h.cabinet.AdminDeleteManualStatAdjustment(r.Context(), current.User, adjustmentID); err != nil {
 		handleDomainErr(w, err)
 		return
 	}

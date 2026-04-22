@@ -41,6 +41,9 @@ type Repository interface {
 	DeleteMatchWithDependencies(ctx context.Context, matchID int64) error
 	ListAuditActionsByActor(ctx context.Context, userID int64, limit int) ([]domain.UserActionItem, error)
 	ListEntityChangeHistory(ctx context.Context, limit int) ([]domain.UserActionItem, error)
+	AddManualStatAdjustment(ctx context.Context, input domain.ManualStatAdjustment) (domain.ManualStatAdjustment, error)
+	DeleteManualStatAdjustment(ctx context.Context, adjustmentID int64) error
+	ListManualStatAdjustments(ctx context.Context, tournamentID int64) ([]domain.ManualStatAdjustment, error)
 }
 
 type Service struct {
@@ -327,6 +330,51 @@ func (s Service) AdminArchiveTeam(ctx context.Context, actor domain.User, teamID
 		return err
 	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "admin.archive_team", "team", strconv.FormatInt(teamID, 10), map[string]any{"archived": archived})
+}
+
+func (s Service) AdminSetPlayerHidden(ctx context.Context, actor domain.User, playerID int64, hidden bool) error {
+	if !s.policy.CanAdminModerate(actor) {
+		return fmt.Errorf("forbidden")
+	}
+	if err := s.repo.SetPlayerVisible(ctx, playerID, !hidden); err != nil {
+		return err
+	}
+	return s.repo.AddAuditLog(ctx, actor.ID, "admin.archive_player", "player", strconv.FormatInt(playerID, 10), map[string]any{"archived": hidden})
+}
+
+func (s Service) AdminAddManualStatAdjustment(ctx context.Context, actor domain.User, input domain.ManualStatAdjustment) (domain.ManualStatAdjustment, error) {
+	if !s.policy.CanAdminModerate(actor) {
+		return domain.ManualStatAdjustment{}, fmt.Errorf("forbidden")
+	}
+	input.AuthorUserID = actor.ID
+	created, err := s.repo.AddManualStatAdjustment(ctx, input)
+	if err != nil {
+		return domain.ManualStatAdjustment{}, err
+	}
+	_ = s.repo.AddAuditLog(ctx, actor.ID, "admin.manual_stats_adjustment.create", input.EntityType, strconv.FormatInt(input.EntityID, 10), map[string]any{
+		"field":                input.Field,
+		"delta":                input.Delta,
+		"tournament_cycle_id":  input.TournamentCycleID,
+		"manual_adjustment_id": created.ID,
+	})
+	return created, nil
+}
+
+func (s Service) AdminDeleteManualStatAdjustment(ctx context.Context, actor domain.User, adjustmentID int64) error {
+	if !s.policy.CanAdminModerate(actor) {
+		return fmt.Errorf("forbidden")
+	}
+	if err := s.repo.DeleteManualStatAdjustment(ctx, adjustmentID); err != nil {
+		return err
+	}
+	return s.repo.AddAuditLog(ctx, actor.ID, "admin.manual_stats_adjustment.delete", "manual_stat_adjustment", strconv.FormatInt(adjustmentID, 10), nil)
+}
+
+func (s Service) AdminListManualStatAdjustments(ctx context.Context, actor domain.User, tournamentID int64) ([]domain.ManualStatAdjustment, error) {
+	if !s.policy.CanAdminModerate(actor) {
+		return nil, fmt.Errorf("forbidden")
+	}
+	return s.repo.ListManualStatAdjustments(ctx, tournamentID)
 }
 
 func (s Service) AdminDeleteTeam(ctx context.Context, actor domain.User, teamID int64) error {
