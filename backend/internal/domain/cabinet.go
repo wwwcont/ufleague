@@ -68,5 +68,6 @@ type ManualStatAdjustment struct {
 	Field             string `json:"field"`
 	Delta             int    `json:"delta"`
 	AuthorUserID      int64  `json:"author_user_id"`
+	AuthorTelegramTag string `json:"author_telegram_username"`
 	CreatedAtUnix     int64  `json:"created_at"`
 }

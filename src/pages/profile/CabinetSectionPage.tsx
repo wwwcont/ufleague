@@ -12,6 +12,7 @@ import { usePlayers } from '../../hooks/data/usePlayers'
 import { useUserPreferences } from '../../hooks/app/useUserPreferences'
 import { CircularImageCropField } from '../../components/ui/CircularImageCropField'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { SearchField } from '../../components/ui/SearchField'
 import { buildCircularCropUploadFile, type CircleCrop } from '../../lib/image-upload'
 
 const roleRank: Record<UserRole, number> = {
@@ -310,11 +311,12 @@ export const CabinetSectionPage = () => {
   const [bracketCapacityDraft, setBracketCapacityDraft] = useState<4 | 8 | 16 | 32>(16)
   const [userAccessRows, setUserAccessRows] = useState<Array<{ id: string; displayName: string; telegramUsername?: string; roles: UserRole[]; restrictions: string[]; playerId?: string; teamId?: string; isOnline: boolean }>>([])
   const [confirmDialog, setConfirmDialog] = useState<null | { title: string; description: string; confirmLabel?: string; onConfirm: () => Promise<void> }>(null)
-  const [statEntityType, setStatEntityType] = useState<'all' | 'team' | 'player'>('all')
+  const [statEntityType, setStatEntityType] = useState<'team' | 'player'>('player')
   const [statEntityId, setStatEntityId] = useState('')
+  const [statEntitySearch, setStatEntitySearch] = useState('')
   const [statField, setStatField] = useState('goals')
   const [statDelta, setStatDelta] = useState('0')
-  const [statsHistory, setStatsHistory] = useState<Array<{ id: string; tournamentId: string; entityType: 'team' | 'player'; entityId: string; field: string; delta: number; authorUserId: string; createdAt: string }>>([])
+  const [statsHistory, setStatsHistory] = useState<Array<{ id: string; tournamentId: string; entityType: 'team' | 'player'; entityId: string; field: string; delta: number; authorUserId: string; authorTelegramUsername?: string; createdAt: string }>>([])
 
   const currentRoles = useMemo<UserRole[]>(
     () => (session.user.roles?.length ? session.user.roles : [session.user.role]),
@@ -334,6 +336,17 @@ export const CabinetSectionPage = () => {
     () => (teams ?? []).filter((item) => !item.archived && !locallyArchivedTeamIds.includes(item.id)),
     [locallyArchivedTeamIds, teams],
   )
+  const statEntityOptions = useMemo(() => {
+    if (statEntityType === 'team') {
+      return (teams ?? []).map((item) => ({ id: item.id, label: `Команда: ${item.name}` }))
+    }
+    return (players ?? []).map((item) => ({ id: item.id, label: `Игрок: ${item.displayName}` }))
+  }, [players, statEntityType, teams])
+  const filteredStatEntityOptions = useMemo(() => {
+    const normalized = statEntitySearch.trim().toLowerCase()
+    if (!normalized) return statEntityOptions
+    return statEntityOptions.filter((item) => item.label.toLowerCase().includes(normalized) || item.id.toLowerCase().includes(normalized))
+  }, [statEntityOptions, statEntitySearch])
 
   useEffect(() => {
     if (!(section === 'tournament' || section === 'stats-manual-edit' || section === 'stats-change-history')) return
@@ -1536,50 +1549,55 @@ export const CabinetSectionPage = () => {
 
       {section === 'stats-manual-edit' && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-3">
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2">
             <select value={selectedCycleId} onChange={(e) => setSelectedCycleId(e.target.value)} className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
               <option value="">Турнир</option>
               {tournamentCycles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
-            <select value={statEntityType} onChange={(e) => setStatEntityType(e.target.value as typeof statEntityType)} className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
-              <option value="all">Все</option>
+            <select value={statEntityType} onChange={(e) => {
+              setStatEntityType(e.target.value as typeof statEntityType)
+              setStatEntityId('')
+              setStatEntitySearch('')
+            }} className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
               <option value="team">Команды</option>
               <option value="player">Игроки</option>
             </select>
-            <select value={statEntityId} onChange={(e) => setStatEntityId(e.target.value)} className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
-              <option value="">Сущность</option>
-              {(statEntityType === 'all' || statEntityType === 'team') && (teams ?? []).map((item) => <option key={`team:${item.id}`} value={item.id}>Команда: {item.name}</option>)}
-              {(statEntityType === 'all' || statEntityType === 'player') && (players ?? []).map((item) => <option key={`player:${item.id}`} value={item.id}>Игрок: {item.displayName}</option>)}
-            </select>
           </div>
-          <div className="grid gap-2 sm:grid-cols-[1fr,120px,120px,120px]">
+          <SearchField value={statEntitySearch} onChange={setStatEntitySearch} placeholder={statEntityType === 'team' ? 'Поиск команды' : 'Поиск игрока'} className="h-11 rounded-lg border border-borderSubtle bg-mutedBg" />
+          <select value={statEntityId} onChange={(e) => setStatEntityId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-2">
+            <option value="">Выберите {statEntityType === 'team' ? 'команду' : 'игрока'}</option>
+            {filteredStatEntityOptions.map((item) => <option key={`${statEntityType}:${item.id}`} value={item.id}>{item.label}</option>)}
+          </select>
+          {!!statEntityId && <div className="grid gap-2 sm:grid-cols-[1fr,120px,120px,120px]">
             <select value={statField} onChange={(e) => setStatField(e.target.value)} className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
               {(statEntityType === 'team' ? ['wins', 'losses', 'draws', 'goals_for', 'goals_against', 'matches'] : ['matches', 'goals', 'assists', 'yellow_cards', 'red_cards']).map((field) => <option key={field} value={field}>{field}</option>)}
             </select>
             <input type="number" min={0} step={1} value={statDelta} onChange={(e) => setStatDelta(e.target.value.replace(/[^\d]/g, ''))} className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-            <button type="button" disabled={!Number(statDelta)} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => {
+            <button type="button" disabled={!selectedCycleId || !Number(statDelta)} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => {
               setConfirmDialog({
                 title: '⚠️ Подтвердить ручную корректировку?',
                 description: 'Изменение внесет статистику в обход системы. Его можно удалить в истории изменений.',
                 confirmLabel: 'Прибавить',
                 onConfirm: async () => {
-                  await cabinetRepository.addManualStatAdjustment?.({ tournamentId: selectedCycleId, entityType: statEntityType === 'team' ? 'team' : 'player', entityId: statEntityId, field: statField, delta: Number(statDelta) })
+                  await cabinetRepository.addManualStatAdjustment?.({ tournamentId: selectedCycleId, entityType: statEntityType, entityId: statEntityId, field: statField, delta: Number(statDelta) })
                   setStatus('ok: manual adjustment added')
                 },
               })
             }}>Прибавить</button>
-            <button type="button" disabled={!Number(statDelta)} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={() => {
+            <button type="button" disabled={!selectedCycleId || !Number(statDelta)} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => {
               setConfirmDialog({
                 title: '⚠️ Подтвердить ручную корректировку?',
                 description: 'Изменение внесет статистику в обход системы. Его можно удалить в истории изменений.',
                 confirmLabel: 'Убавить',
                 onConfirm: async () => {
-                  await cabinetRepository.addManualStatAdjustment?.({ tournamentId: selectedCycleId, entityType: statEntityType === 'team' ? 'team' : 'player', entityId: statEntityId, field: statField, delta: -Number(statDelta) })
+                  await cabinetRepository.addManualStatAdjustment?.({ tournamentId: selectedCycleId, entityType: statEntityType, entityId: statEntityId, field: statField, delta: -Number(statDelta) })
                   setStatus('ok: manual adjustment added')
                 },
               })
             }}>Убавить</button>
-          </div>
+          </div>}
+          {!statEntityId && <p className="text-xs text-textMuted">Сначала выберите сущность, затем откроется блок редактирования.</p>}
+          {!selectedCycleId && <p className="text-xs text-textMuted">Для сохранения корректировки нужно выбрать турнир.</p>}
         </section>
       )}
 
@@ -1588,7 +1606,7 @@ export const CabinetSectionPage = () => {
           {statsHistory.length === 0 ? <p className="text-sm text-textMuted">История изменений пуста.</p> : statsHistory.map((item) => (
             <div key={item.id} className="rounded-lg border border-borderSubtle bg-mutedBg p-3">
               <p className="text-sm text-textPrimary">#{item.id} · {item.entityType} {item.entityId} · {item.field}: {item.delta > 0 ? '+' : ''}{item.delta}</p>
-              <p className="text-xs text-textMuted">Турнир: {item.tournamentId} · Автор: {item.authorUserId} · {new Date(item.createdAt).toLocaleString('ru-RU')}</p>
+              <p className="text-xs text-textMuted">Турнир: {item.tournamentId} · Автор: {item.authorTelegramUsername ? `@${item.authorTelegramUsername}` : item.authorUserId} · {new Date(item.createdAt).toLocaleString('ru-RU')}</p>
               <button type="button" className="mt-2 rounded-lg border border-red-700/50 px-3 py-1.5 text-xs text-red-300" onClick={() => {
                 setConfirmDialog({
                   title: 'Удалить изменение?',

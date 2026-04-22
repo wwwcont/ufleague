@@ -14,6 +14,7 @@ import type {
 } from '../../domain/repositories/contracts'
 import type { AuthSession, BackendMeDTO, CommentAuthorState, CommentNode, Match, Player, PlayoffGrid, PublicEvent, PublicUserCard, SearchResult, StandingRow, Team, TopScorer, UserAccessRow, UserRole } from '../../domain/entities/types'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
+import { buildPlayerStatsMap } from '../../domain/services/teamPlayerStats'
 import { normalizeImageForUpload } from '../../lib/image-upload'
 import { notifyError, toRussianMessage } from '../../lib/notifications'
 
@@ -390,11 +391,19 @@ export const teamsRepository: TeamsRepository = {
 export const playersRepository: PlayersRepository = {
   async getPlayers(teamId) {
     const list = (await api<any[]>('/api/players')).map(mapPlayer).filter((player): player is Player => Boolean(player))
-    return teamId ? list.filter((p) => p.teamId === teamId) : list
+    const matches = (await api<any[]>('/api/matches')).map(mapMatch)
+    const statsMap = buildPlayerStatsMap(list, matches)
+    const withActualStats = list.map((player) => ({ ...player, stats: statsMap.get(player.id) ?? player.stats }))
+    return teamId ? withActualStats.filter((p) => p.teamId === teamId) : withActualStats
   },
   async getPlayerById(playerId) {
     try {
-      return mapPlayer(await api<any>(`/api/players/${playerId}`))
+      const player = mapPlayer(await api<any>(`/api/players/${playerId}`))
+      if (!player) return null
+      const allPlayers = (await api<any[]>('/api/players')).map(mapPlayer).filter((item): item is Player => Boolean(item))
+      const matches = (await api<any[]>('/api/matches')).map(mapMatch)
+      const statsMap = buildPlayerStatsMap(allPlayers, matches)
+      return { ...player, stats: statsMap.get(player.id) ?? player.stats }
     } catch {
       return null
     }
@@ -1041,6 +1050,7 @@ export const cabinetRepository: CabinetRepository = {
       field: String(item.field ?? ''),
       delta: Number(item.delta ?? 0),
       authorUserId: String(item.author_user_id),
+      authorTelegramUsername: item.author_telegram_username ? String(item.author_telegram_username) : '',
       createdAt: item.created_at ? new Date(Number(item.created_at) * 1000).toISOString() : new Date().toISOString(),
     }))
   },
