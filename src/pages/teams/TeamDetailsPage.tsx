@@ -102,6 +102,13 @@ export const TeamDetailsPage = () => {
   const playerStatsMap = buildPlayerStatsMap(players ?? [], matches ?? [])
   const visiblePlayers = (players ?? [])
     .filter((player) => canManageCurrentTeam || !player.isHidden)
+    .sort((left, right) => {
+      const leftIsCaptain = Boolean(team.captainUserId && (left.userId === team.captainUserId || left.id === team.captainUserId))
+      const rightIsCaptain = Boolean(team.captainUserId && (right.userId === team.captainUserId || right.id === team.captainUserId))
+      if (leftIsCaptain && !rightIsCaptain) return -1
+      if (!leftIsCaptain && rightIsCaptain) return 1
+      return 0
+    })
     .slice(0, 8)
     .map((player) => ({ ...player, stats: playerStatsMap.get(player.id) ?? player.stats }))
   const captainPlayerId = team.captainUserId
