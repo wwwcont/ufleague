@@ -4,16 +4,16 @@ import type { StandingRow, Team } from '../../domain/entities/types'
 import { TeamAvatar } from '../ui/TeamAvatar'
 
 export const StandingsTable = ({ rows, teamMap }: { rows: StandingRow[]; teamMap: Record<string, Team> }) => (
-  <div className="matte-panel overflow-x-auto p-2">
-    <table className="min-w-full border-separate border-spacing-y-1 text-sm">
+  <div className="matte-panel p-2">
+    <table className="w-full table-fixed border-separate border-spacing-y-1 text-xs sm:text-sm">
       <thead>
         <tr className="text-[11px] uppercase tracking-[0.11em] text-textMuted">
-          <th className="px-2 py-2 text-left">#</th>
-          <th className="px-2 py-2 text-left">Команда</th>
-          <th className="px-2 py-2 text-center">И</th>
-          <th className="px-2 py-2 text-center">В-Н-П</th>
-          <th className="px-2 py-2 text-center">М</th>
-          <th className="px-2 py-2 text-center">О</th>
+          <th className="w-7 px-1 py-2 text-left sm:px-2">#</th>
+          <th className="px-1 py-2 text-left sm:px-2">Команда</th>
+          <th className="w-7 px-1 py-2 text-center sm:px-2">И</th>
+          <th className="w-14 whitespace-nowrap px-1 py-2 text-center sm:px-2">В-П-Н</th>
+          <th className="w-16 px-1 py-2 text-center sm:w-20 sm:px-2">М</th>
+          <th className="w-8 px-1 py-2 text-center sm:px-2">О</th>
         </tr>
       </thead>
       <tbody>
@@ -24,22 +24,22 @@ export const StandingsTable = ({ rows, teamMap }: { rows: StandingRow[]; teamMap
           return (
             <Fragment key={row.teamId}>
               <tr className="bg-app/70">
-                <td className="rounded-l-lg px-2 py-3 font-medium text-textSecondary">{row.position}</td>
-                <td className="px-2 py-3">
+                <td className="rounded-l-lg px-1 py-2 font-medium text-textSecondary sm:px-2 sm:py-3">{row.position}</td>
+                <td className="px-1 py-2 sm:px-2 sm:py-3">
                   <Link className="flex items-center gap-2 font-medium text-textPrimary transition hover:text-accentYellow" to={`/teams/${row.teamId}`}>
                     <TeamAvatar team={team} size="sm" className="h-7 w-7" />
-                    <span>{team.shortName}</span>
+                    <span className="truncate">{team.shortName}</span>
                   </Link>
                 </td>
-                <td className="px-2 py-3 text-center tabular-nums text-textSecondary">{row.played}</td>
-                <td className="px-2 py-3 text-center tabular-nums text-textSecondary">{row.won}-{row.drawn}-{row.lost}</td>
-                <td className="px-2 py-3 text-center tabular-nums text-textSecondary">
-                  <span className="inline-flex min-w-[76px] items-center justify-center rounded-full bg-panelSoft px-3 py-1">
+                <td className="px-1 py-2 text-center tabular-nums text-textSecondary sm:px-2 sm:py-3">{row.played}</td>
+                <td className="whitespace-nowrap px-1 py-2 text-center tabular-nums text-textSecondary sm:px-2 sm:py-3">{row.won}-{row.lost}-{row.drawn}</td>
+                <td className="px-1 py-2 text-center tabular-nums text-textSecondary sm:px-2 sm:py-3">
+                  <span className="inline-flex min-w-[58px] items-center justify-center rounded-full bg-panelSoft px-2 py-1 sm:min-w-[76px] sm:px-3">
                     {row.goalsFor}:{row.goalsAgainst}
                     <sup className="ml-1 text-[10px] font-semibold text-accentYellow">{row.goalDiff > 0 ? `+${row.goalDiff}` : row.goalDiff}</sup>
                   </span>
                 </td>
-                <td className="rounded-r-lg px-2 py-3 text-center text-base font-bold tabular-nums text-textPrimary">{row.points}</td>
+                <td className="rounded-r-lg px-1 py-2 text-center text-sm font-bold tabular-nums text-textPrimary sm:px-2 sm:py-3 sm:text-base">{row.points}</td>
               </tr>
 
               {row.position === 8 && (

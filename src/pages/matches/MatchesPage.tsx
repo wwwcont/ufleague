@@ -5,6 +5,7 @@ import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useMatches } from '../../hooks/data/useMatches'
 import { useTeams } from '../../hooks/data/useTeams'
 import type { Match, Team } from '../../domain/entities/types'
+import { sortMatchesByRelevance } from '../../domain/services/matchSorting'
 
 const fallbackTeam = (id: string): Team => ({
   id,
@@ -25,10 +26,10 @@ export const MatchesPage = () => {
   const teamMap = Object.fromEntries((teams ?? []).map((t) => [t.id, t]))
   const filteredMatches = useMemo(() => {
     if (!matchList) return []
-    if (filter === 'live') return matchList.filter((match) => match.status === 'live' || match.status === 'half_time')
-    if (filter === 'upcoming') return matchList.filter((match) => match.status === 'scheduled')
-    if (filter === 'finished') return matchList.filter((match) => match.status === 'finished')
-    return matchList
+    if (filter === 'live') return sortMatchesByRelevance(matchList.filter((match) => match.status === 'live' || match.status === 'half_time'))
+    if (filter === 'upcoming') return sortMatchesByRelevance(matchList.filter((match) => match.status === 'scheduled'))
+    if (filter === 'finished') return sortMatchesByRelevance(matchList.filter((match) => match.status === 'finished'))
+    return sortMatchesByRelevance(matchList)
   }, [filter, matchList])
 
   const filterLabel: Record<typeof filter, string> = {

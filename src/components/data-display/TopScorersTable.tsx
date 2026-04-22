@@ -28,16 +28,16 @@ export const TopScorersTable = ({ rows, playersById, teamsById, limit }: TopScor
   const visibleRows = typeof limit === 'number' ? rows.slice(0, limit) : rows
 
   return (
-    <div className="matte-panel overflow-x-auto p-2">
-      <table className="min-w-full border-separate border-spacing-y-1 text-sm">
+    <div className="matte-panel p-2">
+      <table className="w-full table-fixed border-separate border-spacing-y-1 text-xs sm:text-sm">
         <thead>
           <tr className="text-[11px] uppercase tracking-[0.11em] text-textMuted">
-            <th className="px-2 py-2 text-left">#</th>
-            <th className="px-2 py-2 text-left">Игрок</th>
-            <th className="px-2 py-2 text-center">Г</th>
-            <th className="px-2 py-2 text-center">А</th>
-            <th className="px-2 py-2 text-center">ЖК</th>
-            <th className="px-2 py-2 text-center">КК</th>
+            <th className="w-7 px-1 py-2 text-left sm:px-2">#</th>
+            <th className="px-1 py-2 text-left sm:px-2">Игрок</th>
+            <th className="w-7 px-1 py-2 text-center sm:px-2">Г</th>
+            <th className="w-7 px-1 py-2 text-center sm:px-2">А</th>
+            <th className="w-9 px-1 py-2 text-center sm:px-2">ЖК</th>
+            <th className="w-9 px-1 py-2 text-center sm:px-2">КК</th>
           </tr>
         </thead>
         <tbody>
@@ -48,27 +48,27 @@ export const TopScorersTable = ({ rows, playersById, teamsById, limit }: TopScor
 
             return (
               <tr key={row.playerId} className="bg-app/70">
-                <td className="rounded-l-lg px-2 py-3 font-medium text-textSecondary">{index + 1}</td>
-                <td className="px-2 py-3">
-                  <div className="flex items-center gap-2">
+                <td className="rounded-l-lg px-1 py-2 font-medium text-textSecondary sm:px-2 sm:py-3">{index + 1}</td>
+                <td className="px-1 py-2 sm:px-2 sm:py-3">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
                     <Link to={`/players/${player.id}`} className="transition hover:opacity-90">
                       <PlayerAvatar player={player} />
                     </Link>
                     <div className="min-w-0">
-                      <Link to={`/players/${player.id}`} className="block truncate font-medium text-textPrimary transition hover:text-accentYellow">
+                      <Link to={`/players/${player.id}`} className="block truncate text-[13px] font-medium text-textPrimary transition hover:text-accentYellow sm:text-sm">
                         {resolvePlayerDisplayName(player)}
                       </Link>
-                      <Link to={`/teams/${team.id}`} className="flex items-center gap-1 text-xs text-textMuted transition hover:text-accentYellow">
+                      <Link to={`/teams/${team.id}`} className="flex items-center gap-1 text-[11px] text-textMuted transition hover:text-accentYellow">
                         <TeamAvatar team={team} size="sm" />
-                        <span>{team.shortName}</span>
+                        <span className="truncate">{team.shortName}</span>
                       </Link>
                     </div>
                   </div>
                 </td>
-                <td className="px-2 py-3 text-center text-base font-semibold tabular-nums text-textPrimary">{row.goals}</td>
-                <td className="px-2 py-3 text-center tabular-nums text-textSecondary">{row.assists}</td>
-                <td className="px-2 py-3 text-center tabular-nums text-textSecondary">{row.yellowCards}</td>
-                <td className="rounded-r-lg px-2 py-3 text-center tabular-nums text-textSecondary">{row.redCards}</td>
+                <td className="px-1 py-2 text-center text-sm font-semibold tabular-nums text-textPrimary sm:px-2 sm:py-3 sm:text-base">{row.goals}</td>
+                <td className="px-1 py-2 text-center tabular-nums text-textSecondary sm:px-2 sm:py-3">{row.assists}</td>
+                <td className="px-1 py-2 text-center tabular-nums text-textSecondary sm:px-2 sm:py-3">{row.yellowCards}</td>
+                <td className="rounded-r-lg px-1 py-2 text-center tabular-nums text-textSecondary sm:px-2 sm:py-3">{row.redCards}</td>
               </tr>
             )
           })}

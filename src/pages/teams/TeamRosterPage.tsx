@@ -50,8 +50,14 @@ export const TeamRosterPage = () => {
     const source = (players ?? []).filter((item) => !removedIds.includes(item.id))
     const statsMap = buildPlayerStatsMap(source, matches ?? [])
     const withStats = source.map((item) => ({ ...item, stats: statsMap.get(item.id) ?? item.stats }))
-    if (canManageCurrentTeam) return withStats
-    return withStats.filter((item) => !effectiveHidden.has(item.id))
+    const captain = team.captainUserId
+      ? (withStats.find((player) => player.userId === team.captainUserId) ?? withStats.find((player) => player.id === team.captainUserId) ?? null)
+      : null
+    const base = canManageCurrentTeam
+      ? withStats
+      : withStats.filter((item) => !effectiveHidden.has(item.id) || item.id === captain?.id)
+    if (!captain) return base
+    return [captain, ...base.filter((item) => item.id !== captain.id)]
   })()
   const captainPlayerId = team.captainUserId
     ? (visiblePlayers.find((player) => player.userId === team.captainUserId)?.id
@@ -166,9 +172,6 @@ export const TeamRosterPage = () => {
             )
           }) : <p className="text-sm text-textMuted">Состав пуст.</p>}
         </div>
-        {!captainPlayerId && team.captainUserId && (
-          <p className="mt-2 text-xs text-textMuted">Капитан назначен, но не найден в текущем списке игроков (user #{team.captainUserId}).</p>
-        )}
         {status && <p className="mt-3 text-xs text-textMuted">{status}</p>}
       </section>
     </PageContainer>
