@@ -370,7 +370,7 @@ export const MatchDetailsPage = () => {
               <img
                 src={home.logoUrl}
                 alt=""
-                className="h-full w-full scale-[1.05] object-cover blur-xl opacity-[0.45] saturate-[0.45] brightness-[0.46] contrast-75 transition-[filter,opacity,transform] duration-1000 ease-out"
+                className="h-full w-full scale-[1.05] object-cover blur-[12px] opacity-[0.45] saturate-[0.45] brightness-[0.46] contrast-75 transition-[filter,opacity,transform] duration-1000 ease-out"
               />
             )}
           </div>
@@ -379,7 +379,7 @@ export const MatchDetailsPage = () => {
               <img
                 src={away.logoUrl}
                 alt=""
-                className="h-full w-full scale-[1.05] object-cover blur-xl opacity-[0.45] saturate-[0.45] brightness-[0.46] contrast-75 transition-[filter,opacity,transform] duration-1000 ease-out"
+                className="h-full w-full scale-[1.05] object-cover blur-[12px] opacity-[0.45] saturate-[0.45] brightness-[0.46] contrast-75 transition-[filter,opacity,transform] duration-1000 ease-out"
               />
             )}
           </div>
@@ -1177,6 +1177,12 @@ export const MatchDetailsPage = () => {
       {isAdmin && (
         <section className="mt-3 rounded-2xl border border-borderSubtle bg-panelBg p-3 shadow-soft">
           <div className="space-y-2">
+            <Link
+              to={`/profile/page-change-history?targetType=match&targetId=${encodeURIComponent(match.id)}&returnTo=${encodeURIComponent(`/matches/${match.id}`)}`}
+              className="inline-flex w-full justify-center rounded-xl border border-borderSubtle bg-panelBg px-4 py-2 text-xs font-semibold text-textPrimary shadow-soft"
+            >
+              История изменений
+            </Link>
             <button type="button" onClick={() => { void openPlayoffModal() }} className="inline-flex w-full justify-center rounded-xl bg-accentYellow px-4 py-2 text-xs font-semibold text-app shadow-soft">
               Добавить плейофф
             </button>
