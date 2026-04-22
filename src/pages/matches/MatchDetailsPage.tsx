@@ -343,7 +343,7 @@ export const MatchDetailsPage = () => {
 
   return (
     <PageContainer>
-      <section className="relative overflow-hidden rounded-2xl border border-borderStrong bg-panelBg px-5 py-6 shadow-matte sm:px-7 sm:py-7">
+      <section className="relative overflow-visible rounded-2xl border border-borderStrong bg-panelBg px-5 py-6 shadow-matte sm:px-7 sm:py-7">
         {canEditScore && (
           <div className="absolute left-1/2 top-0 z-30 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2">
             <button type="button" onClick={() => setCardsEditorOpen(true)} className="inline-flex items-center rounded-full border border-borderSubtle bg-panelBg px-3 py-1 text-xs font-semibold text-textPrimary shadow-soft">
@@ -364,13 +364,13 @@ export const MatchDetailsPage = () => {
           </div>
         )}
 
-        <div className="pointer-events-none absolute inset-0">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
           <div className="absolute inset-y-0 left-0 w-1/2 overflow-hidden">
             {home.logoUrl && (
               <img
                 src={home.logoUrl}
                 alt=""
-                className="h-full w-full scale-[1.05] object-cover blur-[12px] opacity-[0.45] saturate-[0.45] brightness-[0.46] contrast-75 transition-[filter,opacity,transform] duration-1000 ease-out"
+                className="h-full w-full scale-[1.05] object-cover blur-[7px] opacity-[0.43] saturate-[0.45] brightness-[0.46] contrast-75 transition-[filter,opacity,transform] duration-1000 ease-out"
               />
             )}
           </div>
@@ -379,7 +379,7 @@ export const MatchDetailsPage = () => {
               <img
                 src={away.logoUrl}
                 alt=""
-                className="h-full w-full scale-[1.05] object-cover blur-[12px] opacity-[0.45] saturate-[0.45] brightness-[0.46] contrast-75 transition-[filter,opacity,transform] duration-1000 ease-out"
+                className="h-full w-full scale-[1.05] object-cover blur-[7px] opacity-[0.43] saturate-[0.45] brightness-[0.46] contrast-75 transition-[filter,opacity,transform] duration-1000 ease-out"
               />
             )}
           </div>

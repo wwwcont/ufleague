@@ -525,7 +525,13 @@ export const matchesRepository: MatchesRepository = {
 export const standingsRepository: StandingsRepository = {
   async getStandings(tournamentId) {
     const suffix = tournamentId ? `?tournamentId=${encodeURIComponent(tournamentId)}` : ''
-    const rows = await api<any[]>(`/api/stats/standings${suffix}`)
+    const rows = await api<any[]>(`/api/standings${suffix}`, undefined, { silent: true })
+      .catch(async (error) => {
+        if (error instanceof ApiError && error.status === 404) {
+          return api<any[]>(`/api/stats/standings${suffix}`)
+        }
+        throw error
+      })
     return rows.map((row) => ({
       position: Number(row.position ?? 0),
       teamId: String(row.team_id),

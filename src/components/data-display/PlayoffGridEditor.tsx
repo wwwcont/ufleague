@@ -512,14 +512,6 @@ export const PlayoffGridEditor = ({
           style={{ width: boardW, height: boardH, transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.scale})` }}
         >
           <svg width={boardW} height={boardH} className="absolute left-0 top-0">
-            <defs>
-              <marker id="playoff-line-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth">
-                <path d="M 0 0 L 7 3.5 L 0 7 z" fill="#a1a1aa" />
-              </marker>
-              <marker id="playoff-line-arrow-selected" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth">
-                <path d="M 0 0 L 7 3.5 L 0 7 z" fill="#f4cf49" />
-              </marker>
-            </defs>
             {showEditorOverlays && Array.from({ length: GRID_COLS + 1 }, (_, col) => <line key={`col:${col}`} x1={col * CELL_W} x2={col * CELL_W} y1={0} y2={boardH} stroke="rgba(255,255,255,0.08)" />)}
             {showEditorOverlays && Array.from({ length: GRID_ROWS + 1 }, (_, row) => <line key={`row:${row}`} x1={0} x2={boardW} y1={row * CELL_H} y2={row * CELL_H} stroke="rgba(255,255,255,0.08)" />)}
             {linesDraft.map((line) => {
@@ -548,10 +540,9 @@ export const PlayoffGridEditor = ({
                   <path
                     d={path.path}
                     fill="none"
-                    stroke={selectedLineId === line.id ? '#f4cf49' : '#a1a1aa'}
-                    strokeWidth={selectedLineId === line.id ? 4.4 : 3.1}
+                    stroke={selectedLineId === line.id ? '#f4cf49' : '#c5aa55'}
+                    strokeWidth={selectedLineId === line.id ? 4.2 : 3}
                     strokeLinecap="round"
-                    markerEnd={selectedLineId === line.id ? 'url(#playoff-line-arrow-selected)' : 'url(#playoff-line-arrow)'}
                     pointerEvents="none"
                   />
                   {editable && isEditing && editorMode === 'lines' && (
@@ -583,7 +574,7 @@ export const PlayoffGridEditor = ({
           {textBlocksDraft.map((block) => (
             <div
               key={block.id}
-              className={`absolute ${block.visible ? '' : 'opacity-35'} ${block.showBackground ? 'rounded-xl border border-borderSubtle bg-mutedBg/95 px-2 py-1 shadow-soft' : 'px-1 py-0.5'} ${textAlignClass[block.align]} ${showEditorOverlays && selectedTextBlockId === block.id ? 'outline outline-2 outline-accentYellow/80' : ''}`}
+              className={`absolute ${block.visible ? '' : 'opacity-35'} ${block.showBackground ? 'rounded-xl border border-borderSubtle bg-panelAlt/95 px-2 py-1 shadow-soft' : 'px-1 py-0.5'} ${textAlignClass[block.align]} ${showEditorOverlays && selectedTextBlockId === block.id ? 'outline outline-2 outline-accentYellow/80' : ''}`}
               style={{
                 left: (block.col - 1) * CELL_W,
                 top: (block.row - 1) * CELL_H,
@@ -691,17 +682,17 @@ export const PlayoffGridEditor = ({
                     </button>
                   </div>
                 )}
-                <div className="h-full rounded-xl border border-borderSubtle bg-mutedBg px-2 py-1 shadow-soft">
+                <div className="h-full rounded-xl border border-borderSubtle bg-panelAlt/95 px-2 py-1 shadow-soft">
                   <div className="grid h-full grid-rows-2 gap-y-1">
                     <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-1">
                       {home ? <TeamAvatar team={home} size="sm" fit="cover" className="h-[18px] w-[18px] rounded-md border border-white/15 bg-white/10 p-[1px]" /> : <span className="h-[18px] w-[18px] rounded-md border border-dashed border-borderSubtle/70" />}
-                      <span className={`truncate text-[11px] font-semibold ${showWinner && cell.winnerTeamId === cell.homeTeamId ? 'text-accentYellow' : 'text-textPrimary'}`}>{home?.shortName ?? 'TBD'}</span>
-                      <span className="text-[11px] font-semibold text-textSecondary tabular-nums">{homeScoreLabel}</span>
+                      <span className={`truncate text-[11px] font-semibold tracking-wide ${showWinner && cell.winnerTeamId === cell.homeTeamId ? 'text-accentYellow' : 'text-textPrimary'}`}>{home?.shortName ?? 'TBD'}</span>
+                      <span className="rounded bg-black/25 px-1 text-[11px] font-semibold text-textPrimary tabular-nums">{homeScoreLabel}</span>
                     </div>
                     <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-1">
                       {away ? <TeamAvatar team={away} size="sm" fit="cover" className="h-[18px] w-[18px] rounded-md border border-white/15 bg-white/10 p-[1px]" /> : <span className="h-[18px] w-[18px] rounded-md border border-dashed border-borderSubtle/70" />}
-                      <span className={`truncate text-[11px] font-semibold ${showWinner && cell.winnerTeamId === cell.awayTeamId ? 'text-accentYellow' : 'text-textPrimary'}`}>{away?.shortName ?? 'TBD'}</span>
-                      <span className="text-[11px] font-semibold text-textSecondary tabular-nums">{awayScoreLabel}</span>
+                      <span className={`truncate text-[11px] font-semibold tracking-wide ${showWinner && cell.winnerTeamId === cell.awayTeamId ? 'text-accentYellow' : 'text-textPrimary'}`}>{away?.shortName ?? 'TBD'}</span>
+                      <span className="rounded bg-black/25 px-1 text-[11px] font-semibold text-textPrimary tabular-nums">{awayScoreLabel}</span>
                     </div>
                   </div>
                 </div>
