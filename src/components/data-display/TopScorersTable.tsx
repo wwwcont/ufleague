@@ -28,7 +28,7 @@ export const TopScorersTable = ({ rows, playersById, teamsById, limit }: TopScor
   const visibleRows = typeof limit === 'number' ? rows.slice(0, limit) : rows
 
   return (
-    <div className="matte-panel p-2">
+    <div className="matte-panel glow-surface p-2">
       <table className="w-full table-fixed border-separate border-spacing-y-1 text-xs sm:text-sm">
         <thead>
           <tr className="text-[11px] uppercase tracking-[0.11em] text-textMuted">

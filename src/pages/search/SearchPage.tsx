@@ -196,7 +196,7 @@ export const SearchPage = () => {
                 setSortState({ key: firstSort.key, direction: firstSort.defaultDirection })
               }
             }}
-            className={`matte-panel px-3 py-2 text-xs font-semibold transition ${activeType === type ? 'text-textPrimary' : 'text-textMuted'}`}
+            className={`rounded-2xl bg-panelBg px-3 py-2 text-xs font-semibold transition ${activeType === type ? 'text-textPrimary' : 'text-textMuted'}`}
           >
             {typeLabel[type]}
           </button>
@@ -211,7 +211,7 @@ export const SearchPage = () => {
                 <button
                   key={filter.value}
                   onClick={() => setActiveFilter(filter.value)}
-                  className={`rounded-full px-3 py-1.5 text-xs uppercase tracking-[0.08em] ${activeFilter === filter.value ? 'bg-accentYellow text-app' : 'bg-panelSoft text-textSecondary'}`}
+                  className={`rounded-full px-3 py-1.5 text-xs uppercase tracking-[0.08em] ${activeFilter === filter.value ? 'bg-[#b5963f] text-app' : 'bg-panelSoft text-textSecondary'}`}
                 >
                   {filter.label}
                 </button>
@@ -232,7 +232,7 @@ export const SearchPage = () => {
                     type="button"
                     key={sortItem.key}
                     onClick={() => setSortState({ key: sortItem.key, direction: nextDirection })}
-                    className={`rounded-xl border px-3 py-1.5 text-xs transition ${isActive ? 'border-accentYellow bg-accentYellow/15 text-accentYellow' : 'border-borderSubtle bg-mutedBg text-textSecondary'}`}
+                    className={`rounded-xl border px-3 py-1.5 text-xs transition ${isActive ? 'border-[#9a7728] bg-[#9a7728]/15 text-[#c5aa55]' : 'border-borderSubtle bg-mutedBg text-textSecondary'}`}
                   >
                     {sortItem.label} {directionArrow}
                   </button>
