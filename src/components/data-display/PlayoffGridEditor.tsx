@@ -11,9 +11,23 @@ const PAN_MARGIN_CELLS = 3
 
 type EditorMode = 'navigation' | 'move' | 'lines'
 type LineAnchorSide = 'left' | 'right'
+type TextAlign = 'left' | 'center' | 'right'
+type TextFont = 'inter' | 'roboto' | 'ptsans'
 
 type DraftCell = PlayoffGrid['cells'][number] & { clientKey: string }
 type DraftLine = PlayoffGrid['lines'][number] & { clientKey: string; fromCellId: string; toCellId: string }
+type DraftTextBlock = {
+  id: string
+  col: number
+  row: number
+  widthCells: number
+  heightCells: number
+  text: string
+  visible: boolean
+  showBackground: boolean
+  align: TextAlign
+  font: TextFont
+}
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
@@ -22,7 +36,33 @@ const sameLine = (a: { fromCellId: string; toCellId: string }, b: { fromCellId: 
   || (a.fromCellId === b.toCellId && a.toCellId === b.fromCellId)
 )
 
-const buildLinePath = (fromX: number, fromY: number, toX: number, toY: number) => ({ path: `M ${fromX} ${fromY} L ${toX} ${toY}`, midX: (fromX + toX) / 2, midY: (fromY + toY) / 2 })
+const buildLinePath = (fromX: number, fromY: number, toX: number, toY: number, sourceSide: LineAnchorSide) => {
+  const deltaX = toX - fromX
+  const deltaY = toY - fromY
+  const horizontalDirection = sourceSide === 'right' ? 1 : -1
+  const controlOffset = Math.max(42, Math.min(190, Math.abs(deltaX) * 0.52 + Math.abs(deltaY) * 0.14))
+  const c1x = fromX + controlOffset * horizontalDirection
+  const c2x = toX - controlOffset * horizontalDirection
+  const c1y = fromY + deltaY * 0.18
+  const c2y = toY - deltaY * 0.18
+  return {
+    path: `M ${fromX} ${fromY} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${toX} ${toY}`,
+    midX: (fromX + toX) / 2,
+    midY: (fromY + toY) / 2,
+  }
+}
+
+const textFontFamily: Record<TextFont, string> = {
+  inter: 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif',
+  roboto: 'Roboto, "Noto Sans", "DejaVu Sans", Arial, sans-serif',
+  ptsans: '"PT Sans", "Noto Sans", "DejaVu Sans", Arial, sans-serif',
+}
+
+const textAlignClass: Record<TextAlign, string> = {
+  left: 'text-left',
+  center: 'text-center',
+  right: 'text-right',
+}
 
 export const PlayoffGridEditor = ({
   grid,
@@ -56,6 +96,17 @@ export const PlayoffGridEditor = ({
   const [editingCellId, setEditingCellId] = useState<string | null>(null)
   const [cellDialogHomeTeamId, setCellDialogHomeTeamId] = useState<string | null>(null)
   const [cellDialogAwayTeamId, setCellDialogAwayTeamId] = useState<string | null>(null)
+  const [textBlocksDraft, setTextBlocksDraft] = useState<DraftTextBlock[]>([])
+  const [selectedTextBlockId, setSelectedTextBlockId] = useState<string | null>(null)
+  const [showTextDialog, setShowTextDialog] = useState(false)
+  const [editingTextBlockId, setEditingTextBlockId] = useState<string | null>(null)
+  const [textDialogValue, setTextDialogValue] = useState('')
+  const [textDialogShowBackground, setTextDialogShowBackground] = useState(true)
+  const [textDialogVisible, setTextDialogVisible] = useState(true)
+  const [textDialogAlign, setTextDialogAlign] = useState<TextAlign>('left')
+  const [textDialogFont, setTextDialogFont] = useState<TextFont>('inter')
+  const [textDialogWidth, setTextDialogWidth] = useState(2)
+  const [textDialogHeight, setTextDialogHeight] = useState(1)
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const boardW = GRID_COLS * CELL_W
@@ -65,21 +116,54 @@ export const PlayoffGridEditor = ({
   const panStart = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null)
   const pinchStart = useRef<{ dist: number; scale: number } | null>(null)
   const movingCell = useRef<{ id: string } | null>(null)
+  const movingTextBlock = useRef<{ id: string } | null>(null)
+  const initialTextBlocks = useRef<DraftTextBlock[]>([])
+
+  const textBlocksStorageKey = useMemo(() => {
+    const route = `${window.location.pathname}${window.location.search}`
+    return `playoff-text-blocks:v1:${route}`
+  }, [])
 
   useEffect(() => {
     setCellsDraft(toCells(grid.cells))
     setLinesDraft(toLines(grid.lines))
+    try {
+      const raw = window.localStorage.getItem(textBlocksStorageKey)
+      if (!raw) {
+        setTextBlocksDraft([])
+        initialTextBlocks.current = []
+      } else {
+        const parsed = JSON.parse(raw) as DraftTextBlock[]
+        const safeParsed = Array.isArray(parsed) ? parsed : []
+        setTextBlocksDraft(safeParsed)
+        initialTextBlocks.current = safeParsed
+      }
+    } catch {
+      setTextBlocksDraft([])
+      initialTextBlocks.current = []
+    }
     setDirty(false)
     setSelectedCellId(null)
     setSelectedLineId(null)
+    setSelectedTextBlockId(null)
     setLineSourceAnchor(null)
     setIsEditing(false)
     setShowCellDialog(false)
+    setShowTextDialog(false)
     setEditingCellId(null)
+    setEditingTextBlockId(null)
     setCellDialogHomeTeamId(null)
     setCellDialogAwayTeamId(null)
     setSaveError(null)
-  }, [grid])
+  }, [grid, textBlocksStorageKey])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(textBlocksStorageKey, JSON.stringify(textBlocksDraft))
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [textBlocksDraft, textBlocksStorageKey])
 
   useEffect(() => {
     if (!isEditing) setEditorMode('navigation')
@@ -87,6 +171,7 @@ export const PlayoffGridEditor = ({
     panStart.current = null
     pinchStart.current = null
     movingCell.current = null
+    movingTextBlock.current = null
   }, [isEditing])
 
   const cellsById = useMemo(() => Object.fromEntries(cellsDraft.map((cell) => [cell.id, cell])), [cellsDraft])
@@ -124,6 +209,17 @@ export const PlayoffGridEditor = ({
     setDirty(true)
   }
 
+  const moveTextBlockToPoint = (blockId: string, clientX: number, clientY: number) => {
+    const wrap = wrapperRef.current?.getBoundingClientRect()
+    if (!wrap) return
+    const localX = (clientX - wrap.left - viewport.x) / viewport.scale
+    const localY = (clientY - wrap.top - viewport.y) / viewport.scale
+    const nextCol = clamp(Math.round(localX / CELL_W) + 1, 1, GRID_COLS)
+    const nextRow = clamp(Math.round(localY / CELL_H) + 1, 1, GRID_ROWS)
+    setTextBlocksDraft((prev) => prev.map((block) => (block.id === blockId ? { ...block, col: nextCol, row: nextRow } : block)))
+    setDirty(true)
+  }
+
   const openAddCellDialog = () => {
     setEditingCellId(null)
     setCellDialogHomeTeamId(null)
@@ -138,6 +234,32 @@ export const PlayoffGridEditor = ({
     setCellDialogHomeTeamId(cell.homeTeamId)
     setCellDialogAwayTeamId(cell.awayTeamId)
     setShowCellDialog(true)
+  }
+
+  const openAddTextDialog = () => {
+    setEditingTextBlockId(null)
+    setTextDialogValue('')
+    setTextDialogShowBackground(true)
+    setTextDialogVisible(true)
+    setTextDialogAlign('left')
+    setTextDialogFont('inter')
+    setTextDialogWidth(2)
+    setTextDialogHeight(1)
+    setShowTextDialog(true)
+  }
+
+  const openEditTextDialog = (blockId: string) => {
+    const block = textBlocksDraft.find((item) => item.id === blockId)
+    if (!block) return
+    setEditingTextBlockId(blockId)
+    setTextDialogValue(block.text)
+    setTextDialogShowBackground(block.showBackground)
+    setTextDialogVisible(block.visible)
+    setTextDialogAlign(block.align)
+    setTextDialogFont(block.font)
+    setTextDialogWidth(block.widthCells)
+    setTextDialogHeight(block.heightCells)
+    setShowTextDialog(true)
   }
 
   const submitCellDialog = () => {
@@ -178,6 +300,36 @@ export const PlayoffGridEditor = ({
     }
   }
 
+  const submitTextDialog = () => {
+    const payload = {
+      text: textDialogValue.slice(0, 500),
+      showBackground: textDialogShowBackground,
+      visible: textDialogVisible,
+      align: textDialogAlign,
+      font: textDialogFont,
+      widthCells: clamp(textDialogWidth, 1, 8),
+      heightCells: clamp(textDialogHeight, 1, 6),
+    } satisfies Omit<DraftTextBlock, 'id' | 'col' | 'row'>
+
+    if (editingTextBlockId) {
+      setTextBlocksDraft((prev) => prev.map((block) => (block.id === editingTextBlockId ? { ...block, ...payload } : block)))
+      setDirty(true)
+      setShowTextDialog(false)
+      return
+    }
+
+    const newBlock: DraftTextBlock = {
+      id: `text_${Date.now()}`,
+      col: 1,
+      row: 1,
+      ...payload,
+    }
+    setTextBlocksDraft((prev) => [...prev, newBlock])
+    setSelectedTextBlockId(newBlock.id)
+    setDirty(true)
+    setShowTextDialog(false)
+  }
+
   const boardPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     activePointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
     if (activePointers.current.size === 2) {
@@ -197,6 +349,10 @@ export const PlayoffGridEditor = ({
 
     if (isEditing && movingCell.current && editorMode === 'move') {
       moveCellToPoint(movingCell.current.id, event.clientX, event.clientY)
+      return
+    }
+    if (isEditing && movingTextBlock.current && editorMode === 'move') {
+      moveTextBlockToPoint(movingTextBlock.current.id, event.clientX, event.clientY)
       return
     }
 
@@ -227,11 +383,13 @@ export const PlayoffGridEditor = ({
     if (activePointers.current.size < 2) pinchStart.current = null
     panStart.current = null
     movingCell.current = null
+    movingTextBlock.current = null
   }
 
   const onLineAnchorTap = (cellId: string, side: LineAnchorSide) => {
     setSelectedCellId(cellId)
     setSelectedLineId(null)
+    setSelectedTextBlockId(null)
     if (!editable || !isEditing || editorMode !== 'lines') return
     if (!lineSourceAnchor) {
       setLineSourceAnchor({ cellId, side })
@@ -287,6 +445,7 @@ export const PlayoffGridEditor = ({
     setSaveError(null)
     try {
       await onSave(payload)
+      initialTextBlocks.current = textBlocksDraft
       setDirty(false)
       setIsEditing(false)
     } catch (error) {
@@ -299,9 +458,11 @@ export const PlayoffGridEditor = ({
   const cancelDraft = () => {
     setCellsDraft(toCells(grid.cells))
     setLinesDraft(toLines(grid.lines))
+    setTextBlocksDraft(initialTextBlocks.current)
     setDirty(false)
     setSelectedCellId(null)
     setSelectedLineId(null)
+    setSelectedTextBlockId(null)
     setLineSourceAnchor(null)
     setIsEditing(false)
     setShowCancelConfirm(false)
@@ -352,24 +513,12 @@ export const PlayoffGridEditor = ({
         >
           <svg width={boardW} height={boardH} className="absolute left-0 top-0">
             <defs>
-              {linesDraft.map((line) => {
-                const from = cellsById[line.fromCellId]
-                const to = cellsById[line.toCellId]
-                if (!from || !to) return null
-                const fromX = (from.col - 1) * CELL_W + (to.col >= from.col ? CELL_W : 0)
-                const fromY = (from.row - 1) * CELL_H + CELL_H / 2
-                const toX = (to.col - 1) * CELL_W + (to.col >= from.col ? 0 : CELL_W)
-                const toY = (to.row - 1) * CELL_H + CELL_H / 2
-                const gradientId = `line-glow-${line.clientKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`
-                return (
-                  <linearGradient key={gradientId} id={gradientId} x1={fromX} y1={fromY} x2={toX} y2={toY} gradientUnits="userSpaceOnUse">
-                    <stop offset="0%" stopColor="#f4cf49" stopOpacity="0" />
-                    <stop offset="12%" stopColor="#f4cf49" stopOpacity="0.8" />
-                    <stop offset="88%" stopColor="#f4cf49" stopOpacity="0.8" />
-                    <stop offset="100%" stopColor="#f4cf49" stopOpacity="0" />
-                  </linearGradient>
-                )
-              })}
+              <marker id="playoff-line-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth">
+                <path d="M 0 0 L 7 3.5 L 0 7 z" fill="#a1a1aa" />
+              </marker>
+              <marker id="playoff-line-arrow-selected" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth">
+                <path d="M 0 0 L 7 3.5 L 0 7 z" fill="#f4cf49" />
+              </marker>
             </defs>
             {showEditorOverlays && Array.from({ length: GRID_COLS + 1 }, (_, col) => <line key={`col:${col}`} x1={col * CELL_W} x2={col * CELL_W} y1={0} y2={boardH} stroke="rgba(255,255,255,0.08)" />)}
             {showEditorOverlays && Array.from({ length: GRID_ROWS + 1 }, (_, row) => <line key={`row:${row}`} x1={0} x2={boardW} y1={row * CELL_H} y2={row * CELL_H} stroke="rgba(255,255,255,0.08)" />)}
@@ -381,8 +530,8 @@ export const PlayoffGridEditor = ({
               const fromY = (from.row - 1) * CELL_H + CELL_H / 2
               const toX = (to.col - 1) * CELL_W + (to.col >= from.col ? 0 : CELL_W)
               const toY = (to.row - 1) * CELL_H + CELL_H / 2
-              const path = buildLinePath(fromX, fromY, toX, toY)
-              const gradientId = `line-glow-${line.clientKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`
+              const sourceSide: LineAnchorSide = to.col >= from.col ? 'right' : 'left'
+              const path = buildLinePath(fromX, fromY, toX, toY, sourceSide)
               return (
                 <g key={line.clientKey}>
                   <path
@@ -399,9 +548,10 @@ export const PlayoffGridEditor = ({
                   <path
                     d={path.path}
                     fill="none"
-                    stroke={selectedLineId === line.id ? '#f4cf49' : `url(#${gradientId})`}
+                    stroke={selectedLineId === line.id ? '#f4cf49' : '#a1a1aa'}
                     strokeWidth={selectedLineId === line.id ? 4.4 : 3.1}
                     strokeLinecap="round"
+                    markerEnd={selectedLineId === line.id ? 'url(#playoff-line-arrow-selected)' : 'url(#playoff-line-arrow)'}
                     pointerEvents="none"
                   />
                   {editable && isEditing && editorMode === 'lines' && (
@@ -429,6 +579,59 @@ export const PlayoffGridEditor = ({
               )
             })}
           </svg>
+
+          {textBlocksDraft.map((block) => (
+            <div
+              key={block.id}
+              className={`absolute ${block.visible ? '' : 'opacity-35'} ${block.showBackground ? 'rounded-xl border border-borderSubtle bg-mutedBg/95 px-2 py-1 shadow-soft' : 'px-1 py-0.5'} ${textAlignClass[block.align]} ${showEditorOverlays && selectedTextBlockId === block.id ? 'outline outline-2 outline-accentYellow/80' : ''}`}
+              style={{
+                left: (block.col - 1) * CELL_W,
+                top: (block.row - 1) * CELL_H,
+                width: block.widthCells * CELL_W,
+                minHeight: block.heightCells * CELL_H,
+                fontFamily: textFontFamily[block.font],
+              }}
+              onPointerDown={() => {
+                if (editable && isEditing && editorMode === 'move') movingTextBlock.current = { id: block.id }
+              }}
+              onClick={(event) => {
+                event.stopPropagation()
+                setSelectedTextBlockId(block.id)
+                setSelectedCellId(null)
+                setSelectedLineId(null)
+              }}
+            >
+              {showEditorOverlays && selectedTextBlockId === block.id && (
+                <div className="absolute right-1 top-1 z-10 flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="inline-flex h-5 w-5 items-center justify-center rounded bg-panelBg/95 text-[10px] text-textSecondary"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      openEditTextDialog(block.id)
+                    }}
+                  >
+                    ✎
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-5 w-5 items-center justify-center rounded bg-panelBg/95 text-[10px] text-red-400"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setTextBlocksDraft((prev) => prev.filter((item) => item.id !== block.id))
+                      setSelectedTextBlockId(null)
+                      setDirty(true)
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+              <p className={`whitespace-pre-wrap break-words text-xs leading-relaxed text-textPrimary ${!block.visible ? 'line-through decoration-dashed' : ''}`}>
+                {block.text || 'Текстовый блок'}
+              </p>
+            </div>
+          ))}
 
           {cellsDraft.map((cell) => {
             const isSelected = selectedCellId === cell.id
@@ -461,6 +664,7 @@ export const PlayoffGridEditor = ({
                 onClick={() => {
                   setSelectedCellId(cell.id)
                   setSelectedLineId(null)
+                  setSelectedTextBlockId(null)
                 }}
               >
                 {showEditorOverlays && (
@@ -487,7 +691,7 @@ export const PlayoffGridEditor = ({
                     </button>
                   </div>
                 )}
-                <div className="h-full rounded-xl border border-accentYellow/30 bg-panelAlt/95 px-2 py-1 shadow-soft" style={{ boxShadow: 'inset 14px 0 18px rgba(244,207,73,0.2), inset -14px 0 18px rgba(244,207,73,0.2)' }}>
+                <div className="h-full rounded-xl border border-borderSubtle bg-mutedBg px-2 py-1 shadow-soft">
                   <div className="grid h-full grid-rows-2 gap-y-1">
                     <div className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-x-1">
                       {home ? <TeamAvatar team={home} size="sm" fit="cover" className="h-[18px] w-[18px] rounded-md border border-white/15 bg-white/10 p-[1px]" /> : <span className="h-[18px] w-[18px] rounded-md border border-dashed border-borderSubtle/70" />}
@@ -552,15 +756,29 @@ export const PlayoffGridEditor = ({
 
       {editable && isEditing && (
         <div className="absolute inset-x-0 bottom-[calc(68px+env(safe-area-inset-bottom,0px))] border-t border-borderSubtle bg-app/95 p-2 md:bottom-0">
-        <div className="grid grid-cols-4 gap-2 text-xs">
+        <div className="grid grid-cols-5 gap-2 text-xs">
           <button type="button" onClick={() => setEditorMode('navigation')} className={`rounded-lg px-2 py-2 ${editorMode === 'navigation' ? 'bg-accentYellow text-app font-semibold' : 'bg-panelAlt text-textSecondary'}`}>Навигация</button>
           <button type="button" onClick={() => setEditorMode('move')} className={`rounded-lg px-2 py-2 ${editorMode === 'move' ? 'bg-accentYellow text-app font-semibold' : 'bg-panelAlt text-textSecondary'}`}>Движение</button>
           <button type="button" onClick={() => setEditorMode('lines')} className={`rounded-lg px-2 py-2 ${editorMode === 'lines' ? 'bg-accentYellow text-app font-semibold' : 'bg-panelAlt text-textSecondary'}`}>Линии</button>
           <button type="button" onClick={openAddCellDialog} className="rounded-lg border border-borderSubtle px-2 py-2 text-textSecondary">Добавить</button>
+          <button type="button" onClick={openAddTextDialog} className="rounded-lg border border-borderSubtle px-2 py-2 text-textSecondary">Текст</button>
         </div>
-        <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+        <div className="mt-2 grid grid-cols-4 gap-2 text-xs">
           <button type="button" onClick={() => (dirty ? setShowCancelConfirm(true) : cancelDraft())} className="rounded-lg border border-borderSubtle px-2 py-2 text-textSecondary">Отмена</button>
           <button type="button" disabled={!selectedLineId} onClick={deleteSelectedLine} className="rounded-lg border border-borderSubtle px-2 py-2 text-textSecondary disabled:opacity-40">Удалить линию</button>
+          <button
+            type="button"
+            disabled={!selectedTextBlockId}
+            onClick={() => {
+              if (!selectedTextBlockId) return
+              setTextBlocksDraft((prev) => prev.filter((item) => item.id !== selectedTextBlockId))
+              setSelectedTextBlockId(null)
+              setDirty(true)
+            }}
+            className="rounded-lg border border-borderSubtle px-2 py-2 text-textSecondary disabled:opacity-40"
+          >
+            Удалить текст
+          </button>
           <button type="button" disabled={!dirty || saving} onClick={() => { void saveDraft() }} className="rounded-lg bg-accentYellow px-2 py-2 font-semibold text-app disabled:opacity-50">Сохранить</button>
         </div>
         {saveError && <p className="mt-2 text-xs text-red-400">{saveError}</p>}
@@ -603,6 +821,81 @@ export const PlayoffGridEditor = ({
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button type="button" className="rounded-lg border border-borderSubtle px-2 py-2 text-sm text-textSecondary" onClick={() => setShowCellDialog(false)}>Отмена</button>
               <button type="button" className="rounded-lg bg-accentYellow px-2 py-2 text-sm font-semibold text-app" onClick={submitCellDialog}>{editingCellId ? 'Сохранить' : 'Добавить'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editable && isEditing && showTextDialog && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-xl border border-borderSubtle bg-app p-4">
+            <p className="mb-3 text-sm font-semibold">{editingTextBlockId ? 'Редактировать текстовый блок' : 'Добавить текстовый блок'}</p>
+            <div className="space-y-2">
+              <label className="block text-xs text-textMuted">Текст ({textDialogValue.length}/500)</label>
+              <textarea
+                rows={5}
+                maxLength={500}
+                className="w-full rounded-lg border border-borderSubtle bg-panelAlt px-2 py-2 text-sm text-textPrimary"
+                value={textDialogValue}
+                onChange={(event) => setTextDialogValue(event.target.value)}
+                placeholder="Введите текст блока..."
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs text-textMuted">
+                  Ширина (клетки)
+                  <input
+                    type="number"
+                    min={1}
+                    max={8}
+                    className="mt-1 w-full rounded-lg border border-borderSubtle bg-panelAlt px-2 py-1.5 text-sm text-textPrimary"
+                    value={textDialogWidth}
+                    onChange={(event) => setTextDialogWidth(Number(event.target.value) || 1)}
+                  />
+                </label>
+                <label className="text-xs text-textMuted">
+                  Высота (клетки)
+                  <input
+                    type="number"
+                    min={1}
+                    max={6}
+                    className="mt-1 w-full rounded-lg border border-borderSubtle bg-panelAlt px-2 py-1.5 text-sm text-textPrimary"
+                    value={textDialogHeight}
+                    onChange={(event) => setTextDialogHeight(Number(event.target.value) || 1)}
+                  />
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs text-textMuted">
+                  Выравнивание
+                  <select className="mt-1 w-full rounded-lg border border-borderSubtle bg-panelAlt px-2 py-1.5 text-sm text-textPrimary" value={textDialogAlign} onChange={(event) => setTextDialogAlign(event.target.value as TextAlign)}>
+                    <option value="left">Слева</option>
+                    <option value="center">По центру</option>
+                    <option value="right">Справа</option>
+                  </select>
+                </label>
+                <label className="text-xs text-textMuted">
+                  Шрифт
+                  <select className="mt-1 w-full rounded-lg border border-borderSubtle bg-panelAlt px-2 py-1.5 text-sm text-textPrimary" value={textDialogFont} onChange={(event) => setTextDialogFont(event.target.value as TextFont)}>
+                    <option value="inter">Inter</option>
+                    <option value="roboto">Roboto</option>
+                    <option value="ptsans">PT Sans</option>
+                  </select>
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs text-textSecondary">
+                <label className="flex items-center gap-2 rounded-lg border border-borderSubtle bg-panelAlt px-2 py-2">
+                  <input type="checkbox" checked={textDialogVisible} onChange={(event) => setTextDialogVisible(event.target.checked)} />
+                  Показывать текст
+                </label>
+                <label className="flex items-center gap-2 rounded-lg border border-borderSubtle bg-panelAlt px-2 py-2">
+                  <input type="checkbox" checked={textDialogShowBackground} onChange={(event) => setTextDialogShowBackground(event.target.checked)} />
+                  Фон блока
+                </label>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button type="button" className="rounded-lg border border-borderSubtle px-2 py-2 text-sm text-textSecondary" onClick={() => setShowTextDialog(false)}>Отмена</button>
+              <button type="button" className="rounded-lg bg-accentYellow px-2 py-2 text-sm font-semibold text-app" onClick={submitTextDialog}>{editingTextBlockId ? 'Сохранить' : 'Добавить'}</button>
             </div>
           </div>
         </div>
