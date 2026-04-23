@@ -15,6 +15,7 @@ import { CircularImageCropField } from '../../components/ui/CircularImageCropFie
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { SearchField } from '../../components/ui/SearchField'
 import { buildCircularCropUploadFile, type CircleCrop } from '../../lib/image-upload'
+import { formatDateTimeMsk } from '../../lib/date-time'
 
 const roleRank: Record<UserRole, number> = {
   guest: 0,
@@ -245,7 +246,7 @@ const formatPageChangeValue = (field: string, value: unknown, teamNames: Map<str
   }
   if (field === 'start_at') {
     const unix = Number(value)
-    if (Number.isFinite(unix) && unix > 0) return new Date(unix * 1000).toLocaleString('ru-RU')
+    if (Number.isFinite(unix) && unix > 0) return formatDateTimeMsk(new Date(unix * 1000).toISOString())
   }
   return stringifyChangeValue(value)
 }
@@ -869,7 +870,7 @@ export const CabinetSectionPage = () => {
             return (
               <Link key={item.id} to={toAppRoute(item.route)} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
                 <p className="text-sm font-semibold text-textPrimary">{title}</p>
-                <p className="mt-1 text-xs text-textMuted">{new Date(item.createdAt).toLocaleString('ru-RU')}</p>
+                <p className="mt-1 text-xs text-textMuted">{formatDateTimeMsk(item.createdAt)}</p>
                 {reactionType === 'like' && <p className="mt-2 text-xs text-emerald-300">👍 Лайк</p>}
                 {reactionType === 'dislike' && <p className="mt-2 text-xs text-rose-300">👎 Дизлайк</p>}
                 {details && <p className="mt-2 text-xs text-textSecondary">{details}</p>}
@@ -886,7 +887,7 @@ export const CabinetSectionPage = () => {
             <Link key={item.id} to={toAppRoute(item.route || '/')} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
               <p className="text-sm font-semibold text-textPrimary">{item.title || 'Уведомление'}</p>
               {item.body && <p className="mt-1 text-xs text-textSecondary">{item.body}</p>}
-              <p className="mt-1 text-xs text-textMuted">{new Date(item.createdAt).toLocaleString('ru-RU')}</p>
+              <p className="mt-1 text-xs text-textMuted">{formatDateTimeMsk(item.createdAt)}</p>
               <p className="mt-2 text-xs text-accentYellow">Перейти к источнику →</p>
             </Link>
           )) : <p className="text-xs text-textMuted">Пока нет уведомлений.</p>}
@@ -963,7 +964,7 @@ export const CabinetSectionPage = () => {
             return (
               <Link key={item.id} to={item.route || '/'} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
                 <p className="text-sm font-semibold text-textPrimary">{title}</p>
-                <p className="mt-1 text-xs text-textMuted">{new Date(item.createdAt).toLocaleString('ru-RU')} · {actorName}</p>
+                <p className="mt-1 text-xs text-textMuted">{formatDateTimeMsk(item.createdAt)} · {actorName}</p>
                 {changeLines.length ? (
                   <div className="mt-2 space-y-1">
                     {changeLines.map((line) => <p key={line} className="text-xs text-textSecondary">{line}</p>)}
@@ -1466,8 +1467,8 @@ export const CabinetSectionPage = () => {
               <option value="">Гостевая команда</option>
               {(teams ?? []).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}
             </select>
-            <input type="datetime-local" value={toMskDateTimeInput(matchStartAt)} onChange={(e) => setMatchStartAt(fromMskDateTimeInput(e.target.value))} placeholder="Дата и время старта (МСК)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-            <p className="text-[11px] text-textMuted">МСК: {toMskDisplay(matchStartAt) || '—'} (формат ДД.ММ.ГГГГ ЧЧ:ММ)</p>
+            <input type="datetime-local" value={toMskDateTimeInput(matchStartAt)} onChange={(e) => setMatchStartAt(fromMskDateTimeInput(e.target.value))} placeholder="Дата и время старта" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+            <p className="text-[11px] text-textMuted">{toMskDisplay(matchStartAt) || '—'} (формат ДД.ММ.ГГГГ ЧЧ:ММ)</p>
             <select value={matchStatus} onChange={(e) => setMatchStatus(e.target.value as Match['status'])} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
               {matchStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
@@ -1509,8 +1510,8 @@ export const CabinetSectionPage = () => {
             <option value="">Гостевая команда</option>
             {(teams ?? []).map((item) => <option key={item.id} value={item.id}>{item.shortName}</option>)}
           </select>
-          <input type="datetime-local" value={toMskDateTimeInput(matchStartAt)} onChange={(e) => setMatchStartAt(fromMskDateTimeInput(e.target.value))} placeholder="Дата и время старта (МСК)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <p className="text-[11px] text-textMuted">МСК: {toMskDisplay(matchStartAt) || '—'} (формат ДД.ММ.ГГГГ ЧЧ:ММ)</p>
+          <input type="datetime-local" value={toMskDateTimeInput(matchStartAt)} onChange={(e) => setMatchStartAt(fromMskDateTimeInput(e.target.value))} placeholder="Дата и время старта" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <p className="text-[11px] text-textMuted">{toMskDisplay(matchStartAt) || '—'} (формат ДД.ММ.ГГГГ ЧЧ:ММ)</p>
           <select value={matchStatus} onChange={(e) => setMatchStatus(e.target.value as Match['status'])} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
             {matchStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
@@ -1731,7 +1732,7 @@ export const CabinetSectionPage = () => {
           {statsHistory.length === 0 ? <p className="text-sm text-textMuted">История изменений пуста.</p> : statsHistory.map((item) => (
             <div key={item.id} className="rounded-lg border border-borderSubtle bg-mutedBg p-3">
               <p className="text-sm text-textPrimary">#{item.id} · {item.entityType} {item.entityId} · {item.field}: {item.delta > 0 ? '+' : ''}{item.delta}</p>
-              <p className="text-xs text-textMuted">Турнир: {item.tournamentId} · Автор: {item.authorTelegramUsername ? `@${item.authorTelegramUsername}` : item.authorUserId} · {new Date(item.createdAt).toLocaleString('ru-RU')}</p>
+              <p className="text-xs text-textMuted">Турнир: {item.tournamentId} · Автор: {item.authorTelegramUsername ? `@${item.authorTelegramUsername}` : item.authorUserId} · {formatDateTimeMsk(item.createdAt)}</p>
               <button type="button" className="mt-2 rounded-lg border border-red-700/50 px-3 py-1.5 text-xs text-red-300" onClick={() => {
                 setConfirmDialog({
                   title: 'Удалить изменение?',
@@ -1817,8 +1818,8 @@ export const CabinetSectionPage = () => {
           <input type="datetime-local" value={toMskDateTimeInput(Number(untilUnix) > 0 ? new Date(Number(untilUnix) * 1000).toISOString() : '')} onChange={(e) => {
             const iso = fromMskDateTimeInput(e.target.value)
             setUntilUnix(iso ? String(Math.floor(new Date(iso).getTime() / 1000)) : '0')
-          }} placeholder="Срок блока (МСК)" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
-          <p className="text-[11px] text-textMuted">До: {Number(untilUnix) > 0 ? toMskDisplay(new Date(Number(untilUnix) * 1000).toISOString()) : 'без срока'} (МСК)</p>
+          }} placeholder="Срок блока" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
+          <p className="text-[11px] text-textMuted">До: {Number(untilUnix) > 0 ? toMskDisplay(new Date(Number(untilUnix) * 1000).toISOString()) : 'без срока'}</p>
           <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Причина ограничения" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
           <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
             try {

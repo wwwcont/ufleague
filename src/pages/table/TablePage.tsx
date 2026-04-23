@@ -40,7 +40,10 @@ export const TablePage = () => {
       document.body.style.overflow = ''
       return
     }
+
+    window.scrollTo({ top: 0, behavior: 'auto' })
     document.body.style.overflow = 'hidden'
+
     return () => {
       document.body.style.overflow = ''
     }
@@ -56,7 +59,7 @@ export const TablePage = () => {
   }, [cabinetRepository, canEditBracket])
 
   return (
-    <div className="px-4 pb-[calc(92px+env(safe-area-inset-bottom,0px))] pt-6 md:px-6 md:pb-20">
+    <div className={`px-4 pt-6 md:px-6 ${mode === 'bracket' ? 'pb-0' : 'pb-[calc(92px+env(safe-area-inset-bottom,0px))] md:pb-20'}`}>
       <ModeSwitch mode={mode} setMode={changeMode} />
       <div key={mode} className={transitionName === 'swipe-left' ? 'mode-swipe-left' : 'mode-swipe-right'}>
         {mode === 'bracket'
