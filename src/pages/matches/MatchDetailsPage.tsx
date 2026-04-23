@@ -909,7 +909,7 @@ export const MatchDetailsPage = () => {
             <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Тур:</span> <span className="text-textPrimary">{match.tour || match.round || '—'}</span></div>
             <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Судья:</span> <span className="text-textPrimary">{match.referee || '—'}</span></div>
             <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Стадион:</span> <span className="text-textPrimary">{match.venue || '—'}</span></div>
-            <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Старт (МСК):</span> <span className="text-textPrimary">{toMskDateTimeInput(match.date, match.time).replace('T', ' ')}</span></div>
+            <div className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2"><span className="text-textMuted">Старт:</span> <span className="text-textPrimary">{toMskDateTimeInput(match.date, match.time).replace('T', ' ')}</span></div>
           </div>
         ) : (
           <div className="space-y-2">
@@ -927,7 +927,7 @@ export const MatchDetailsPage = () => {
                 <input value={editableReferee} onChange={(event) => setEditableReferee(event.target.value)} placeholder="Имя судьи" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary" />
               </label>
               <label className="space-y-1 text-xs text-textMuted">
-                Старт (МСК)
+                Старт
                 <input type="datetime-local" value={editableStartAt} onChange={(event) => setEditableStartAt(event.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-textPrimary" />
               </label>
               <label className="space-y-1 text-xs text-textMuted">

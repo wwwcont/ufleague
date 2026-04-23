@@ -7,6 +7,7 @@ import { useSession } from '../../app/providers/use-session'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
 import { usePlayers } from '../../hooks/data/usePlayers'
+import { formatDateTimeMsk } from '../../lib/date-time'
 
 interface CabinetEntry {
   title: string
@@ -135,7 +136,7 @@ export const ProfilePage = () => {
             <p className="mt-1 text-xs text-textMuted">{session.user.telegramHandle ?? 'Telegram не привязан'}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-textMuted">
               <span className="inline-flex items-center gap-1 rounded-full border border-borderSubtle px-2 py-0.5"><UserCheck size={11} /> {statusLabel}</span>
-              <span className="inline-flex items-center gap-1 rounded-full border border-borderSubtle px-2 py-0.5"><Clock3 size={11} /> Last seen: {session.lastLoginAt ?? 'нет данных'}</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-borderSubtle px-2 py-0.5"><Clock3 size={11} /> Последний вход: {session.lastLoginAt ? formatDateTimeMsk(session.lastLoginAt) : 'нет данных'}</span>
             </div>
           </div>
           <button type="button" onClick={() => setConfirmOpen(true)} className="inline-flex items-center gap-1 rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app">
