@@ -45,6 +45,7 @@ const sectionRoles: Record<string, UserRole> = {
   'team-events': 'captain',
   invites: 'captain',
   users: 'admin',
+  'users-access-management': 'admin',
   'grant-access': 'admin',
   'revoke-access': 'admin',
   'issue-restriction': 'admin',
@@ -87,6 +88,7 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   'my-team': { title: 'Моя команда', description: 'Мгновенный переход на страницу команды.', tips: ['Если команда не найдена — открыть список команд.', 'Для капитана учитывается передача капитанства.'] },
   invites: { title: 'Приглашения', description: 'Приглашение игроков в команду.', tips: ['Укажите корректный ID команды.', 'Username вводится без @.'] },
   users: { title: 'Пользователи', description: 'Управление captain/admin правами и team membership.', tips: ['Поиск только по Telegram @username.', 'Destructive actions требуют подтверждения.'] },
+  'users-access-management': { title: 'Управление правами юзеров', description: 'Единый раздел для выдачи/снятия ролей и точечной настройки прав.', tips: ['Найдите пользователя по Telegram-логину.', 'Все изменения прав выполняются только после подтверждения.'] },
   'grant-access': { title: 'Выдать права', description: 'Выдача ролей по Telegram-логину.', tips: ['Сначала найдите пользователя по @username.', 'Кнопка выдачи admin доступна только superadmin.'] },
   'revoke-access': { title: 'Забрать права', description: 'Снятие captain/admin прав.', tips: ['Сначала найдите пользователя по @username.', 'Действие требует подтверждения.'] },
   'issue-restriction': { title: 'Выдать ограничение', description: 'Ограничение комментирования пользователя.', tips: ['Укажите причину ограничения.', 'Можно выдать постоянный или временный блок.'] },
@@ -113,6 +115,22 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
 }
 
 const parseCSV = (raw: string) => raw.split(',').map((item) => item.trim()).filter(Boolean)
+const granularAdminPermissions: Array<{ key: string; label: string }> = [
+  { key: 'comments.ban.issue', label: 'Выдача блокировок' },
+  { key: 'role.player.assign', label: 'Выдача роли игрока' },
+  { key: 'role.captain.assign', label: 'Выдача роли капитана' },
+  { key: 'role.player.revoke', label: 'Снятие роли игрока' },
+  { key: 'role.captain.revoke', label: 'Снятие роли капитана' },
+  { key: 'playoff.grid.edit', label: 'Редактирование сетки' },
+  { key: 'tournament.edit', label: 'Редактирование турнира' },
+  { key: 'stats.manual.manage', label: 'Ручная настройка статистики' },
+  { key: 'event.full.create', label: 'Полноправное создание событий' },
+  { key: 'match.score.manage.full', label: 'Введение счёта матча' },
+  { key: 'archive.manage', label: 'Архивация и разархивация' },
+  { key: 'archive.delete', label: 'Удаление матчей и команд' },
+  { key: 'match.create', label: 'Создание матчей' },
+  { key: 'comment.delete.any', label: 'Удаление комментариев' },
+]
 const mskOffsetMinutes = 3 * 60
 const matchStatusOptions: Array<{ value: Match['status']; label: string }> = [
   { value: 'scheduled', label: 'Запланирован' },
@@ -317,6 +335,7 @@ export const CabinetSectionPage = () => {
   const [username, setUsername] = useState('')
   const [userLookupUsername, setUserLookupUsername] = useState('')
   const [selectedUser, setSelectedUser] = useState<PublicUserCard | null>(null)
+  const [selectedUserPermissions, setSelectedUserPermissions] = useState<string[]>([])
   const [userLookupResults, setUserLookupResults] = useState<PublicUserCard[]>([])
   const [selectedUserTeamId, setSelectedUserTeamId] = useState('')
   const [membershipTeamId, setMembershipTeamId] = useState('')
@@ -663,6 +682,14 @@ export const CabinetSectionPage = () => {
       return null
     }
   }
+
+  useEffect(() => {
+    if (!selectedUser) {
+      setSelectedUserPermissions([])
+      return
+    }
+    setSelectedUserPermissions(Array.isArray(selectedUser.permissions) ? selectedUser.permissions : [])
+  }, [selectedUser])
 
   if (!section || !minRole || !meta) {
     return (
@@ -1083,7 +1110,7 @@ export const CabinetSectionPage = () => {
         </section>
       )}
 
-      {(section === 'users' || section === 'grant-access' || section === 'revoke-access') && (
+      {(section === 'users' || section === 'users-access-management' || section === 'grant-access' || section === 'revoke-access') && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 space-y-3">
           <p className="text-xs text-textMuted">Поиск пользователя по Telegram логину (поддерживается частичное совпадение, @ необязателен)</p>
           <input value={userLookupUsername} onChange={(e) => setUserLookupUsername(e.target.value)} placeholder="@telegram_username" className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1" />
@@ -1115,117 +1142,222 @@ export const CabinetSectionPage = () => {
           {selectedUser && (
             <div className="space-y-3 rounded-xl border border-borderSubtle bg-mutedBg p-3">
               <p className="text-sm text-textPrimary">Выбран: <span className="font-semibold">{selectedUser.displayName}</span> {selectedUser.telegramUsername ? `(@${selectedUser.telegramUsername})` : ''}</p>
+              <p className="text-xs text-textMuted">Роли: {selectedUser.statuses.join(', ') || 'guest'}</p>
+              <p className="text-xs text-textMuted">Права: {selectedUserPermissions.length ? selectedUserPermissions.join(', ') : 'не назначены'}</p>
 
-              {section !== 'revoke-access' && (
-                <div className="space-y-2 rounded-lg border border-borderSubtle bg-panelBg p-3">
-                  <p className="text-xs text-textMuted">Назначить капитаном команды (передаёт капитанство выбранной команды)</p>
-                  <select value={selectedUserTeamId} onChange={(e) => setSelectedUserTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
-                    <option value="">Выберите команду</option>
-                    {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
-                  </select>
-                  <button type="button" disabled={!selectedUserTeamId} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
-                    try {
-                      await teamsRepository.adminTransferCaptain?.(selectedUserTeamId, selectedUser.id)
-                      setStatus('ok: captain rights granted')
-                    } catch (error) {
-                      setStatus(`error: ${(error as Error).message}`)
-                    }
-                  }}>Сделать капитаном</button>
-                  <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
-                    try {
-                      await cabinetRepository.adminAssignCaptainRole?.(selectedUser.id)
-                      setStatus('ok: captain role assigned without team')
-                    } catch (error) {
-                      setStatus(`error: ${(error as Error).message}`)
-                    }
-                  }}>Сделать капитаном (без команды)</button>
-                </div>
-              )}
+              <div className="space-y-2 rounded-lg border border-borderSubtle bg-panelBg p-3">
+                <p className="text-xs text-textMuted">Капитанство</p>
+                {selectedUser.statuses.includes('captain') ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-textSecondary">Команда: {selectedUser.teamId ? (teams ?? []).find((team) => team.id === selectedUser.teamId)?.name ?? selectedUser.teamId : 'без команды'}</p>
+                    <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary" onClick={() => {
+                      setConfirmDialog({
+                        title: 'Снять капитанство?',
+                        description: 'Пользователь потеряет роль капитана.',
+                        confirmLabel: 'Снять',
+                        onConfirm: async () => {
+                          try {
+                            await cabinetRepository.adminRevokeCaptainRole?.(selectedUser.id)
+                            setSelectedUser({ ...selectedUser, statuses: selectedUser.statuses.filter((role) => role !== 'captain') })
+                            setStatus('ok: captain rights revoked')
+                          } catch (error) {
+                            setStatus(`error: ${(error as Error).message}`)
+                          }
+                        },
+                      })
+                    }}>Снять капитанство</button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <select value={selectedUserTeamId} onChange={(e) => setSelectedUserTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+                      <option value="">Выберите команду</option>
+                      {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
+                    </select>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" disabled={!selectedUserTeamId} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => {
+                        setConfirmDialog({
+                          title: 'Назначить капитаном команды?',
+                          description: 'Если у команды уже есть капитан, он будет понижен до игрока.',
+                          confirmLabel: 'Назначить',
+                          onConfirm: async () => {
+                            try {
+                              await teamsRepository.adminTransferCaptain?.(selectedUserTeamId, selectedUser.id)
+                              setSelectedUser({ ...selectedUser, statuses: Array.from(new Set<UserRole>([...selectedUser.statuses, 'captain'])) })
+                              setStatus('ok: captain rights granted')
+                            } catch (error) {
+                              setStatus(`error: ${(error as Error).message}`)
+                            }
+                          },
+                        })
+                      }}>Сделать капитаном</button>
+                      <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary" onClick={() => {
+                        setConfirmDialog({
+                          title: 'Назначить капитаном без команды?',
+                          description: 'Пользователь получит роль капитана без привязки к команде.',
+                          confirmLabel: 'Назначить',
+                          onConfirm: async () => {
+                            try {
+                              await cabinetRepository.adminAssignCaptainRole?.(selectedUser.id)
+                              setSelectedUser({ ...selectedUser, statuses: Array.from(new Set<UserRole>([...selectedUser.statuses, 'captain'])) })
+                              setStatus('ok: captain role assigned without team')
+                            } catch (error) {
+                              setStatus(`error: ${(error as Error).message}`)
+                            }
+                          },
+                        })
+                      }}>Сделать капитаном (без команды)</button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
-              {section !== 'revoke-access' && (
-                <div className="space-y-2 rounded-lg border border-borderSubtle bg-panelBg p-3">
-                  <p className="text-xs text-textMuted">Сделать игроком (привязать к команде)</p>
-                  <select value={membershipTeamId} onChange={(e) => setMembershipTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
-                  <option value="">Команда для приглашения/добавления</option>
-                  {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
-                  </select>
-                  <button type="button" disabled={!membershipTeamId || !selectedUser.telegramUsername} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
-                    try {
-                      if (selectedUser.teamId === membershipTeamId) {
-                        setStatus('ok: пользователь уже состоит в выбранной команде')
-                        return
-                      }
-                      await teamsRepository.captainInviteByUsername?.(membershipTeamId, selectedUser.telegramUsername ?? userLookupUsername.replace(/^@/, ''))
-                      setStatus('ok: приглашение игроку отправлено')
-                    } catch (error) {
-                      setStatus(`error: ${(error as Error).message}`)
-                    }
-                  }}>Сделать игроком</button>
-                </div>
-              )}
+              <div className="space-y-2 rounded-lg border border-borderSubtle bg-panelBg p-3">
+                <p className="text-xs text-textMuted">Профиль игрока</p>
+                {selectedUser.statuses.includes('player') ? (
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary" onClick={() => {
+                      setConfirmDialog({
+                        title: 'Удалить профиль игрока?',
+                        description: 'Профиль игрока будет отвязан от пользователя и роль игрока будет снята.',
+                        confirmLabel: 'Удалить',
+                        onConfirm: async () => {
+                          try {
+                            await cabinetRepository.adminRemovePlayerFromUser?.(selectedUser.id)
+                            setSelectedUser({ ...selectedUser, statuses: selectedUser.statuses.filter((role) => role !== 'player') })
+                            setStatus('ok: player profile detached from user')
+                          } catch (error) {
+                            setStatus(`error: ${(error as Error).message}`)
+                          }
+                        },
+                      })
+                    }}>Удалить профиль игрока</button>
+                    <button type="button" disabled={!selectedUser.playerId} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={() => {
+                      if (!selectedUser.playerId) return
+                      setConfirmDialog({
+                        title: 'Скрыть профиль игрока?',
+                        description: 'Профиль игрока будет скрыт из публичных списков.',
+                        confirmLabel: 'Скрыть',
+                        onConfirm: async () => {
+                          try {
+                            await playersRepository.adminArchivePlayer?.(selectedUser.playerId!, true)
+                            setStatus('ok: player profile hidden')
+                          } catch (error) {
+                            setStatus(`error: ${(error as Error).message}`)
+                          }
+                        },
+                      })
+                    }}>Скрыть профиль игрока</button>
+                    <select value={membershipTeamId} onChange={(e) => setMembershipTeamId(e.target.value)} className="min-w-44 rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+                      <option value="">Команда для переноса</option>
+                      {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
+                    </select>
+                    <button type="button" disabled={!membershipTeamId || !selectedUser.telegramUsername} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => {
+                      setConfirmDialog({
+                        title: 'Перенести игрока в другую команду?',
+                        description: 'Пользователю будет отправлено приглашение в выбранную команду.',
+                        confirmLabel: 'Перенести',
+                        onConfirm: async () => {
+                          try {
+                            await teamsRepository.captainInviteByUsername?.(membershipTeamId, selectedUser.telegramUsername ?? userLookupUsername.replace(/^@/, ''))
+                            setStatus('ok: приглашение игроку отправлено')
+                          } catch (error) {
+                            setStatus(`error: ${(error as Error).message}`)
+                          }
+                        },
+                      })
+                    }}>Перенести в другую команду</button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-textSecondary">Профиль игрока не найден.</p>
+                    {!selectedUser.statuses.includes('captain') && (
+                      <>
+                        <select value={membershipTeamId} onChange={(e) => setMembershipTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
+                          <option value="">Команда для приглашения</option>
+                          {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
+                        </select>
+                        <button type="button" disabled={!membershipTeamId || !selectedUser.telegramUsername} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => {
+                          setConfirmDialog({
+                            title: 'Пригласить в команду?',
+                            description: 'Пользователю будет отправлено приглашение в команду.',
+                            confirmLabel: 'Пригласить',
+                            onConfirm: async () => {
+                              try {
+                                await teamsRepository.captainInviteByUsername?.(membershipTeamId, selectedUser.telegramUsername ?? userLookupUsername.replace(/^@/, ''))
+                                setStatus('ok: приглашение отправлено')
+                              } catch (error) {
+                                setStatus(`error: ${(error as Error).message}`)
+                              }
+                            },
+                          })
+                        }}>Пригласить в команду</button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <div className="space-y-2 rounded-lg border border-borderSubtle bg-panelBg p-3">
                 <p className="text-xs text-textMuted">Администратор</p>
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" disabled={section === 'revoke-access' || !currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
-                    try {
-                      const nextRoles = Array.from(new Set<UserRole>([...selectedUser.statuses, 'admin']))
-                      await cabinetRepository.superadminAssignRoles({ userId: selectedUser.id, roles: nextRoles })
-                      setStatus('ok: admin rights granted')
-                      setSelectedUser({ ...selectedUser, statuses: nextRoles })
-                    } catch (error) {
-                      setStatus(`error: ${(error as Error).message}`)
-                    }
-                  }}>Сделать администратором</button>
-                  <button type="button" disabled={section === 'grant-access' || !currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
+                  <button type="button" disabled={!currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
                     setConfirmDialog({
-                      title: 'Снять admin права?',
-                      description: 'Пользователь потеряет административный доступ.',
-                      confirmLabel: 'Снять',
+                      title: selectedUser.statuses.includes('admin') ? 'Снять роль администратора?' : 'Выдать роль администратора?',
+                      description: selectedUser.statuses.includes('admin')
+                        ? 'Пользователь потеряет административный доступ.'
+                        : 'Пользователь получит административный доступ.',
+                      confirmLabel: selectedUser.statuses.includes('admin') ? 'Снять' : 'Выдать',
                       onConfirm: async () => {
                         try {
-                          const nextRoles = selectedUser.statuses.filter((role) => role !== 'admin')
+                          const nextRoles = selectedUser.statuses.includes('admin')
+                            ? selectedUser.statuses.filter((role) => role !== 'admin')
+                            : Array.from(new Set<UserRole>([...selectedUser.statuses, 'admin']))
                           await cabinetRepository.superadminAssignRoles({ userId: selectedUser.id, roles: nextRoles.length ? nextRoles : ['guest'] })
-                          setStatus('ok: admin rights revoked')
+                          if (!selectedUser.statuses.includes('admin')) {
+                            await cabinetRepository.superadminAssignPermissions({ userId: selectedUser.id, permissions: selectedUserPermissions })
+                          }
+                          setStatus(selectedUser.statuses.includes('admin') ? 'ok: admin rights revoked' : 'ok: admin rights granted')
                           setSelectedUser({ ...selectedUser, statuses: nextRoles.length ? nextRoles : ['guest'] })
                         } catch (error) {
                           setStatus(`error: ${(error as Error).message}`)
                         }
                       },
                     })
-                  }}>Снять admin права</button>
-                  <button type="button" disabled={section === 'grant-access'} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
+                  }}>{selectedUser.statuses.includes('admin') ? 'Снять роль администратора' : 'Выдать роль администратора'}</button>
+                  <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary" onClick={async () => {
                     setConfirmDialog({
-                      title: 'Снять captain права?',
-                      description: 'Пользователь перестанет быть капитаном.',
-                      confirmLabel: 'Снять',
+                      title: 'Сохранить точечные права?',
+                      description: 'Набор включенных свитчей будет записан пользователю.',
+                      confirmLabel: 'Сохранить',
                       onConfirm: async () => {
                         try {
-                          await cabinetRepository.adminRevokeCaptainRole?.(selectedUser.id)
-                          setStatus('ok: captain rights revoked')
-                          setSelectedUser({ ...selectedUser, statuses: selectedUser.statuses.filter((role) => role !== 'captain') })
+                          await cabinetRepository.superadminAssignPermissions({ userId: selectedUser.id, permissions: selectedUserPermissions })
+                          setSelectedUser({ ...selectedUser, permissions: selectedUserPermissions })
+                          setStatus('ok: permissions assigned')
                         } catch (error) {
                           setStatus(`error: ${(error as Error).message}`)
                         }
                       },
                     })
-                  }}>Снять captain права</button>
-                  <button type="button" disabled={section === 'grant-access'} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
-                    setConfirmDialog({
-                      title: 'Удалить player-профиль у пользователя?',
-                      description: 'Профиль игрока будет отвязан, роль player снята.',
-                      confirmLabel: 'Удалить',
-                      onConfirm: async () => {
-                        try {
-                          await cabinetRepository.adminRemovePlayerFromUser?.(selectedUser.id)
-                          setStatus('ok: player profile detached from user')
-                          setSelectedUser({ ...selectedUser, statuses: selectedUser.statuses.filter((role) => role !== 'player') })
-                        } catch (error) {
-                          setStatus(`error: ${(error as Error).message}`)
-                        }
-                      },
-                    })
-                  }}>Удалить player у юзера</button>
+                  }}>Сохранить права</button>
+                </div>
+                <div className="mt-2 space-y-2">
+                  {granularAdminPermissions.map((permission) => {
+                    const enabled = selectedUserPermissions.includes(permission.key)
+                    return (
+                      <button
+                        key={permission.key}
+                        type="button"
+                        onClick={() => setSelectedUserPermissions((prev) => (prev.includes(permission.key) ? prev.filter((item) => item !== permission.key) : [...prev, permission.key]))}
+                        className={`group inline-flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-xs transition ${enabled ? 'border-accentYellow/80 bg-accentYellow/10 text-textPrimary' : 'border-borderSubtle bg-mutedBg text-textSecondary'}`}
+                      >
+                        <span>{permission.label}</span>
+                        <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${enabled ? 'bg-accentYellow' : 'bg-panelSoft'}`}>
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-app transition ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                        </span>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -1910,7 +2042,7 @@ export const CabinetSectionPage = () => {
         }}
       />
 
-      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'my-notifications', 'favorites', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'grant-access', 'revoke-access', 'issue-restriction', 'admins-list', 'captains-list', 'ban-list', 'create-match', 'page-change-history', 'matches-archive', 'teams-archive', 'tournament-management', 'stats-manual-edit', 'stats-change-history', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
+      {!['profile', 'profile-settings', 'edit', 'activity', 'my-user', 'my-actions', 'my-notifications', 'favorites', 'user-settings', 'player-profile', 'my-player', 'player-events', 'team', 'my-team', 'invites', 'users', 'users-access-management', 'grant-access', 'revoke-access', 'issue-restriction', 'admins-list', 'captains-list', 'ban-list', 'create-match', 'page-change-history', 'matches-archive', 'teams-archive', 'tournament-management', 'stats-manual-edit', 'stats-change-history', 'team-socials', 'roster', 'team-events', 'tournament', 'moderation', 'comment-blocks', 'roles', 'rbac', 'restrictions', 'settings'].includes(section) && (
         <section className="rounded-2xl border border-borderSubtle bg-panelBg p-4 text-sm text-textSecondary">
           Раздел синхронизирован по правам доступа и готов к расширению бизнес-формами.
         </section>

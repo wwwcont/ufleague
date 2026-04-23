@@ -277,6 +277,7 @@ const mapUserCard = (u: any): PublicUserCard => ({
   displayName: String(u.display_name ?? 'Пользователь'),
   telegramUsername: u.telegram_username ? String(u.telegram_username) : undefined,
   statuses: Array.isArray(u.roles) ? u.roles : [],
+  permissions: Array.isArray(u.permissions) ? u.permissions.map((item: unknown) => String(item)) : [],
   lastSeenAt: u.last_seen_at ? String(u.last_seen_at) : undefined,
   isOnline: Boolean(u.is_online),
   playerId: u.player_id ? String(u.player_id) : undefined,

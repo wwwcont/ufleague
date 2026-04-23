@@ -41,8 +41,7 @@ const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
   admin: [
     { title: 'Управление турниром', description: 'Статистика, история изменений и админ-состав турнира.', route: '/profile/tournament-management', icon: 'shield' },
     { title: 'Список капитанов', description: 'Все пользователи с ролью captain.', route: '/profile/captains-list', icon: 'shield' },
-    { title: 'Выдать права', description: 'Найти пользователя и выдать роль капитана/игрока.', route: '/profile/grant-access', icon: 'shield' },
-    { title: 'Забрать права', description: 'Снять captain/admin права у пользователя.', route: '/profile/revoke-access', icon: 'shield' },
+    { title: 'Управление правами юзеров', description: 'Единый центр выдачи/снятия ролей и точечных прав.', route: '/profile/users-access-management', icon: 'shield' },
     { title: 'Выдать ограничение', description: 'Ограничить публикацию комментариев.', route: '/profile/issue-restriction', icon: 'shield' },
     { title: 'Создать матч', description: 'Создание нового матча турнира.', route: '/profile/create-match', icon: 'shield' },
     { title: 'Архив матчей', description: 'Скрытые матчи и возврат из архива.', route: '/profile/matches-archive', icon: 'shield' },
@@ -51,8 +50,7 @@ const cabinetByRole: Record<UserRole, CabinetEntry[]> = {
   superadmin: [
     { title: 'Управление турниром', description: 'Статистика, история изменений и админ-состав турнира.', route: '/profile/tournament-management', icon: 'shield' },
     { title: 'Список капитанов', description: 'Все пользователи с ролью captain.', route: '/profile/captains-list', icon: 'shield' },
-    { title: 'Выдать права', description: 'Найти пользователя и выдать роль капитана/игрока/админа.', route: '/profile/grant-access', icon: 'shield' },
-    { title: 'Забрать права', description: 'Снять captain/admin права у пользователя.', route: '/profile/revoke-access', icon: 'shield' },
+    { title: 'Управление правами юзеров', description: 'Единый центр выдачи/снятия ролей и точечных прав.', route: '/profile/users-access-management', icon: 'shield' },
     { title: 'Выдать ограничение', description: 'Ограничить публикацию комментариев.', route: '/profile/issue-restriction', icon: 'shield' },
     { title: 'Создать матч', description: 'Создание нового матча турнира.', route: '/profile/create-match', icon: 'shield' },
     { title: 'Архив матчей', description: 'Скрытые матчи и возврат из архива.', route: '/profile/matches-archive', icon: 'shield' },

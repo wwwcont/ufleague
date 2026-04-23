@@ -332,7 +332,21 @@ export type PermissionKey =
   | 'comment.delete.own'
   | 'comment.reply'
   | 'comment.react'
+  | 'comments.ban.issue'
+  | 'role.player.assign'
+  | 'role.captain.assign'
+  | 'role.player.revoke'
+  | 'role.captain.revoke'
   | 'event.create'
+  | 'playoff.grid.edit'
+  | 'tournament.edit'
+  | 'stats.manual.manage'
+  | 'event.full.create'
+  | 'match.score.manage.full'
+  | 'archive.manage'
+  | 'archive.delete'
+  | 'match.create'
+  | 'comment.delete.any'
   | 'event.edit'
   | 'event.delete'
   | 'team.squad.manage'
@@ -360,6 +374,7 @@ export interface PublicUserCard {
   displayName: string
   telegramUsername?: string
   statuses: UserRole[]
+  permissions?: string[]
   lastSeenAt?: string
   isOnline: boolean
   playerId?: ID

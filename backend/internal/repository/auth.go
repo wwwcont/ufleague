@@ -49,6 +49,15 @@ func (r *AuthRepository) GetPublicUserCard(ctx context.Context, userID int64) (d
 	for _, role := range roles {
 		card.Roles = append(card.Roles, domain.Role(role))
 	}
+	card.Permissions, err = queryStrings(ctx, r.pool, `
+		SELECT permission
+		FROM user_permissions
+		WHERE user_id = $1
+		ORDER BY permission
+	`, userID)
+	if err != nil {
+		return domain.PublicUserCard{}, err
+	}
 
 	if lastSeen != nil {
 		card.LastSeenAt = lastSeen

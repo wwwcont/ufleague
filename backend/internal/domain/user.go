@@ -32,6 +32,7 @@ type PublicUserCard struct {
 	DisplayName      string     `json:"display_name"`
 	TelegramUsername string     `json:"telegram_username,omitempty"`
 	Roles            []Role     `json:"roles"`
+	Permissions      []string   `json:"permissions,omitempty"`
 	LastSeenAt       *time.Time `json:"last_seen_at,omitempty"`
 	IsOnline         bool       `json:"is_online"`
 	PlayerID         *int64     `json:"player_id,omitempty"`
