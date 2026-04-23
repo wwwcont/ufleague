@@ -64,6 +64,12 @@ const textAlignClass: Record<TextAlign, string> = {
   right: 'text-right',
 }
 
+const normalizeDimensionInput = (value: string, fallback: number, max: number) => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return String(fallback)
+  return String(clamp(Math.trunc(parsed), 1, max))
+}
+
 export const PlayoffGridEditor = ({
   grid,
   teamMap,
@@ -105,8 +111,8 @@ export const PlayoffGridEditor = ({
   const [textDialogVisible, setTextDialogVisible] = useState(true)
   const [textDialogAlign, setTextDialogAlign] = useState<TextAlign>('left')
   const [textDialogFont, setTextDialogFont] = useState<TextFont>('inter')
-  const [textDialogWidth, setTextDialogWidth] = useState(2)
-  const [textDialogHeight, setTextDialogHeight] = useState(1)
+  const [textDialogWidthInput, setTextDialogWidthInput] = useState('1')
+  const [textDialogHeightInput, setTextDialogHeightInput] = useState('1')
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const boardW = GRID_COLS * CELL_W
@@ -243,8 +249,8 @@ export const PlayoffGridEditor = ({
     setTextDialogVisible(true)
     setTextDialogAlign('left')
     setTextDialogFont('inter')
-    setTextDialogWidth(2)
-    setTextDialogHeight(1)
+    setTextDialogWidthInput('1')
+    setTextDialogHeightInput('1')
     setShowTextDialog(true)
   }
 
@@ -257,8 +263,8 @@ export const PlayoffGridEditor = ({
     setTextDialogVisible(block.visible)
     setTextDialogAlign(block.align)
     setTextDialogFont(block.font)
-    setTextDialogWidth(block.widthCells)
-    setTextDialogHeight(block.heightCells)
+    setTextDialogWidthInput(String(block.widthCells))
+    setTextDialogHeightInput(String(block.heightCells))
     setShowTextDialog(true)
   }
 
@@ -301,14 +307,16 @@ export const PlayoffGridEditor = ({
   }
 
   const submitTextDialog = () => {
+    const widthCells = clamp(Number(textDialogWidthInput) || 1, 1, 8)
+    const heightCells = clamp(Number(textDialogHeightInput) || 1, 1, 6)
     const payload = {
       text: textDialogValue.slice(0, 500),
       showBackground: textDialogShowBackground,
       visible: textDialogVisible,
       align: textDialogAlign,
       font: textDialogFont,
-      widthCells: clamp(textDialogWidth, 1, 8),
-      heightCells: clamp(textDialogHeight, 1, 6),
+      widthCells,
+      heightCells,
     } satisfies Omit<DraftTextBlock, 'id' | 'col' | 'row'>
 
     if (editingTextBlockId) {
@@ -838,9 +846,14 @@ export const PlayoffGridEditor = ({
                     type="number"
                     min={1}
                     max={8}
-                    className="mt-1 w-full rounded-lg border border-borderSubtle bg-panelAlt px-2 py-1.5 text-sm text-textPrimary"
-                    value={textDialogWidth}
-                    onChange={(event) => setTextDialogWidth(Number(event.target.value) || 1)}
+                    inputMode="numeric"
+                    className="mt-1 w-full appearance-none rounded-lg border border-borderSubtle bg-panelAlt px-2 py-1.5 text-sm text-textPrimary outline-none focus:border-accentYellow/70"
+                    value={textDialogWidthInput}
+                    onChange={(event) => {
+                      const nextValue = event.target.value
+                      if (/^\d*$/.test(nextValue)) setTextDialogWidthInput(nextValue)
+                    }}
+                    onBlur={() => setTextDialogWidthInput(normalizeDimensionInput(textDialogWidthInput, 1, 8))}
                   />
                 </label>
                 <label className="text-xs text-textMuted">
@@ -849,9 +862,14 @@ export const PlayoffGridEditor = ({
                     type="number"
                     min={1}
                     max={6}
-                    className="mt-1 w-full rounded-lg border border-borderSubtle bg-panelAlt px-2 py-1.5 text-sm text-textPrimary"
-                    value={textDialogHeight}
-                    onChange={(event) => setTextDialogHeight(Number(event.target.value) || 1)}
+                    inputMode="numeric"
+                    className="mt-1 w-full appearance-none rounded-lg border border-borderSubtle bg-panelAlt px-2 py-1.5 text-sm text-textPrimary outline-none focus:border-accentYellow/70"
+                    value={textDialogHeightInput}
+                    onChange={(event) => {
+                      const nextValue = event.target.value
+                      if (/^\d*$/.test(nextValue)) setTextDialogHeightInput(nextValue)
+                    }}
+                    onBlur={() => setTextDialogHeightInput(normalizeDimensionInput(textDialogHeightInput, 1, 6))}
                   />
                 </label>
               </div>
