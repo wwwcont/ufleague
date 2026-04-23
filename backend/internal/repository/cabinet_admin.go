@@ -734,6 +734,9 @@ func (r *CabinetAdminRepository) ListEntityChangeHistory(ctx context.Context, li
 		}
 		item.Metadata = map[string]any{}
 		_ = json.Unmarshal(metadataRaw, &item.Metadata)
+		if item.Metadata == nil {
+			item.Metadata = map[string]any{}
+		}
 		if actorName != "" {
 			item.Metadata["actor_name"] = actorName
 		}

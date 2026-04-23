@@ -13,7 +13,7 @@ services:
       timeout: 5s
       retries: 10
     ports:
-      - "5433:5432"
+      - "${UFL_DB_BIND_HOST:-127.0.0.1}:${UFL_DB_PORT:-5433}:5432"
 
   backend:
     build:

@@ -504,7 +504,7 @@ export const PlayoffGridEditor = ({
   }
 
   return (
-    <section data-allow-zoom="true" className="relative mb-[calc(74px+env(safe-area-inset-bottom,0px))] h-[calc(100svh-14.25rem)] overflow-hidden rounded-2xl border border-borderSubtle bg-panelBg md:mb-0 md:h-[calc(100vh-13.5rem)]">
+    <section data-allow-zoom="true" className="relative h-[calc(100svh-14.25rem-74px-env(safe-area-inset-bottom,0px))] min-h-[22rem] overflow-hidden rounded-2xl border border-borderSubtle bg-panelBg md:h-[calc(100vh-13.5rem)]">
       <div
         ref={wrapperRef}
         className="relative h-full w-full touch-none"
