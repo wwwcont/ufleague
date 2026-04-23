@@ -73,6 +73,18 @@ func hasRole(user domain.User, roles ...domain.Role) bool {
 	return false
 }
 
+func hasPermission(user domain.User, permission string) bool {
+	if hasRole(user, domain.RoleSuperadmin) {
+		return true
+	}
+	for _, current := range user.Permissions {
+		if current == permission {
+			return true
+		}
+	}
+	return false
+}
+
 func (s Service) ListTeams(ctx context.Context) ([]domain.Team, error) { return s.repo.ListTeams(ctx) }
 func (s Service) GetTeam(ctx context.Context, id int64) (domain.Team, error) {
 	return s.repo.GetTeam(ctx, id)
@@ -305,7 +317,7 @@ func (s Service) GetMatch(ctx context.Context, id int64) (domain.Match, error) {
 }
 
 func (s Service) CreateMatch(ctx context.Context, actor domain.User, req domain.CreateMatchRequest) (domain.Match, error) {
-	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+	if !hasPermission(actor, domain.PermMatchCreate) {
 		return domain.Match{}, ErrForbidden
 	}
 	cycleID := int64(0)
@@ -320,8 +332,7 @@ func (s Service) CreateMatch(ctx context.Context, actor domain.User, req domain.
 }
 
 func (s Service) UpdateMatch(ctx context.Context, actor domain.User, id int64, req domain.UpdateMatchRequest) (domain.Match, error) {
-	isAdmin := hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin)
-	if !isAdmin {
+	if !hasPermission(actor, domain.PermMatchScoreManage) {
 		return domain.Match{}, ErrForbidden
 	}
 	return s.repo.UpdateMatch(ctx, id, domain.Match{
@@ -426,7 +437,7 @@ func (s Service) ListTournamentCycles(ctx context.Context) ([]domain.TournamentC
 }
 
 func (s Service) CreateTournamentCycle(ctx context.Context, actor domain.User, req domain.CreateTournamentCycleRequest) (domain.TournamentCycle, error) {
-	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+	if !hasPermission(actor, domain.PermTournamentEdit) {
 		return domain.TournamentCycle{}, ErrForbidden
 	}
 	req.Name = strings.TrimSpace(req.Name)
@@ -444,21 +455,21 @@ func (s Service) CreateTournamentCycle(ctx context.Context, actor domain.User, r
 }
 
 func (s Service) DeleteTournamentCycle(ctx context.Context, actor domain.User, cycleID int64) error {
-	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+	if !hasPermission(actor, domain.PermTournamentEdit) {
 		return ErrForbidden
 	}
 	return s.repo.DeleteTournamentCycle(ctx, cycleID)
 }
 
 func (s Service) ActivateTournamentCycle(ctx context.Context, actor domain.User, cycleID int64) error {
-	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+	if !hasPermission(actor, domain.PermTournamentEdit) {
 		return ErrForbidden
 	}
 	return s.repo.ActivateTournamentCycle(ctx, cycleID)
 }
 
 func (s Service) UpdateTournamentBracketSettings(ctx context.Context, actor domain.User, cycleID int64, req domain.UpdateTournamentBracketSettingsRequest) error {
-	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+	if !hasPermission(actor, domain.PermTournamentEdit) {
 		return ErrForbidden
 	}
 	if req.BracketTeamCapacity != 4 && req.BracketTeamCapacity != 8 && req.BracketTeamCapacity != 16 && req.BracketTeamCapacity != 32 {
@@ -521,7 +532,7 @@ func (s Service) GetPlayoffGrid(ctx context.Context, tournamentID int64) (domain
 }
 
 func (s Service) ValidatePlayoffGridDraft(ctx context.Context, actor domain.User, tournamentID int64, payload domain.SavePlayoffGridRequest) error {
-	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+	if !hasPermission(actor, domain.PermPlayoffGridEdit) {
 		return ErrForbidden
 	}
 	if tournamentID <= 0 {
@@ -595,14 +606,14 @@ func (s Service) SavePlayoffGrid(ctx context.Context, actor domain.User, tournam
 }
 
 func (s Service) GetPlayoffMatchCandidates(ctx context.Context, actor domain.User, tournamentID, matchID int64) ([]domain.PlayoffGridCell, error) {
-	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+	if !hasPermission(actor, domain.PermPlayoffGridEdit) {
 		return nil, ErrForbidden
 	}
 	return s.repo.FindPlayoffMatchCandidates(ctx, tournamentID, matchID)
 }
 
 func (s Service) AttachMatchToPlayoffCell(ctx context.Context, actor domain.User, playoffCellID, matchID int64) error {
-	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+	if !hasPermission(actor, domain.PermPlayoffGridEdit) {
 		return ErrForbidden
 	}
 	cell, err := s.repo.GetPlayoffCell(ctx, playoffCellID)
@@ -623,7 +634,7 @@ func (s Service) AttachMatchToPlayoffCell(ctx context.Context, actor domain.User
 }
 
 func (s Service) DetachMatchFromPlayoffCell(ctx context.Context, actor domain.User, playoffCellID, matchID int64) error {
-	if !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+	if !hasPermission(actor, domain.PermPlayoffGridEdit) {
 		return ErrForbidden
 	}
 	return s.repo.DetachMatchFromPlayoffCell(ctx, playoffCellID, matchID)

@@ -30,6 +30,7 @@ type fakeRepo struct {
 	auditErr           error
 	replacedRoles      []domain.Role
 	ensuredRoles       []domain.Role
+	addedPermissions   []string
 }
 
 func (f *fakeRepo) GetProfile(context.Context, int64) (domain.UserProfile, error) {
@@ -59,7 +60,11 @@ func (f *fakeRepo) ReplaceUserRoles(_ context.Context, _ int64, roles []domain.R
 	f.replacedRoles = append([]domain.Role{}, roles...)
 	return nil
 }
-func (f *fakeRepo) ReplaceUserPermissions(context.Context, int64, []string) error  { return nil }
+func (f *fakeRepo) ReplaceUserPermissions(context.Context, int64, []string) error { return nil }
+func (f *fakeRepo) AddUserPermissions(_ context.Context, _ int64, perms []string) error {
+	f.addedPermissions = append([]string{}, perms...)
+	return nil
+}
 func (f *fakeRepo) ReplaceUserRestrictions(context.Context, int64, []string) error { return nil }
 func (f *fakeRepo) UpsertGlobalSetting(context.Context, string, map[string]any, int64) error {
 	return nil
@@ -165,7 +170,7 @@ func TestAdminUpdateUserProfileAddsAudit(t *testing.T) {
 	repo := &fakeRepo{}
 	svc := NewService(repo)
 
-	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}, Permissions: []string{domain.PermRoleCaptainAssign}}
 	_, err := svc.AdminUpdateUserProfile(context.Background(), admin, 77, domain.UpdateProfileRequest{DisplayName: "New Name", Bio: "Bio"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -179,7 +184,7 @@ func TestAdminUpdateUserProfileReturnsAuditError(t *testing.T) {
 	repo := &fakeRepo{auditErr: errors.New("audit failed")}
 	svc := NewService(repo)
 
-	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}, Permissions: []string{domain.PermRoleCaptainAssign}}
 	_, err := svc.AdminUpdateUserProfile(context.Background(), admin, 77, domain.UpdateProfileRequest{DisplayName: "New Name"})
 	if err == nil {
 		t.Fatalf("expected error when audit log fails")
@@ -189,7 +194,7 @@ func TestAdminUpdateUserProfileReturnsAuditError(t *testing.T) {
 func TestAdminAssignCaptainRoleRejectsExistingCaptain(t *testing.T) {
 	repo := &fakeRepo{roles: []domain.Role{domain.RoleCaptain}}
 	svc := NewService(repo)
-	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}, Permissions: []string{domain.PermRoleCaptainAssign}}
 
 	err := svc.AdminAssignCaptainRole(context.Background(), admin, 77)
 	if !errors.Is(err, ErrUserAlreadyCaptain) {
@@ -200,7 +205,7 @@ func TestAdminAssignCaptainRoleRejectsExistingCaptain(t *testing.T) {
 func TestAdminAssignCaptainRoleDetachesPlayerWhenNoTeam(t *testing.T) {
 	repo := &fakeRepo{}
 	svc := NewService(repo)
-	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}, Permissions: []string{domain.PermRoleCaptainAssign}}
 
 	if err := svc.AdminAssignCaptainRole(context.Background(), admin, 77); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -213,23 +218,26 @@ func TestAdminAssignCaptainRoleDetachesPlayerWhenNoTeam(t *testing.T) {
 	}
 }
 
-func TestAdminTransferCaptainRejectsWhenTeamHasAnotherCaptain(t *testing.T) {
+func TestAdminTransferCaptainDemotesPreviousCaptain(t *testing.T) {
 	currentCaptain := int64(15)
 	newCaptain := int64(20)
 	repo := &fakeRepo{team: domain.Team{ID: 5, CaptainUserID: &currentCaptain}}
 	svc := NewService(repo)
-	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}, Permissions: []string{domain.PermRoleCaptainAssign}}
 
 	err := svc.AdminTransferCaptain(context.Background(), admin, 5, &newCaptain)
-	if !errors.Is(err, ErrTeamAlreadyHasCaptain) {
-		t.Fatalf("expected ErrTeamAlreadyHasCaptain, got %v", err)
+	if err != nil {
+		t.Fatalf("expected transfer captain to succeed, got %v", err)
+	}
+	if repo.transferredTeamID != 5 || repo.transferredCaptain == nil || *repo.transferredCaptain != newCaptain {
+		t.Fatalf("expected transfer payload to be written")
 	}
 }
 
 func TestAdminRevokeCaptainRoleClearsTeams(t *testing.T) {
 	repo := &fakeRepo{countTeams: 2, player: &domain.Player{ID: 88, UserID: ptr(77)}}
 	svc := NewService(repo)
-	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}, Permissions: []string{domain.PermRoleCaptainRevoke}}
 
 	if err := svc.AdminRevokeCaptainRole(context.Background(), admin, 77); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -245,7 +253,7 @@ func TestAdminRevokeCaptainRoleClearsTeams(t *testing.T) {
 func TestAdminArchiveTeam(t *testing.T) {
 	repo := &fakeRepo{}
 	svc := NewService(repo)
-	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}, Permissions: []string{domain.PermArchiveManage}}
 
 	if err := svc.AdminArchiveTeam(context.Background(), admin, 55, true); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -283,6 +291,76 @@ func TestSuperadminAssignRolesDoesNotForceCaptainWhenAbsent(t *testing.T) {
 	}
 	if len(repo.replacedRoles) != 1 || repo.replacedRoles[0] != domain.RoleAdmin {
 		t.Fatalf("unexpected roles: %v", repo.replacedRoles)
+	}
+	if len(repo.addedPermissions) == 0 {
+		t.Fatalf("expected default admin permissions to be added")
+	}
+}
+
+func TestAdminBlockCommentsRequiresPermission(t *testing.T) {
+	repo := &fakeRepo{}
+	svc := NewService(repo)
+	adminWithoutPerm := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+
+	err := svc.AdminBlockComments(context.Background(), adminWithoutPerm, 55, domain.CommentBlockRequest{Permanent: true})
+	if err == nil {
+		t.Fatalf("expected forbidden without comments.ban.issue permission")
+	}
+}
+
+func TestAdminDeleteMatchRequiresArchiveDeletePermission(t *testing.T) {
+	repo := &fakeRepo{}
+	svc := NewService(repo)
+	adminWithPerm := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}, Permissions: []string{domain.PermArchiveDelete}}
+
+	if err := svc.AdminDeleteMatch(context.Background(), adminWithPerm, 999); err != nil {
+		t.Fatalf("expected delete match to succeed with archive.delete permission, got %v", err)
+	}
+}
+
+func TestSuperadminAssignPermissionsRejectsUnknownPermission(t *testing.T) {
+	repo := &fakeRepo{}
+	svc := NewService(repo)
+	actor := domain.User{ID: 1, Roles: []domain.Role{domain.RoleSuperadmin}}
+
+	err := svc.SuperadminAssignPermissions(context.Background(), actor, 77, domain.AssignPermissionsRequest{Permissions: []string{"unknown.permission"}})
+	if err == nil {
+		t.Fatalf("expected validation error for unknown permission")
+	}
+}
+
+func TestAdminWithManagePermissionsCanAssignPermissionsToAnotherAdmin(t *testing.T) {
+	repo := &fakeRepo{roles: []domain.Role{domain.RoleAdmin}}
+	svc := NewService(repo)
+	actor := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}, Permissions: []string{domain.PermAdminPermsManage}}
+
+	err := svc.SuperadminAssignPermissions(context.Background(), actor, 77, domain.AssignPermissionsRequest{Permissions: []string{domain.PermMatchCreate}})
+	if err != nil {
+		t.Fatalf("expected delegated admin permission management to succeed, got %v", err)
+	}
+}
+
+func TestAdminWithManagePermissionsCannotGrantManagePermissionsFlag(t *testing.T) {
+	repo := &fakeRepo{roles: []domain.Role{domain.RoleAdmin}}
+	svc := NewService(repo)
+	actor := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}, Permissions: []string{domain.PermAdminPermsManage}}
+
+	err := svc.SuperadminAssignPermissions(context.Background(), actor, 77, domain.AssignPermissionsRequest{Permissions: []string{domain.PermAdminPermsManage}})
+	if err == nil {
+		t.Fatalf("expected forbidden when non-superadmin grants admin.permissions.manage")
+	}
+}
+
+func TestAdminAssignPlayerRoleCreatesOrMovesProfile(t *testing.T) {
+	repo := &fakeRepo{player: nil}
+	svc := NewService(repo)
+	actor := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}, Permissions: []string{domain.PermRolePlayerAssign}}
+
+	if err := svc.AdminAssignPlayerRole(context.Background(), actor, 77, 5); err != nil {
+		t.Fatalf("expected assign player role to succeed, got %v", err)
+	}
+	if !repo.created {
+		t.Fatalf("expected player profile to be created for user without profile")
 	}
 }
 

@@ -39,6 +39,18 @@ func has(user domain.User, roles ...domain.Role) bool {
 	return false
 }
 
+func hasPermission(user domain.User, permission string) bool {
+	if has(user, domain.RoleSuperadmin) {
+		return true
+	}
+	for _, p := range user.Permissions {
+		if p == permission {
+			return true
+		}
+	}
+	return false
+}
+
 func (s Service) ListEvents(ctx context.Context) ([]domain.EventFeedItem, error) {
 	return s.repo.ListEvents(ctx)
 }
@@ -62,6 +74,8 @@ func (s Service) CreateEvent(ctx context.Context, actor domain.User, req domain.
 	switch {
 	case has(actor, domain.RoleSuperadmin):
 		// all scopes
+	case hasPermission(actor, domain.PermEventFullCreate):
+		// explicit granular permission for cross-scope event creation
 	case has(actor, domain.RoleAdmin):
 		if req.ScopeType != domain.EventScopeGlobal && req.ScopeType != domain.EventScopeTeam && req.ScopeType != domain.EventScopePlayer && req.ScopeType != domain.EventScopeMatch {
 			return domain.EventFeedItem{}, ErrForbidden
@@ -100,7 +114,7 @@ func (s Service) DeleteEvent(ctx context.Context, actor domain.User, id int64) e
 }
 
 func (s Service) canMutate(ctx context.Context, actor domain.User, eventID int64, scope domain.EventScope, scopeID *int64) error {
-	if has(actor, domain.RoleSuperadmin, domain.RoleAdmin) {
+	if has(actor, domain.RoleSuperadmin, domain.RoleAdmin) || hasPermission(actor, domain.PermEventFullCreate) {
 		return nil
 	}
 	if !has(actor, domain.RoleCaptain) {

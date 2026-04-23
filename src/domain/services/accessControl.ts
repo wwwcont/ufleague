@@ -14,6 +14,7 @@ export const isAtLeastRole = (session: AuthSession, role: UserRole) => {
 }
 
 export const isAdmin = (session: AuthSession) => ADMIN_ROLES.some((item) => hasRole(session, item))
+export const hasPermission = (session: AuthSession, permission: string) => (session.permissions ?? []).includes(permission as AuthSession['permissions'][number])
 
 export const isOwnPlayerProfile = (session: AuthSession, player: Player | null | undefined) => {
   if (!player) return false
@@ -35,11 +36,11 @@ export const canManagePlayer = (session: AuthSession, player: Player | null | un
   return isTeamCaptain(session, playerTeam)
 }
 
-export const canManageMatch = (session: AuthSession) => isAdmin(session)
-export const canManageMatchScore = (session: AuthSession) => isAdmin(session)
-export const canManageMatchControls = (session: AuthSession, _match: Match | null | undefined, _teamsById: Record<string, Team | undefined>) => isAdmin(session)
+export const canManageMatch = (session: AuthSession) => isAdmin(session) || hasPermission(session, 'match.create') || hasPermission(session, 'tournament.match.create')
+export const canManageMatchScore = (session: AuthSession) => isAdmin(session) || hasPermission(session, 'match.score.manage.full') || hasPermission(session, 'match.score.manage')
+export const canManageMatchControls = (session: AuthSession, _match: Match | null | undefined, _teamsById: Record<string, Team | undefined>) => canManageMatchScore(session)
 export const hasRestriction = (session: AuthSession, prefix: string) => (session.restrictions ?? []).some((item) => item.startsWith(prefix))
-export const canCreateEvent = (session: AuthSession) => isAtLeastRole(session, 'captain') && !hasRestriction(session, 'events:banned')
+export const canCreateEvent = (session: AuthSession) => (isAtLeastRole(session, 'captain') || hasPermission(session, 'event.full.create')) && !hasRestriction(session, 'events:banned')
 
 export const canManageEvent = (
   session: AuthSession,
@@ -47,7 +48,7 @@ export const canManageEvent = (
   event: PublicEvent,
   playersById?: Record<string, Player | undefined>,
 ) => {
-  if (isAdmin(session)) return true
+  if (isAdmin(session) || hasPermission(session, 'event.full.create')) return true
   if (event.entityType === 'team' && event.entityId) return isTeamCaptain(session, teamsById[event.entityId])
   if (event.entityType === 'player' && event.entityId) {
     const player = playersById?.[event.entityId]
@@ -60,4 +61,4 @@ export const canManageEvent = (
 
 export const canEditComment = (_session: AuthSession, comment: CommentNode) => comment.isOwn
 
-export const canDeleteComment = (session: AuthSession, comment: CommentNode) => comment.isOwn || isAdmin(session)
+export const canDeleteComment = (session: AuthSession, comment: CommentNode) => comment.isOwn || isAdmin(session) || hasPermission(session, 'comment.delete.any')

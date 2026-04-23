@@ -21,6 +21,7 @@ import (
 	"football_ui/backend/internal/app/session"
 	"football_ui/backend/internal/domain"
 	"football_ui/backend/internal/platform/config"
+	"football_ui/backend/internal/policy"
 	"football_ui/backend/internal/repository"
 	cabinetadmin "football_ui/backend/internal/service/cabinetadmin"
 	commentservice "football_ui/backend/internal/service/comments"
@@ -183,6 +184,7 @@ func NewRouter(cfg config.Config, healthRepo repository.Pinger, authRepo *reposi
 		r.With(sessionMW.RequireSession).Post("/admin/users/{id}/comment-block", h.AdminBlockComments)
 		r.With(sessionMW.RequireSession).Post("/admin/users/{id}/captain-role", h.AdminAssignCaptainRole)
 		r.With(sessionMW.RequireSession).Delete("/admin/users/{id}/captain-role", h.AdminRevokeCaptainRole)
+		r.With(sessionMW.RequireSession).Post("/admin/users/{id}/player-role", h.AdminAssignPlayerRole)
 		r.With(sessionMW.RequireSession).Delete("/admin/users/{id}/player", h.AdminRemovePlayerFromUser)
 		r.With(sessionMW.RequireSession).Get("/admin/page-change-history", h.AdminGetPageChangeHistory)
 		r.With(sessionMW.RequireSession).Post("/superadmin/users/{id}/roles", h.SuperadminAssignRoles)
@@ -2286,8 +2288,7 @@ func (h Handler) AdminListUserAccessMatrix(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "unauthorized", 401)
 		return
 	}
-	role := strongestRole(current.User.Roles)
-	if role != domain.RoleAdmin && role != domain.RoleSuperadmin {
+	if !policy.New().CanViewUserAccessMatrix(current.User) {
 		http.Error(w, "forbidden", 403)
 		return
 	}
@@ -2519,6 +2520,28 @@ func (h Handler) AdminRevokeCaptainRole(w http.ResponseWriter, r *http.Request) 
 	}
 	writeJSON(w, 200, map[string]string{"status": "ok"})
 }
+func (h Handler) AdminAssignPlayerRole(w http.ResponseWriter, r *http.Request) {
+	current, ok := middleware.CurrentSession(r.Context())
+	if !ok {
+		http.Error(w, "unauthorized", 401)
+		return
+	}
+	userID, err := parseID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "bad id", 400)
+		return
+	}
+	var req domain.AssignPlayerRoleRequest
+	if json.NewDecoder(r.Body).Decode(&req) != nil || req.TeamID <= 0 {
+		http.Error(w, "bad request", 400)
+		return
+	}
+	if err = h.cabinet.AdminAssignPlayerRole(r.Context(), current.User, userID, req.TeamID); err != nil {
+		handleDomainErr(w, err)
+		return
+	}
+	writeJSON(w, 200, map[string]string{"status": "ok"})
+}
 func (h Handler) AdminRemovePlayerFromUser(w http.ResponseWriter, r *http.Request) {
 	current, ok := middleware.CurrentSession(r.Context())
 	if !ok {
@@ -2734,10 +2757,6 @@ func handleDomainErr(w http.ResponseWriter, err error) {
 	}
 	if errors.Is(err, cabinetadmin.ErrUserAlreadyCaptain) {
 		http.Error(w, "Пользователь уже капитан", 409)
-		return
-	}
-	if errors.Is(err, cabinetadmin.ErrTeamAlreadyHasCaptain) {
-		http.Error(w, "У команды уже есть капитан. Сначала снимите текущего капитана", 409)
 		return
 	}
 	http.Error(w, "Не удалось выполнить запрос", 400)

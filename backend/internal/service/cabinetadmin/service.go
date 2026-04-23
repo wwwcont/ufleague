@@ -25,6 +25,7 @@ type Repository interface {
 	ModerateDeleteComment(ctx context.Context, commentID int64) error
 	ReplaceUserRoles(ctx context.Context, userID int64, roles []domain.Role) error
 	ReplaceUserPermissions(ctx context.Context, userID int64, perms []string) error
+	AddUserPermissions(ctx context.Context, userID int64, perms []string) error
 	ReplaceUserRestrictions(ctx context.Context, userID int64, rs []string) error
 	UpsertGlobalSetting(ctx context.Context, key string, value map[string]any, by int64) error
 	AddAuditLog(ctx context.Context, actor int64, action, targetType, targetID string, metadata map[string]any) error
@@ -52,8 +53,7 @@ type Service struct {
 }
 
 var (
-	ErrUserAlreadyCaptain    = errors.New("user already captain")
-	ErrTeamAlreadyHasCaptain = errors.New("team already has captain")
+	ErrUserAlreadyCaptain = errors.New("user already captain")
 )
 
 func NewService(repo Repository) Service {
@@ -195,7 +195,7 @@ func (s Service) CaptainManageRosterVisibility(ctx context.Context, actor domain
 }
 
 func (s Service) AdminModerateComment(ctx context.Context, actor domain.User, commentID int64) error {
-	if !s.policy.CanAdminModerate(actor) {
+	if !s.policy.CanDeleteAnyComment(actor) {
 		return fmt.Errorf("forbidden")
 	}
 	if err := s.repo.ModerateDeleteComment(ctx, commentID); err != nil {
@@ -204,7 +204,7 @@ func (s Service) AdminModerateComment(ctx context.Context, actor domain.User, co
 	return s.repo.AddAuditLog(ctx, actor.ID, "admin.comment_delete", "comment", strconv.FormatInt(commentID, 10), nil)
 }
 func (s Service) AdminTransferCaptain(ctx context.Context, actor domain.User, teamID int64, newCaptain *int64) error {
-	if !s.policy.CanAdminModerate(actor) {
+	if !s.policy.CanAssignCaptainRole(actor) {
 		return fmt.Errorf("forbidden")
 	}
 	team, err := s.repo.GetTeamByID(ctx, teamID)
@@ -212,11 +212,8 @@ func (s Service) AdminTransferCaptain(ctx context.Context, actor domain.User, te
 		return err
 	}
 	if newCaptain != nil {
-		if team.CaptainUserID != nil {
-			if *team.CaptainUserID == *newCaptain {
-				return nil
-			}
-			return ErrTeamAlreadyHasCaptain
+		if team.CaptainUserID != nil && *team.CaptainUserID == *newCaptain {
+			return nil
 		}
 		teams, countErr := s.repo.CountTeamsByCaptain(ctx, *newCaptain)
 		if countErr != nil {
@@ -228,6 +225,18 @@ func (s Service) AdminTransferCaptain(ctx context.Context, actor domain.User, te
 	}
 	if err = s.repo.TransferCaptain(ctx, teamID, newCaptain); err != nil {
 		return err
+	}
+	previousCaptain := team.CaptainUserID
+	if previousCaptain != nil && (newCaptain == nil || *previousCaptain != *newCaptain) {
+		if err = s.repo.RevokeUserRole(ctx, *previousCaptain, domain.RoleCaptain); err != nil {
+			return err
+		}
+		if err = s.repo.EnsureUserRole(ctx, *previousCaptain, domain.RolePlayer); err != nil {
+			return err
+		}
+		if err = s.EnsureCaptainPlayerProfile(ctx, *previousCaptain, teamID, "Player"); err != nil {
+			return err
+		}
 	}
 	if newCaptain != nil {
 		if err := s.repo.EnsureUserRole(ctx, *newCaptain, domain.RoleCaptain); err != nil {
@@ -243,8 +252,25 @@ func (s Service) AdminTransferCaptain(ctx context.Context, actor domain.User, te
 	return s.repo.AddAuditLog(ctx, actor.ID, "admin.transfer_captain", "team", strconv.FormatInt(teamID, 10), map[string]any{"new_captain": newCaptain})
 }
 
+func (s Service) AdminAssignPlayerRole(ctx context.Context, actor domain.User, userID, teamID int64) error {
+	if !s.policy.CanAssignPlayerRole(actor) {
+		return fmt.Errorf("forbidden")
+	}
+	if _, err := s.repo.GetTeamByID(ctx, teamID); err != nil {
+		return err
+	}
+	profile, err := s.repo.GetProfile(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if err = s.EnsureCaptainPlayerProfile(ctx, userID, teamID, profile.DisplayName); err != nil {
+		return err
+	}
+	return s.repo.AddAuditLog(ctx, actor.ID, "admin.assign_player_role", "user", strconv.FormatInt(userID, 10), map[string]any{"team_id": teamID})
+}
+
 func (s Service) AdminAssignCaptainRole(ctx context.Context, actor domain.User, userID int64) error {
-	if !s.policy.CanAdminModerate(actor) {
+	if !s.policy.CanAssignCaptainRole(actor) {
 		return fmt.Errorf("forbidden")
 	}
 	roles, err := s.repo.GetUserRoles(ctx, userID)
@@ -275,7 +301,7 @@ func (s Service) AdminAssignCaptainRole(ctx context.Context, actor domain.User, 
 }
 
 func (s Service) AdminRevokeCaptainRole(ctx context.Context, actor domain.User, userID int64) error {
-	if !s.policy.CanAdminModerate(actor) {
+	if !s.policy.CanRevokeCaptainRole(actor) {
 		return fmt.Errorf("forbidden")
 	}
 	teams, err := s.repo.CountTeamsByCaptain(ctx, userID)
@@ -303,7 +329,7 @@ func (s Service) AdminRevokeCaptainRole(ctx context.Context, actor domain.User, 
 }
 
 func (s Service) AdminRemovePlayerFromUser(ctx context.Context, actor domain.User, userID int64) error {
-	if !s.policy.CanAdminModerate(actor) {
+	if !s.policy.CanRevokePlayerRole(actor) {
 		return fmt.Errorf("forbidden")
 	}
 	teams, err := s.repo.CountTeamsByCaptain(ctx, userID)
@@ -323,7 +349,7 @@ func (s Service) AdminRemovePlayerFromUser(ctx context.Context, actor domain.Use
 }
 
 func (s Service) AdminArchiveTeam(ctx context.Context, actor domain.User, teamID int64, archived bool) error {
-	if !s.policy.CanAdminModerate(actor) {
+	if !s.policy.CanManageArchive(actor) {
 		return fmt.Errorf("forbidden")
 	}
 	if err := s.repo.SetTeamArchived(ctx, teamID, archived); err != nil {
@@ -333,7 +359,7 @@ func (s Service) AdminArchiveTeam(ctx context.Context, actor domain.User, teamID
 }
 
 func (s Service) AdminSetPlayerHidden(ctx context.Context, actor domain.User, playerID int64, hidden bool) error {
-	if !s.policy.CanAdminModerate(actor) {
+	if !s.policy.CanManageArchive(actor) {
 		return fmt.Errorf("forbidden")
 	}
 	if err := s.repo.SetPlayerVisible(ctx, playerID, !hidden); err != nil {
@@ -343,7 +369,7 @@ func (s Service) AdminSetPlayerHidden(ctx context.Context, actor domain.User, pl
 }
 
 func (s Service) AdminAddManualStatAdjustment(ctx context.Context, actor domain.User, input domain.ManualStatAdjustment) (domain.ManualStatAdjustment, error) {
-	if !s.policy.CanAdminModerate(actor) {
+	if !s.policy.CanManageManualStats(actor) {
 		return domain.ManualStatAdjustment{}, fmt.Errorf("forbidden")
 	}
 	input.AuthorUserID = actor.ID
@@ -361,7 +387,7 @@ func (s Service) AdminAddManualStatAdjustment(ctx context.Context, actor domain.
 }
 
 func (s Service) AdminDeleteManualStatAdjustment(ctx context.Context, actor domain.User, adjustmentID int64) error {
-	if !s.policy.CanAdminModerate(actor) {
+	if !s.policy.CanManageManualStats(actor) {
 		return fmt.Errorf("forbidden")
 	}
 	if err := s.repo.DeleteManualStatAdjustment(ctx, adjustmentID); err != nil {
@@ -371,14 +397,14 @@ func (s Service) AdminDeleteManualStatAdjustment(ctx context.Context, actor doma
 }
 
 func (s Service) AdminListManualStatAdjustments(ctx context.Context, actor domain.User, tournamentID int64) ([]domain.ManualStatAdjustment, error) {
-	if !s.policy.CanAdminModerate(actor) {
+	if !s.policy.CanManageManualStats(actor) {
 		return nil, fmt.Errorf("forbidden")
 	}
 	return s.repo.ListManualStatAdjustments(ctx, tournamentID)
 }
 
 func (s Service) AdminDeleteTeam(ctx context.Context, actor domain.User, teamID int64) error {
-	if !s.policy.CanAdminModerate(actor) {
+	if !s.policy.CanDeleteFromArchive(actor) {
 		return fmt.Errorf("forbidden")
 	}
 	affectedUsers, err := s.repo.DeleteTeamWithDependencies(ctx, teamID)
@@ -394,7 +420,7 @@ func (s Service) AdminDeleteTeam(ctx context.Context, actor domain.User, teamID 
 }
 
 func (s Service) AdminDeleteMatch(ctx context.Context, actor domain.User, matchID int64) error {
-	if !s.policy.CanAdminModerate(actor) {
+	if !s.policy.CanDeleteFromArchive(actor) {
 		return fmt.Errorf("forbidden")
 	}
 	if err := s.repo.DeleteMatchWithDependencies(ctx, matchID); err != nil {
@@ -404,7 +430,7 @@ func (s Service) AdminDeleteMatch(ctx context.Context, actor domain.User, matchI
 }
 
 func (s Service) AdminBlockComments(ctx context.Context, actor domain.User, userID int64, req domain.CommentBlockRequest) error {
-	if !s.policy.CanAdminModerate(actor) {
+	if !s.policy.CanIssueCommentBan(actor) {
 		return fmt.Errorf("forbidden")
 	}
 	r := []string{"comments:banned"}
@@ -448,16 +474,62 @@ func (s Service) SuperadminAssignRoles(ctx context.Context, actor domain.User, u
 	if err := s.repo.ReplaceUserRoles(ctx, userID, roles); err != nil {
 		return err
 	}
+	if err := s.repo.AddUserPermissions(ctx, userID, defaultPermissionsForRoles(roles)); err != nil {
+		return err
+	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "superadmin.assign_roles", "user", strconv.FormatInt(userID, 10), map[string]any{"roles": roles})
 }
 func (s Service) SuperadminAssignPermissions(ctx context.Context, actor domain.User, userID int64, req domain.AssignPermissionsRequest) error {
-	if !s.policy.CanSuperadminManageIAM(actor) {
+	isSuperadmin := s.policy.CanSuperadminManageIAM(actor)
+	if !isSuperadmin && !s.policy.CanManageAdminPermissions(actor) {
 		return fmt.Errorf("forbidden")
+	}
+	targetRoles, err := s.repo.GetUserRoles(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if !isSuperadmin {
+		isTargetAdmin := false
+		for _, role := range targetRoles {
+			if role == domain.RoleSuperadmin {
+				return fmt.Errorf("forbidden")
+			}
+			if role == domain.RoleAdmin {
+				isTargetAdmin = true
+			}
+		}
+		if !isTargetAdmin {
+			return fmt.Errorf("forbidden")
+		}
+	}
+	for _, permission := range req.Permissions {
+		if !domain.IsKnownPermission(permission) {
+			return fmt.Errorf("unknown permission: %s", permission)
+		}
+		if !isSuperadmin && permission == domain.PermAdminPermsManage {
+			return fmt.Errorf("forbidden")
+		}
 	}
 	if err := s.repo.ReplaceUserPermissions(ctx, userID, req.Permissions); err != nil {
 		return err
 	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "superadmin.assign_permissions", "user", strconv.FormatInt(userID, 10), map[string]any{"permissions": req.Permissions})
+}
+
+func defaultPermissionsForRoles(roles []domain.Role) []string {
+	for _, role := range roles {
+		if role == domain.RoleSuperadmin || role == domain.RoleAdmin {
+			defaults := make([]string, 0, len(domain.KnownPermissions))
+			for _, permission := range domain.KnownPermissions {
+				if role == domain.RoleAdmin && permission == domain.PermAdminPermsManage {
+					continue
+				}
+				defaults = append(defaults, permission)
+			}
+			return defaults
+		}
+	}
+	return nil
 }
 func (s Service) SuperadminAssignRestrictions(ctx context.Context, actor domain.User, userID int64, req domain.AssignRestrictionsRequest) error {
 	if !s.policy.CanSuperadminManageIAM(actor) {

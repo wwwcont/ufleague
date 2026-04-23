@@ -4,8 +4,8 @@ const rolePermissions: Record<UserRole, PermissionKey[]> = {
   guest: ['comment.create', 'comment.delete.own', 'comment.reply', 'comment.react'],
   player: ['comment.create', 'comment.delete.own', 'comment.reply', 'comment.react'],
   captain: ['comment.create', 'comment.delete.own', 'comment.reply', 'comment.react', 'event.create', 'team.squad.manage', 'team.invite.manage'],
-  admin: ['comment.create', 'comment.delete.own', 'comment.reply', 'comment.react', 'event.create', 'event.edit', 'event.delete', 'tournament.match.create', 'tournament.team.create', 'tournament.moderate'],
-  superadmin: ['comment.create', 'comment.delete.own', 'comment.reply', 'comment.react', 'event.create', 'event.edit', 'event.delete', 'tournament.match.create', 'tournament.team.create', 'tournament.moderate', 'rbac.manage', 'settings.global.manage'],
+  admin: ['comment.create', 'comment.delete.own', 'comment.reply', 'comment.react', 'event.create', 'event.edit', 'event.delete', 'tournament.match.create', 'tournament.team.create', 'tournament.moderate', 'match.create', 'match.score.manage.full', 'archive.manage'],
+  superadmin: ['comment.create', 'comment.delete.own', 'comment.reply', 'comment.react', 'event.create', 'event.edit', 'event.delete', 'tournament.match.create', 'tournament.team.create', 'tournament.moderate', 'match.create', 'match.score.manage.full', 'archive.manage', 'comment.delete.any', 'rbac.manage', 'settings.global.manage'],
 }
 
 const usersByRole: Record<UserRole, SessionUser> = {
