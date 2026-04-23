@@ -311,9 +311,9 @@ export const CabinetSectionPage = () => {
   const [myActions, setMyActions] = useState<Array<{ id: string; action: string; targetType: string; targetId: string; route: string; createdAt: string; metadata?: Record<string, unknown> }>>([])
   const [pageChangeHistory, setPageChangeHistory] = useState<Array<{ id: string; action: string; targetType: string; targetId: string; route: string; createdAt: string; metadata?: Record<string, unknown> }>>([])
   const [pageChangeSearch, setPageChangeSearch] = useState(searchParams.get('query') ?? '')
-  const [pageChangeFilter, setPageChangeFilter] = useState<'all' | 'team' | 'match' | 'player'>(() => {
+  const [pageChangeFilter, setPageChangeFilter] = useState<'all' | 'team' | 'match' | 'player' | 'user'>(() => {
     const targetType = searchParams.get('targetType')
-    return targetType === 'team' || targetType === 'match' || targetType === 'player' ? targetType : 'all'
+    return targetType === 'team' || targetType === 'match' || targetType === 'player' || targetType === 'user' ? targetType : 'all'
   })
   const [deleteArchivedMatchId, setDeleteArchivedMatchId] = useState<string | null>(null)
   const [myNotifications, setMyNotifications] = useState<Array<{ id: string; notificationType: string; title: string; body: string; route: string; status: string; createdAt: string }>>([])
@@ -983,17 +983,19 @@ export const CabinetSectionPage = () => {
             />
             <select
               value={pageChangeFilter}
-              onChange={(event) => setPageChangeFilter(event.target.value as 'all' | 'team' | 'match' | 'player')}
+              onChange={(event) => setPageChangeFilter(event.target.value as 'all' | 'team' | 'match' | 'player' | 'user')}
               className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm"
             >
               <option value="all">Все</option>
               <option value="team">Команды</option>
               <option value="match">Матчи</option>
               <option value="player">Игроки</option>
+              <option value="user">Пользователи</option>
             </select>
           </div>
           {filteredPageChangeHistory.length ? filteredPageChangeHistory.map((item) => {
             const actorName = String(item.metadata?.actor_name ?? 'Неизвестно')
+            const actorUsername = String(item.metadata?.actor_username ?? '')
             const rawChanges = (item.metadata?.changes ?? {}) as Record<string, { from?: unknown; to?: unknown }>
             const changeLines = Object.entries(rawChanges)
               .map(([field, value]) => {
@@ -1003,18 +1005,22 @@ export const CabinetSectionPage = () => {
                 return `${label}: ${from} → ${to}`
               })
               .slice(0, 4)
-            const targetTitle = item.targetType === 'player'
+            const targetFromMeta = String(item.metadata?.target_label ?? '').trim()
+            const targetTitle = targetFromMeta || (item.targetType === 'player'
               ? (pageChangeTargetNames.playerNames.get(item.targetId) ?? 'Неизвестный игрок')
               : item.targetType === 'team'
                 ? (pageChangeTargetNames.teamNames.get(item.targetId) ?? 'Неизвестная команда')
                 : item.targetType === 'match'
                   ? (pageChangeTargetNames.matchNames.get(item.targetId) ?? 'Неизвестный матч')
-                  : `${pageChangeTargetTypeLabels[item.targetType] ?? item.targetType}`
+                  : item.targetType === 'user'
+                    ? `Пользователь #${item.targetId}`
+                    : `${pageChangeTargetTypeLabels[item.targetType] ?? item.targetType}`)
             const title = `${pageChangeTargetTypeLabels[item.targetType] ?? item.targetType}: ${targetTitle}`
             return (
               <Link key={item.id} to={item.route || '/'} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
                 <p className="text-sm font-semibold text-textPrimary">{title}</p>
-                <p className="mt-1 text-xs text-textMuted">{formatDateTimeMsk(item.createdAt)} · {actorName}</p>
+                <p className="mt-1 text-xs text-textMuted">{formatDateTimeMsk(item.createdAt)} · {actorName}{actorUsername ? ` (@${actorUsername})` : ''}</p>
+                <p className="mt-1 text-xs text-textSecondary">{item.action}</p>
                 {changeLines.length ? (
                   <div className="mt-2 space-y-1">
                     {changeLines.map((line) => <p key={line} className="text-xs text-textSecondary">{line}</p>)}

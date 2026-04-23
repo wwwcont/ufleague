@@ -684,21 +684,35 @@ func actionRoute(targetType, targetID string, metadata map[string]any) string {
 
 func (r *CabinetAdminRepository) ListEntityChangeHistory(ctx context.Context, limit int) ([]domain.UserActionItem, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT al.id, al.action, al.target_type, al.target_id, COALESCE(al.metadata, '{}'::jsonb), al.created_at, COALESCE(u.display_name, '')
+		SELECT
+			al.id,
+			al.action,
+			al.target_type,
+			al.target_id,
+			COALESCE(al.metadata, '{}'::jsonb),
+			al.created_at,
+			COALESCE(actor.display_name, ''),
+			COALESCE(actor.telegram_username, ''),
+			CASE
+				WHEN al.target_type = 'team' THEN COALESCE(team.short_name, team.name, '')
+				WHEN al.target_type = 'player' THEN COALESCE(player.nickname, player.full_name, '')
+				WHEN al.target_type = 'user' THEN COALESCE(target_user.telegram_username, target_user.display_name, '')
+				WHEN al.target_type = 'match' THEN CONCAT(
+					COALESCE(home.short_name, home.name, CONCAT('Команда ', match.home_team_id::text)),
+					' VS ',
+					COALESCE(away.short_name, away.name, CONCAT('Команда ', match.away_team_id::text))
+				)
+				ELSE ''
+			END AS target_label
 		FROM audit_logs al
-		LEFT JOIN users u ON u.id = al.actor_user_id
-		WHERE al.target_type IN ('team', 'player', 'match', 'user')
-		  AND (
-			al.action LIKE '%.update'
-			OR al.action IN (
-				'captain.team_socials',
-				'captain.roster_visibility',
-				'admin.archive_team',
-				'admin.delete_team',
-				'admin.delete_match',
-				'admin.user_profile_update'
-			)
-		  )
+		LEFT JOIN users actor ON actor.id = al.actor_user_id
+		LEFT JOIN teams team ON al.target_type = 'team' AND al.target_id ~ '^[0-9]+$' AND team.id = al.target_id::bigint
+		LEFT JOIN players player ON al.target_type = 'player' AND al.target_id ~ '^[0-9]+$' AND player.id = al.target_id::bigint
+		LEFT JOIN users target_user ON al.target_type = 'user' AND al.target_id ~ '^[0-9]+$' AND target_user.id = al.target_id::bigint
+		LEFT JOIN matches match ON al.target_type = 'match' AND al.target_id ~ '^[0-9]+$' AND match.id = al.target_id::bigint
+		LEFT JOIN teams home ON match.home_team_id = home.id
+		LEFT JOIN teams away ON match.away_team_id = away.id
+		WHERE al.target_type IN ('team', 'player', 'match', 'user', 'event', 'comment', 'manual_stat_adjustment', 'setting')
 		ORDER BY al.created_at DESC
 		LIMIT $1
 	`, limit)
@@ -713,13 +727,21 @@ func (r *CabinetAdminRepository) ListEntityChangeHistory(ctx context.Context, li
 		var createdAt time.Time
 		var metadataRaw []byte
 		var actorName string
-		if err = rows.Scan(&item.ID, &item.Action, &item.TargetType, &item.TargetID, &metadataRaw, &createdAt, &actorName); err != nil {
+		var actorUsername string
+		var targetLabel string
+		if err = rows.Scan(&item.ID, &item.Action, &item.TargetType, &item.TargetID, &metadataRaw, &createdAt, &actorName, &actorUsername, &targetLabel); err != nil {
 			return nil, err
 		}
 		item.Metadata = map[string]any{}
 		_ = json.Unmarshal(metadataRaw, &item.Metadata)
 		if actorName != "" {
 			item.Metadata["actor_name"] = actorName
+		}
+		if actorUsername != "" {
+			item.Metadata["actor_username"] = actorUsername
+		}
+		if targetLabel != "" {
+			item.Metadata["target_label"] = targetLabel
 		}
 		item.CreatedAt = createdAt.Unix()
 		item.Route = actionRoute(item.TargetType, item.TargetID, item.Metadata)
