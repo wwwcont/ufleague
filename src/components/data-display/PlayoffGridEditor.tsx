@@ -834,7 +834,7 @@ export const PlayoffGridEditor = ({
               <textarea
                 rows={5}
                 maxLength={500}
-                className="w-full rounded-lg border border-borderSubtle bg-panelAlt px-2 py-2 text-sm text-textPrimary"
+                className="w-full appearance-none rounded-lg border border-borderSubtle bg-mutedBg px-2 py-2 text-sm text-textPrimary placeholder:text-textMuted [color-scheme:dark] focus:border-accentYellow/70 focus:outline-none"
                 value={textDialogValue}
                 onChange={(event) => setTextDialogValue(event.target.value)}
                 placeholder="Введите текст блока..."
@@ -847,7 +847,7 @@ export const PlayoffGridEditor = ({
                     min={1}
                     max={8}
                     inputMode="numeric"
-                    className="mt-1 w-full appearance-none rounded-lg border border-borderSubtle bg-panelAlt px-2 py-1.5 text-sm text-textPrimary outline-none focus:border-accentYellow/70"
+                    className="mt-1 w-full appearance-none rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1.5 text-sm text-textPrimary [color-scheme:dark] outline-none focus:border-accentYellow/70"
                     value={textDialogWidthInput}
                     onChange={(event) => {
                       const nextValue = event.target.value
@@ -863,7 +863,7 @@ export const PlayoffGridEditor = ({
                     min={1}
                     max={6}
                     inputMode="numeric"
-                    className="mt-1 w-full appearance-none rounded-lg border border-borderSubtle bg-panelAlt px-2 py-1.5 text-sm text-textPrimary outline-none focus:border-accentYellow/70"
+                    className="mt-1 w-full appearance-none rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1.5 text-sm text-textPrimary [color-scheme:dark] outline-none focus:border-accentYellow/70"
                     value={textDialogHeightInput}
                     onChange={(event) => {
                       const nextValue = event.target.value
@@ -876,7 +876,7 @@ export const PlayoffGridEditor = ({
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-textMuted">
                   Выравнивание
-                  <select className="mt-1 w-full rounded-lg border border-borderSubtle bg-panelAlt px-2 py-1.5 text-sm text-textPrimary" value={textDialogAlign} onChange={(event) => setTextDialogAlign(event.target.value as TextAlign)}>
+                  <select className="mt-1 w-full appearance-none rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1.5 text-sm text-textPrimary [color-scheme:dark] focus:border-accentYellow/70 focus:outline-none" value={textDialogAlign} onChange={(event) => setTextDialogAlign(event.target.value as TextAlign)}>
                     <option value="left">Слева</option>
                     <option value="center">По центру</option>
                     <option value="right">Справа</option>
@@ -884,7 +884,7 @@ export const PlayoffGridEditor = ({
                 </label>
                 <label className="text-xs text-textMuted">
                   Шрифт
-                  <select className="mt-1 w-full rounded-lg border border-borderSubtle bg-panelAlt px-2 py-1.5 text-sm text-textPrimary" value={textDialogFont} onChange={(event) => setTextDialogFont(event.target.value as TextFont)}>
+                  <select className="mt-1 w-full appearance-none rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1.5 text-sm text-textPrimary [color-scheme:dark] focus:border-accentYellow/70 focus:outline-none" value={textDialogFont} onChange={(event) => setTextDialogFont(event.target.value as TextFont)}>
                     <option value="inter">Inter</option>
                     <option value="roboto">Roboto</option>
                     <option value="ptsans">PT Sans</option>
@@ -892,12 +892,12 @@ export const PlayoffGridEditor = ({
                 </label>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs text-textSecondary">
-                <label className="flex items-center gap-2 rounded-lg border border-borderSubtle bg-panelAlt px-2 py-2">
-                  <input type="checkbox" checked={textDialogVisible} onChange={(event) => setTextDialogVisible(event.target.checked)} />
+                <label className="flex items-center gap-2 rounded-lg border border-borderSubtle bg-mutedBg px-2 py-2">
+                  <input type="checkbox" className="h-4 w-4 rounded border border-borderSubtle bg-mutedBg text-accentYellow [color-scheme:dark]" checked={textDialogVisible} onChange={(event) => setTextDialogVisible(event.target.checked)} />
                   Показывать текст
                 </label>
-                <label className="flex items-center gap-2 rounded-lg border border-borderSubtle bg-panelAlt px-2 py-2">
-                  <input type="checkbox" checked={textDialogShowBackground} onChange={(event) => setTextDialogShowBackground(event.target.checked)} />
+                <label className="flex items-center gap-2 rounded-lg border border-borderSubtle bg-mutedBg px-2 py-2">
+                  <input type="checkbox" className="h-4 w-4 rounded border border-borderSubtle bg-mutedBg text-accentYellow [color-scheme:dark]" checked={textDialogShowBackground} onChange={(event) => setTextDialogShowBackground(event.target.checked)} />
                   Фон блока
                 </label>
               </div>
