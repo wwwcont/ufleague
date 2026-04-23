@@ -17,6 +17,9 @@ cp backend/.env.example backend/.env
 docker compose up --build -d
 ```
 
+> По умолчанию Postgres пробрасывается только на loopback (`127.0.0.1:${UFL_DB_PORT}`), чтобы не открывать порт наружу.  
+> Если нужен внешний доступ — задайте `UFL_DB_BIND_HOST=0.0.0.0` осознанно и ограничьте firewall allowlist.
+
 Если в логах Postgres появляется `password authentication failed for user "postgres"`:
 - чаще всего это старый `postgres_data` volume с предыдущим паролем;
 - остановите контейнеры и пересоздайте volume:
@@ -52,6 +55,12 @@ docker compose up --build -d
 docker compose down -v
 docker compose up --build -d
 ```
+
+Если порт БД случайно был открыт наружу, выполните минимум:
+1. закрыть публикацию порта (вернуть `UFL_DB_BIND_HOST=127.0.0.1`);
+2. сменить пароль БД и все `DATABASE_URL`/секреты с ротацией сессий;
+3. проверить логи на попытки `CREATE FUNCTION ... LANGUAGE 'c'` / `system(...)` и другие инъекции;
+4. пересоздать контейнеры и при сомнениях — пересоздать БД из чистого бэкапа.
 
 ### Поднять frontend
 ```bash
