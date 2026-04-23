@@ -86,6 +86,9 @@ func TestDeleteCommentPermission(t *testing.T) {
 	if err = svc.DeleteComment(context.Background(), domain.User{ID: 2, Roles: []domain.Role{domain.RolePlayer}}, 10); err != nil {
 		t.Fatalf("expected owner to delete within window, got %v", err)
 	}
+	if err = svc.DeleteComment(context.Background(), domain.User{ID: 99, Roles: []domain.Role{domain.RolePlayer}, Permissions: []string{domain.PermCommentDeleteAny}}, 10); err != nil {
+		t.Fatalf("expected user with comment.delete.any to delete чужой комментарий, got %v", err)
+	}
 }
 
 func TestUpdateCommentOnlyOwnerWithinWindow(t *testing.T) {

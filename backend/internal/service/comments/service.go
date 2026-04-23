@@ -93,7 +93,7 @@ func (s Service) DeleteComment(ctx context.Context, user domain.User, commentID 
 	if err != nil {
 		return fmt.Errorf("load comment by id %d: %w", commentID, err)
 	}
-	if hasRole(user, domain.RoleAdmin, domain.RoleSuperadmin) {
+	if hasRole(user, domain.RoleAdmin, domain.RoleSuperadmin) || hasPermission(user, domain.PermCommentDeleteAny) {
 		if deleteErr := s.repo.SoftDelete(ctx, commentID); deleteErr != nil {
 			return fmt.Errorf("admin soft delete comment %d: %w", commentID, deleteErr)
 		}
@@ -151,6 +151,15 @@ func hasRole(user domain.User, roles ...domain.Role) bool {
 			if r == x {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func hasPermission(user domain.User, permission string) bool {
+	for _, current := range user.Permissions {
+		if current == permission {
+			return true
 		}
 	}
 	return false

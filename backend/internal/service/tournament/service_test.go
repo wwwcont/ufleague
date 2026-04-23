@@ -179,7 +179,7 @@ func TestUpdateMatch_ForbidsCaptain(t *testing.T) {
 func TestUpdateMatch_AllowsAdmin(t *testing.T) {
 	repo := &stubRepo{}
 	svc := NewService(repo)
-	actor := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+	actor := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}, Permissions: []string{domain.PermMatchScoreManage}}
 	startAt := time.Now().UTC()
 
 	_, err := svc.UpdateMatch(context.Background(), actor, 10, domain.UpdateMatchRequest{
@@ -193,5 +193,27 @@ func TestUpdateMatch_AllowsAdmin(t *testing.T) {
 	}
 	if !repo.matchUpdated {
 		t.Fatalf("expected match update to be called")
+	}
+}
+
+func TestCreateMatchRequiresMatchCreatePermission(t *testing.T) {
+	repo := &stubRepo{}
+	svc := NewService(repo)
+	actor := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+
+	_, err := svc.CreateMatch(context.Background(), actor, domain.CreateMatchRequest{})
+	if !errors.Is(err, ErrForbidden) {
+		t.Fatalf("expected forbidden when match.create permission is missing, got: %v", err)
+	}
+}
+
+func TestCreateTournamentCycleRequiresTournamentEditPermission(t *testing.T) {
+	repo := &stubRepo{}
+	svc := NewService(repo)
+	actor := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}}
+
+	_, err := svc.CreateTournamentCycle(context.Background(), actor, domain.CreateTournamentCycleRequest{Name: "Summer", BracketTeamCapacity: 16})
+	if !errors.Is(err, ErrForbidden) {
+		t.Fatalf("expected forbidden when tournament.edit permission is missing, got: %v", err)
 	}
 }

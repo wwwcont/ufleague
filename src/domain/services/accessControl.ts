@@ -48,7 +48,7 @@ export const canManageEvent = (
   event: PublicEvent,
   playersById?: Record<string, Player | undefined>,
 ) => {
-  if (isAdmin(session) || hasPermission(session, 'comment.delete.any')) return true
+  if (isAdmin(session) || hasPermission(session, 'event.full.create')) return true
   if (event.entityType === 'team' && event.entityId) return isTeamCaptain(session, teamsById[event.entityId])
   if (event.entityType === 'player' && event.entityId) {
     const player = playersById?.[event.entityId]
@@ -61,4 +61,4 @@ export const canManageEvent = (
 
 export const canEditComment = (_session: AuthSession, comment: CommentNode) => comment.isOwn
 
-export const canDeleteComment = (session: AuthSession, comment: CommentNode) => comment.isOwn || isAdmin(session)
+export const canDeleteComment = (session: AuthSession, comment: CommentNode) => comment.isOwn || isAdmin(session) || hasPermission(session, 'comment.delete.any')

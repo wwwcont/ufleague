@@ -35,3 +35,26 @@ func TestCanCaptainManageTeamForCaptainOwnership(t *testing.T) {
 		t.Fatalf("captain should not be allowed for another team")
 	}
 }
+
+func TestHasPermissionAllowsSuperadminWithoutExplicitPermission(t *testing.T) {
+	engine := New()
+	superadmin := domain.User{ID: 2, Roles: []domain.Role{domain.RoleSuperadmin}}
+	if !engine.HasPermission(superadmin, domain.PermMatchCreate) {
+		t.Fatalf("superadmin should be allowed for any permission")
+	}
+}
+
+func TestHasPermissionRespectsExplicitPermissions(t *testing.T) {
+	engine := New()
+	admin := domain.User{
+		ID:          1,
+		Roles:       []domain.Role{domain.RoleAdmin},
+		Permissions: []string{domain.PermMatchCreate},
+	}
+	if !engine.CanCreateMatch(admin) {
+		t.Fatalf("admin with explicit match.create permission should be allowed")
+	}
+	if engine.CanDeleteFromArchive(admin) {
+		t.Fatalf("admin without archive.delete permission should be denied")
+	}
+}

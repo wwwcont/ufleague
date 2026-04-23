@@ -1,0 +1,2 @@
+-- no-op rollback: backfill migration intentionally does not remove permissions
+-- because rows may have been edited manually after deployment.
