@@ -42,6 +42,9 @@ type AssignRolesRequest struct {
 type AssignPermissionsRequest struct {
 	Permissions []string `json:"permissions"`
 }
+type AssignPlayerRoleRequest struct {
+	TeamID int64 `json:"team_id"`
+}
 type AssignRestrictionsRequest struct {
 	Restrictions []string `json:"restrictions"`
 }

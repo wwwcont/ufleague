@@ -25,6 +25,7 @@ type Repository interface {
 	ModerateDeleteComment(ctx context.Context, commentID int64) error
 	ReplaceUserRoles(ctx context.Context, userID int64, roles []domain.Role) error
 	ReplaceUserPermissions(ctx context.Context, userID int64, perms []string) error
+	AddUserPermissions(ctx context.Context, userID int64, perms []string) error
 	ReplaceUserRestrictions(ctx context.Context, userID int64, rs []string) error
 	UpsertGlobalSetting(ctx context.Context, key string, value map[string]any, by int64) error
 	AddAuditLog(ctx context.Context, actor int64, action, targetType, targetID string, metadata map[string]any) error
@@ -52,8 +53,7 @@ type Service struct {
 }
 
 var (
-	ErrUserAlreadyCaptain    = errors.New("user already captain")
-	ErrTeamAlreadyHasCaptain = errors.New("team already has captain")
+	ErrUserAlreadyCaptain = errors.New("user already captain")
 )
 
 func NewService(repo Repository) Service {
@@ -212,11 +212,8 @@ func (s Service) AdminTransferCaptain(ctx context.Context, actor domain.User, te
 		return err
 	}
 	if newCaptain != nil {
-		if team.CaptainUserID != nil {
-			if *team.CaptainUserID == *newCaptain {
-				return nil
-			}
-			return ErrTeamAlreadyHasCaptain
+		if team.CaptainUserID != nil && *team.CaptainUserID == *newCaptain {
+			return nil
 		}
 		teams, countErr := s.repo.CountTeamsByCaptain(ctx, *newCaptain)
 		if countErr != nil {
@@ -228,6 +225,18 @@ func (s Service) AdminTransferCaptain(ctx context.Context, actor domain.User, te
 	}
 	if err = s.repo.TransferCaptain(ctx, teamID, newCaptain); err != nil {
 		return err
+	}
+	previousCaptain := team.CaptainUserID
+	if previousCaptain != nil && (newCaptain == nil || *previousCaptain != *newCaptain) {
+		if err = s.repo.RevokeUserRole(ctx, *previousCaptain, domain.RoleCaptain); err != nil {
+			return err
+		}
+		if err = s.repo.EnsureUserRole(ctx, *previousCaptain, domain.RolePlayer); err != nil {
+			return err
+		}
+		if err = s.EnsureCaptainPlayerProfile(ctx, *previousCaptain, teamID, "Player"); err != nil {
+			return err
+		}
 	}
 	if newCaptain != nil {
 		if err := s.repo.EnsureUserRole(ctx, *newCaptain, domain.RoleCaptain); err != nil {
@@ -241,6 +250,23 @@ func (s Service) AdminTransferCaptain(ctx context.Context, actor domain.User, te
 		}
 	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "admin.transfer_captain", "team", strconv.FormatInt(teamID, 10), map[string]any{"new_captain": newCaptain})
+}
+
+func (s Service) AdminAssignPlayerRole(ctx context.Context, actor domain.User, userID, teamID int64) error {
+	if !s.policy.CanAssignPlayerRole(actor) {
+		return fmt.Errorf("forbidden")
+	}
+	if _, err := s.repo.GetTeamByID(ctx, teamID); err != nil {
+		return err
+	}
+	profile, err := s.repo.GetProfile(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if err = s.EnsureCaptainPlayerProfile(ctx, userID, teamID, profile.DisplayName); err != nil {
+		return err
+	}
+	return s.repo.AddAuditLog(ctx, actor.ID, "admin.assign_player_role", "user", strconv.FormatInt(userID, 10), map[string]any{"team_id": teamID})
 }
 
 func (s Service) AdminAssignCaptainRole(ctx context.Context, actor domain.User, userID int64) error {
@@ -448,16 +474,33 @@ func (s Service) SuperadminAssignRoles(ctx context.Context, actor domain.User, u
 	if err := s.repo.ReplaceUserRoles(ctx, userID, roles); err != nil {
 		return err
 	}
+	if err := s.repo.AddUserPermissions(ctx, userID, defaultPermissionsForRoles(roles)); err != nil {
+		return err
+	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "superadmin.assign_roles", "user", strconv.FormatInt(userID, 10), map[string]any{"roles": roles})
 }
 func (s Service) SuperadminAssignPermissions(ctx context.Context, actor domain.User, userID int64, req domain.AssignPermissionsRequest) error {
 	if !s.policy.CanSuperadminManageIAM(actor) {
 		return fmt.Errorf("forbidden")
 	}
+	for _, permission := range req.Permissions {
+		if !domain.IsKnownPermission(permission) {
+			return fmt.Errorf("unknown permission: %s", permission)
+		}
+	}
 	if err := s.repo.ReplaceUserPermissions(ctx, userID, req.Permissions); err != nil {
 		return err
 	}
 	return s.repo.AddAuditLog(ctx, actor.ID, "superadmin.assign_permissions", "user", strconv.FormatInt(userID, 10), map[string]any{"permissions": req.Permissions})
+}
+
+func defaultPermissionsForRoles(roles []domain.Role) []string {
+	for _, role := range roles {
+		if role == domain.RoleSuperadmin || role == domain.RoleAdmin {
+			return append([]string{}, domain.KnownPermissions...)
+		}
+	}
+	return nil
 }
 func (s Service) SuperadminAssignRestrictions(ctx context.Context, actor domain.User, userID int64, req domain.AssignRestrictionsRequest) error {
 	if !s.policy.CanSuperadminManageIAM(actor) {

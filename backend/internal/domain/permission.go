@@ -16,3 +16,29 @@ const (
 	PermMatchCreate       = "match.create"
 	PermCommentDeleteAny  = "comment.delete.any"
 )
+
+var KnownPermissions = []string{
+	PermCommentBanIssue,
+	PermRolePlayerAssign,
+	PermRoleCaptainAssign,
+	PermRolePlayerRevoke,
+	PermRoleCaptainRevoke,
+	PermPlayoffGridEdit,
+	PermTournamentEdit,
+	PermStatsManualManage,
+	PermEventFullCreate,
+	PermMatchScoreManage,
+	PermArchiveManage,
+	PermArchiveDelete,
+	PermMatchCreate,
+	PermCommentDeleteAny,
+}
+
+func IsKnownPermission(permission string) bool {
+	for _, item := range KnownPermissions {
+		if item == permission {
+			return true
+		}
+	}
+	return false
+}

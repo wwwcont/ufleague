@@ -910,6 +910,9 @@ export const cabinetRepository: CabinetRepository = {
   async adminRevokeCaptainRole(userId) {
     await api(`/api/admin/users/${userId}/captain-role`, { method: 'DELETE' })
   },
+  async adminAssignPlayerRole(userId, teamId) {
+    await api(`/api/admin/users/${userId}/player-role`, { method: 'POST', body: JSON.stringify({ team_id: Number(teamId) }) })
+  },
   async adminRemovePlayerFromUser(userId) {
     await api(`/api/admin/users/${userId}/player`, { method: 'DELETE' })
   },

@@ -114,6 +114,18 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
   settings: { title: 'Глобальные настройки', description: 'Системные флаги и конфигурации.', tips: ['Value должно быть валидным JSON.', 'Глобальные изменения — только superadmin.'] },
 }
 
+const sectionPermissionOverrides: Record<string, string[]> = {
+  'users-access-management': ['role.player.assign', 'role.captain.assign', 'role.player.revoke', 'role.captain.revoke'],
+  'issue-restriction': ['comments.ban.issue'],
+  'comment-blocks': ['comments.ban.issue'],
+  'create-match': ['match.create'],
+  'matches-archive': ['archive.manage', 'archive.delete'],
+  'teams-archive': ['archive.manage', 'archive.delete'],
+  'stats-manual-edit': ['stats.manual.manage'],
+  'stats-change-history': ['stats.manual.manage'],
+  'tournament-management': ['tournament.edit', 'playoff.grid.edit'],
+}
+
 const parseCSV = (raw: string) => raw.split(',').map((item) => item.trim()).filter(Boolean)
 const granularAdminPermissions: Array<{ key: string; label: string }> = [
   { key: 'comments.ban.issue', label: 'Выдача блокировок' },
@@ -399,7 +411,9 @@ export const CabinetSectionPage = () => {
   )
   const minRole = section ? sectionRoles[section] : null
   const meta = section ? sectionMeta[section] : null
-  const allowed = minRole ? currentRoles.some((role) => roleRank[role] >= roleRank[minRole]) : false
+  const allowedByRole = minRole ? currentRoles.some((role) => roleRank[role] >= roleRank[minRole]) : false
+  const allowedByPermission = section ? (sectionPermissionOverrides[section] ?? []).some((permission) => session.permissions.includes(permission as typeof session.permissions[number])) : false
+  const allowed = allowedByRole || allowedByPermission
   const managedTeamId = useMemo(() => {
     if (session.user.teamId) return session.user.teamId
     const captainTeam = (teams ?? []).find((item) => item.captainUserId === session.user.id)
@@ -1251,15 +1265,16 @@ export const CabinetSectionPage = () => {
                       <option value="">Команда для переноса</option>
                       {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
                     </select>
-                    <button type="button" disabled={!membershipTeamId || !selectedUser.telegramUsername} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => {
+                    <button type="button" disabled={!membershipTeamId} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => {
                       setConfirmDialog({
                         title: 'Перенести игрока в другую команду?',
-                        description: 'Пользователю будет отправлено приглашение в выбранную команду.',
+                        description: 'Профиль игрока будет сразу переведен в выбранную команду.',
                         confirmLabel: 'Перенести',
                         onConfirm: async () => {
                           try {
-                            await teamsRepository.captainInviteByUsername?.(membershipTeamId, selectedUser.telegramUsername ?? userLookupUsername.replace(/^@/, ''))
-                            setStatus('ok: приглашение игроку отправлено')
+                            await cabinetRepository.adminAssignPlayerRole?.(selectedUser.id, membershipTeamId)
+                            setSelectedUser({ ...selectedUser, teamId: membershipTeamId })
+                            setStatus('ok: игрок переведен в новую команду')
                           } catch (error) {
                             setStatus(`error: ${(error as Error).message}`)
                           }
@@ -1276,21 +1291,22 @@ export const CabinetSectionPage = () => {
                           <option value="">Команда для приглашения</option>
                           {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
                         </select>
-                        <button type="button" disabled={!membershipTeamId || !selectedUser.telegramUsername} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => {
+                        <button type="button" disabled={!membershipTeamId} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={() => {
                           setConfirmDialog({
-                            title: 'Пригласить в команду?',
-                            description: 'Пользователю будет отправлено приглашение в команду.',
-                            confirmLabel: 'Пригласить',
+                            title: 'Сделать игроком команды?',
+                            description: 'Пользователь получит роль игрока и будет привязан к выбранной команде.',
+                            confirmLabel: 'Назначить',
                             onConfirm: async () => {
                               try {
-                                await teamsRepository.captainInviteByUsername?.(membershipTeamId, selectedUser.telegramUsername ?? userLookupUsername.replace(/^@/, ''))
-                                setStatus('ok: приглашение отправлено')
+                                await cabinetRepository.adminAssignPlayerRole?.(selectedUser.id, membershipTeamId)
+                                setSelectedUser({ ...selectedUser, statuses: Array.from(new Set<UserRole>([...selectedUser.statuses, 'player'])), teamId: membershipTeamId })
+                                setStatus('ok: роль игрока назначена')
                               } catch (error) {
                                 setStatus(`error: ${(error as Error).message}`)
                               }
                             },
                           })
-                        }}>Пригласить в команду</button>
+                        }}>Назначить игроком</button>
                       </>
                     )}
                   </div>

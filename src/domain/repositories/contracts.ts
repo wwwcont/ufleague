@@ -119,6 +119,7 @@ export interface CabinetRepository {
   adminBlockComments(input: { userId: string; permanent: boolean; untilUnix: number; reason: string }): Promise<void>
   adminAssignCaptainRole?(userId: string): Promise<void>
   adminRevokeCaptainRole?(userId: string): Promise<void>
+  adminAssignPlayerRole?(userId: string, teamId: string): Promise<void>
   adminRemovePlayerFromUser?(userId: string): Promise<void>
   superadminAssignRoles(input: { userId: string; roles: UserRole[] }): Promise<void>
   superadminAssignPermissions(input: { userId: string; permissions: string[] }): Promise<void>

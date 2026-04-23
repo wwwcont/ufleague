@@ -763,6 +763,14 @@ func (r *CabinetAdminRepository) ReplaceUserPermissions(ctx context.Context, use
 	}
 	return nil
 }
+func (r *CabinetAdminRepository) AddUserPermissions(ctx context.Context, userID int64, perms []string) error {
+	for _, p := range perms {
+		if _, err := r.pool.Exec(ctx, `INSERT INTO user_permissions (user_id, permission) VALUES ($1,$2) ON CONFLICT (user_id, permission) DO NOTHING`, userID, p); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 func (r *CabinetAdminRepository) ReplaceUserRestrictions(ctx context.Context, userID int64, rs []string) error {
 	_, err := r.pool.Exec(ctx, `DELETE FROM user_restrictions WHERE user_id=$1`, userID)
 	if err != nil {
