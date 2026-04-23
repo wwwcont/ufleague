@@ -329,6 +329,28 @@ func TestSuperadminAssignPermissionsRejectsUnknownPermission(t *testing.T) {
 	}
 }
 
+func TestAdminWithManagePermissionsCanAssignPermissionsToAnotherAdmin(t *testing.T) {
+	repo := &fakeRepo{roles: []domain.Role{domain.RoleAdmin}}
+	svc := NewService(repo)
+	actor := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}, Permissions: []string{domain.PermAdminPermsManage}}
+
+	err := svc.SuperadminAssignPermissions(context.Background(), actor, 77, domain.AssignPermissionsRequest{Permissions: []string{domain.PermMatchCreate}})
+	if err != nil {
+		t.Fatalf("expected delegated admin permission management to succeed, got %v", err)
+	}
+}
+
+func TestAdminWithManagePermissionsCannotGrantManagePermissionsFlag(t *testing.T) {
+	repo := &fakeRepo{roles: []domain.Role{domain.RoleAdmin}}
+	svc := NewService(repo)
+	actor := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}, Permissions: []string{domain.PermAdminPermsManage}}
+
+	err := svc.SuperadminAssignPermissions(context.Background(), actor, 77, domain.AssignPermissionsRequest{Permissions: []string{domain.PermAdminPermsManage}})
+	if err == nil {
+		t.Fatalf("expected forbidden when non-superadmin grants admin.permissions.manage")
+	}
+}
+
 func TestAdminAssignPlayerRoleCreatesOrMovesProfile(t *testing.T) {
 	repo := &fakeRepo{player: nil}
 	svc := NewService(repo)

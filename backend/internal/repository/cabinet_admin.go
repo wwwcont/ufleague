@@ -752,16 +752,20 @@ func (r *CabinetAdminRepository) ReplaceUserRoles(ctx context.Context, userID in
 	return tx.Commit(ctx)
 }
 func (r *CabinetAdminRepository) ReplaceUserPermissions(ctx context.Context, userID int64, perms []string) error {
-	_, err := r.pool.Exec(ctx, `DELETE FROM user_permissions WHERE user_id=$1`, userID)
+	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback(ctx)
+	if _, err = tx.Exec(ctx, `DELETE FROM user_permissions WHERE user_id=$1`, userID); err != nil {
+		return err
+	}
 	for _, p := range perms {
-		if _, err = r.pool.Exec(ctx, `INSERT INTO user_permissions (user_id, permission) VALUES ($1,$2)`, userID, p); err != nil {
+		if _, err = tx.Exec(ctx, `INSERT INTO user_permissions (user_id, permission) VALUES ($1,$2)`, userID, p); err != nil {
 			return err
 		}
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 func (r *CabinetAdminRepository) AddUserPermissions(ctx context.Context, userID int64, perms []string) error {
 	for _, p := range perms {

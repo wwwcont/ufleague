@@ -347,6 +347,7 @@ export type PermissionKey =
   | 'archive.delete'
   | 'match.create'
   | 'comment.delete.any'
+  | 'admin.permissions.manage'
   | 'event.edit'
   | 'event.delete'
   | 'team.squad.manage'

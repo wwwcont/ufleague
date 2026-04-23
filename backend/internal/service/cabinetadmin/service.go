@@ -480,12 +480,34 @@ func (s Service) SuperadminAssignRoles(ctx context.Context, actor domain.User, u
 	return s.repo.AddAuditLog(ctx, actor.ID, "superadmin.assign_roles", "user", strconv.FormatInt(userID, 10), map[string]any{"roles": roles})
 }
 func (s Service) SuperadminAssignPermissions(ctx context.Context, actor domain.User, userID int64, req domain.AssignPermissionsRequest) error {
-	if !s.policy.CanSuperadminManageIAM(actor) {
+	isSuperadmin := s.policy.CanSuperadminManageIAM(actor)
+	if !isSuperadmin && !s.policy.CanManageAdminPermissions(actor) {
 		return fmt.Errorf("forbidden")
+	}
+	targetRoles, err := s.repo.GetUserRoles(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if !isSuperadmin {
+		isTargetAdmin := false
+		for _, role := range targetRoles {
+			if role == domain.RoleSuperadmin {
+				return fmt.Errorf("forbidden")
+			}
+			if role == domain.RoleAdmin {
+				isTargetAdmin = true
+			}
+		}
+		if !isTargetAdmin {
+			return fmt.Errorf("forbidden")
+		}
 	}
 	for _, permission := range req.Permissions {
 		if !domain.IsKnownPermission(permission) {
 			return fmt.Errorf("unknown permission: %s", permission)
+		}
+		if !isSuperadmin && permission == domain.PermAdminPermsManage {
+			return fmt.Errorf("forbidden")
 		}
 	}
 	if err := s.repo.ReplaceUserPermissions(ctx, userID, req.Permissions); err != nil {
@@ -497,7 +519,14 @@ func (s Service) SuperadminAssignPermissions(ctx context.Context, actor domain.U
 func defaultPermissionsForRoles(roles []domain.Role) []string {
 	for _, role := range roles {
 		if role == domain.RoleSuperadmin || role == domain.RoleAdmin {
-			return append([]string{}, domain.KnownPermissions...)
+			defaults := make([]string, 0, len(domain.KnownPermissions))
+			for _, permission := range domain.KnownPermissions {
+				if role == domain.RoleAdmin && permission == domain.PermAdminPermsManage {
+					continue
+				}
+				defaults = append(defaults, permission)
+			}
+			return defaults
 		}
 	}
 	return nil

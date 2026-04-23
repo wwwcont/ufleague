@@ -15,6 +15,7 @@ const (
 	PermArchiveDelete     = "archive.delete"
 	PermMatchCreate       = "match.create"
 	PermCommentDeleteAny  = "comment.delete.any"
+	PermAdminPermsManage  = "admin.permissions.manage"
 )
 
 var KnownPermissions = []string{
@@ -32,6 +33,7 @@ var KnownPermissions = []string{
 	PermArchiveDelete,
 	PermMatchCreate,
 	PermCommentDeleteAny,
+	PermAdminPermsManage,
 }
 
 func IsKnownPermission(permission string) bool {

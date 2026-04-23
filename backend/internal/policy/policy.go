@@ -77,6 +77,9 @@ func (e Engine) CanCreateMatch(user domain.User) bool {
 func (e Engine) CanDeleteAnyComment(user domain.User) bool {
 	return e.HasPermission(user, domain.PermCommentDeleteAny)
 }
+func (e Engine) CanManageAdminPermissions(user domain.User) bool {
+	return e.HasPermission(user, domain.PermAdminPermsManage)
+}
 
 func hasRole(user domain.User, role domain.Role) bool {
 	for _, r := range user.Roles {

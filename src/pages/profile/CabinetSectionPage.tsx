@@ -127,7 +127,7 @@ const sectionPermissionOverrides: Record<string, string[]> = {
 }
 
 const parseCSV = (raw: string) => raw.split(',').map((item) => item.trim()).filter(Boolean)
-const granularAdminPermissions: Array<{ key: string; label: string }> = [
+const granularAdminPermissions: Array<{ key: string; label: string; superadminOnly?: boolean }> = [
   { key: 'comments.ban.issue', label: 'Выдача блокировок' },
   { key: 'role.player.assign', label: 'Выдача роли игрока' },
   { key: 'role.captain.assign', label: 'Выдача роли капитана' },
@@ -142,6 +142,7 @@ const granularAdminPermissions: Array<{ key: string; label: string }> = [
   { key: 'archive.delete', label: 'Удаление матчей и команд' },
   { key: 'match.create', label: 'Создание матчей' },
   { key: 'comment.delete.any', label: 'Удаление комментариев' },
+  { key: 'admin.permissions.manage', label: 'Настройка прав админов', superadminOnly: true },
 ]
 const mskOffsetMinutes = 3 * 60
 const matchStatusOptions: Array<{ value: Match['status']; label: string }> = [
@@ -1358,22 +1359,24 @@ export const CabinetSectionPage = () => {
                   }}>Сохранить права</button>
                 </div>
                 <div className="mt-2 space-y-2">
-                  {granularAdminPermissions.map((permission) => {
-                    const enabled = selectedUserPermissions.includes(permission.key)
-                    return (
-                      <button
-                        key={permission.key}
-                        type="button"
-                        onClick={() => setSelectedUserPermissions((prev) => (prev.includes(permission.key) ? prev.filter((item) => item !== permission.key) : [...prev, permission.key]))}
-                        className={`group inline-flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-xs transition ${enabled ? 'border-accentYellow/80 bg-accentYellow/10 text-textPrimary' : 'border-borderSubtle bg-mutedBg text-textSecondary'}`}
-                      >
-                        <span>{permission.label}</span>
-                        <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${enabled ? 'bg-accentYellow' : 'bg-panelSoft'}`}>
-                          <span className={`inline-block h-4 w-4 transform rounded-full bg-app transition ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                        </span>
-                      </button>
-                    )
-                  })}
+                  {granularAdminPermissions
+                    .filter((permission) => !permission.superadminOnly || currentRoles.some((role) => roleRank[role] >= roleRank.superadmin))
+                    .map((permission) => {
+                      const enabled = selectedUserPermissions.includes(permission.key)
+                      return (
+                        <button
+                          key={permission.key}
+                          type="button"
+                          onClick={() => setSelectedUserPermissions((prev) => (prev.includes(permission.key) ? prev.filter((item) => item !== permission.key) : [...prev, permission.key]))}
+                          className={`group inline-flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-xs transition ${enabled ? 'border-accentYellow/80 bg-accentYellow/10 text-textPrimary' : 'border-borderSubtle bg-mutedBg text-textSecondary'}`}
+                        >
+                          <span>{permission.label}</span>
+                          <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${enabled ? 'bg-accentYellow' : 'bg-panelSoft'}`}>
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-app transition ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                          </span>
+                        </button>
+                      )
+                    })}
                 </div>
               </div>
             </div>

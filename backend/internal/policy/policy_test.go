@@ -58,3 +58,11 @@ func TestHasPermissionRespectsExplicitPermissions(t *testing.T) {
 		t.Fatalf("admin without archive.delete permission should be denied")
 	}
 }
+
+func TestCanManageAdminPermissions(t *testing.T) {
+	engine := New()
+	admin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleAdmin}, Permissions: []string{domain.PermAdminPermsManage}}
+	if !engine.CanManageAdminPermissions(admin) {
+		t.Fatalf("expected admin.permissions.manage to allow delegated admin permissions management")
+	}
+}
