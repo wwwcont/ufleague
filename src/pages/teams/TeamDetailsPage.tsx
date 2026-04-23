@@ -450,7 +450,7 @@ export const TeamDetailsPage = () => {
           <h2 className="text-base font-semibold text-textPrimary">Администрирование</h2>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             <Link
-              to={`/profile/page-change-history?targetType=team&targetId=${encodeURIComponent(team.id)}&returnTo=${encodeURIComponent(`/teams/${team.id}`)}`}
+              to={`/history/team/${team.id}`}
               className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-left"
             >
               История изменений

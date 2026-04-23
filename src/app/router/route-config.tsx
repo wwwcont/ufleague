@@ -4,6 +4,7 @@ import { EventDetailsPage } from '../../pages/events/EventDetailsPage'
 import { EventsPage } from '../../pages/events/EventsPage'
 import { CommentsPage } from '../../pages/comments/CommentsPage'
 import { HomePage } from '../../pages/home/HomePage'
+import { EntityChangeHistoryPage } from '../../pages/history/EntityChangeHistoryPage'
 import { LoginPage } from '../../pages/login/LoginPage'
 import { MatchDetailsPage } from '../../pages/matches/MatchDetailsPage'
 import { MatchEventsPage } from '../../pages/matches/MatchEventsPage'
@@ -41,6 +42,7 @@ export const router = createBrowserRouter([
       { path: 'top-scorers', element: <TopScorersPage /> },
       { path: 'top-players', element: <TopScorersPage /> },
       { path: 'players/:playerId', element: <PlayerDetailsPage /> },
+      { path: 'history/:entityType/:entityId', element: <EntityChangeHistoryPage /> },
       { path: 'table', element: <TablePage /> },
       { path: 'search', element: <SearchPage /> },
       { path: 'events', element: <EventsPage /> },
