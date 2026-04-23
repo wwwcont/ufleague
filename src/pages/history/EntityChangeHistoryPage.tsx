@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { PageContainer } from '../../layouts/containers/PageContainer'
 import { useSession } from '../../app/providers/use-session'
@@ -7,8 +7,9 @@ import { isAdmin } from '../../domain/services/accessControl'
 import { formatDateTimeMsk } from '../../lib/date-time'
 import { useTeamDetails } from '../../hooks/data/useTeamDetails'
 import { usePlayerDetails } from '../../hooks/data/usePlayerDetails'
+import { useQueryState } from '../../hooks/data/useQueryState'
 
-type EntityType = 'team' | 'player'
+type EntityType = 'team' | 'player' | 'match' | 'user'
 
 type ChangeItem = {
   id: string
@@ -51,9 +52,14 @@ const changeLines = (metadata?: Record<string, unknown>) => {
 export const EntityChangeHistoryPage = () => {
   const { entityType, entityId } = useParams<{ entityType: EntityType; entityId: string }>()
   const { session } = useSession()
-  const { cabinetRepository } = useRepositories()
+  const { cabinetRepository, usersRepository } = useRepositories()
   const { data: team } = useTeamDetails(entityType === 'team' ? entityId : undefined)
   const { data: player } = usePlayerDetails(entityType === 'player' ? entityId : undefined)
+  const userLoader = useCallback(() => {
+    if (entityType !== 'user' || !entityId) return Promise.resolve(null)
+    return usersRepository.getUserCard(entityId)
+  }, [entityId, entityType, usersRepository])
+  const { data: user } = useQueryState(userLoader, () => false)
   const [items, setItems] = useState<ChangeItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -74,15 +80,22 @@ export const EntityChangeHistoryPage = () => {
       .finally(() => setLoading(false))
   }, [cabinetRepository, entityId, entityType])
 
-  const title = useMemo(() => {
-    if (entityType === 'team') return `История изменений команды: ${team?.name ?? `#${entityId ?? ''}`}`
-    if (entityType === 'player') return `История изменений игрока: ${player?.displayName ?? `#${entityId ?? ''}`}`
-    return 'История изменений'
-  }, [entityId, entityType, player?.displayName, team?.name])
+  const targetFromAudit = String(items[0]?.metadata?.target_label ?? '').trim()
+  let title = 'История изменений'
+  if (entityType === 'team') title = `История изменений команды: ${team?.name ?? `#${entityId ?? ''}`}`
+  if (entityType === 'player') title = `История изменений игрока: ${player?.displayName ?? `#${entityId ?? ''}`}`
+  if (entityType === 'match') title = `История изменений матча: ${targetFromAudit || `#${entityId ?? ''}`}`
+  if (entityType === 'user') title = `История изменений пользователя: ${user?.telegramUsername ? `@${user.telegramUsername}` : (user?.displayName ?? `#${entityId ?? ''}`)}`
 
-  const backRoute = entityType === 'team' ? `/teams/${entityId}` : `/players/${entityId}`
+  const backRoute = entityType === 'team'
+    ? `/teams/${entityId}`
+    : entityType === 'player'
+      ? `/players/${entityId}`
+      : entityType === 'match'
+        ? `/matches/${entityId}`
+        : `/users/${entityId}`
 
-  if (!entityType || !entityId || !['team', 'player'].includes(entityType)) {
+  if (!entityType || !entityId || !['team', 'player', 'match', 'user'].includes(entityType)) {
     return <Navigate to="/" replace />
   }
 
@@ -108,11 +121,16 @@ export const EntityChangeHistoryPage = () => {
           <div className="space-y-2">
             {items.map((item) => {
               const actorName = String(item.metadata?.actor_name ?? 'Система')
+              const actorUsername = String(item.metadata?.actor_username ?? '')
+              const targetLabel = String(item.metadata?.target_label ?? '').trim()
               const lines = changeLines(item.metadata)
               return (
                 <article key={item.id} className="rounded-xl border border-borderSubtle bg-mutedBg p-3">
                   <p className="text-sm font-semibold text-textPrimary">{item.action}</p>
-                  <p className="mt-1 text-xs text-textMuted">{formatDateTimeMsk(item.createdAt)} · {actorName}</p>
+                  <p className="mt-1 text-xs text-textMuted">
+                    {formatDateTimeMsk(item.createdAt)} · {actorName}{actorUsername ? ` (@${actorUsername})` : ''}
+                  </p>
+                  {targetLabel && <p className="mt-1 text-xs text-textSecondary">Объект: {targetLabel}</p>}
                   {lines.length > 0 ? (
                     <div className="mt-2 space-y-1">
                       {lines.map((line) => <p key={line} className="text-xs text-textSecondary">{line}</p>)}

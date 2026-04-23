@@ -46,6 +46,7 @@ export const UserDetailsPage = () => {
     if (!userId) return false
     return session.isAuthenticated && (session.user.id === userId || isAdmin(session))
   }, [session, userId])
+  const canViewAuditHistory = useMemo(() => session.isAuthenticated && isAdmin(session), [session])
 
   useEffect(() => {
     if (!userId || !canEditUser || !usersRepository.getUserProfile) return
@@ -182,6 +183,17 @@ export const UserDetailsPage = () => {
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             {user.playerId && <Link to={`/players/${user.playerId}`} className="rounded-lg border border-borderSubtle px-3 py-2">Карточка игрока</Link>}
             {user.teamId && <Link to={`/teams/${user.teamId}`} className="rounded-lg border border-borderSubtle px-3 py-2">Карточка команды</Link>}
+          </div>
+        </section>
+      )}
+
+      {canViewAuditHistory && (
+        <section className="rounded-2xl border border-amber-500/30 bg-panelBg p-4 shadow-soft">
+          <h2 className="text-base font-semibold text-textPrimary">Администрирование</h2>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <Link to={`/history/user/${user.id}`} className="rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm text-left">
+              История изменений
+            </Link>
           </div>
         </section>
       )}

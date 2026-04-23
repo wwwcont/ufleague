@@ -1178,7 +1178,7 @@ export const MatchDetailsPage = () => {
         <section className="mt-3 rounded-2xl border border-borderSubtle bg-panelBg p-3 shadow-soft">
           <div className="space-y-2">
             <Link
-              to={`/profile/page-change-history?targetType=match&targetId=${encodeURIComponent(match.id)}&returnTo=${encodeURIComponent(`/matches/${match.id}`)}`}
+              to={`/history/match/${match.id}`}
               className="inline-flex w-full justify-center rounded-xl border border-borderSubtle bg-panelBg px-4 py-2 text-xs font-semibold text-textPrimary shadow-soft"
             >
               История изменений

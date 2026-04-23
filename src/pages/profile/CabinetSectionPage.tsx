@@ -311,9 +311,9 @@ export const CabinetSectionPage = () => {
   const [myActions, setMyActions] = useState<Array<{ id: string; action: string; targetType: string; targetId: string; route: string; createdAt: string; metadata?: Record<string, unknown> }>>([])
   const [pageChangeHistory, setPageChangeHistory] = useState<Array<{ id: string; action: string; targetType: string; targetId: string; route: string; createdAt: string; metadata?: Record<string, unknown> }>>([])
   const [pageChangeSearch, setPageChangeSearch] = useState(searchParams.get('query') ?? '')
-  const [pageChangeFilter, setPageChangeFilter] = useState<'all' | 'team' | 'match' | 'player'>(() => {
+  const [pageChangeFilter, setPageChangeFilter] = useState<'all' | 'team' | 'match' | 'player' | 'user'>(() => {
     const targetType = searchParams.get('targetType')
-    return targetType === 'team' || targetType === 'match' || targetType === 'player' ? targetType : 'all'
+    return targetType === 'team' || targetType === 'match' || targetType === 'player' || targetType === 'user' ? targetType : 'all'
   })
   const [deleteArchivedMatchId, setDeleteArchivedMatchId] = useState<string | null>(null)
   const [myNotifications, setMyNotifications] = useState<Array<{ id: string; notificationType: string; title: string; body: string; route: string; status: string; createdAt: string }>>([])
@@ -417,6 +417,12 @@ export const CabinetSectionPage = () => {
   const allowed = allowedByRole || allowedByPermission
   const canManageAdminPermissions = currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)
     || session.permissions.includes('admin.permissions.manage')
+  const isSuperadminActor = currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)
+  const canAssignCaptainRole = isSuperadminActor || session.permissions.includes('role.captain.assign')
+  const canRevokeCaptainRole = isSuperadminActor || session.permissions.includes('role.captain.revoke')
+  const canAssignPlayerRole = isSuperadminActor || session.permissions.includes('role.player.assign')
+  const canRevokePlayerRole = isSuperadminActor || session.permissions.includes('role.player.revoke')
+  const canManageArchive = isSuperadminActor || session.permissions.includes('archive.manage')
   const managedTeamId = useMemo(() => {
     if (session.user.teamId) return session.user.teamId
     const captainTeam = (teams ?? []).find((item) => item.captainUserId === session.user.id)
@@ -977,17 +983,19 @@ export const CabinetSectionPage = () => {
             />
             <select
               value={pageChangeFilter}
-              onChange={(event) => setPageChangeFilter(event.target.value as 'all' | 'team' | 'match' | 'player')}
+              onChange={(event) => setPageChangeFilter(event.target.value as 'all' | 'team' | 'match' | 'player' | 'user')}
               className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-3 py-2 text-sm"
             >
               <option value="all">Все</option>
               <option value="team">Команды</option>
               <option value="match">Матчи</option>
               <option value="player">Игроки</option>
+              <option value="user">Пользователи</option>
             </select>
           </div>
           {filteredPageChangeHistory.length ? filteredPageChangeHistory.map((item) => {
             const actorName = String(item.metadata?.actor_name ?? 'Неизвестно')
+            const actorUsername = String(item.metadata?.actor_username ?? '')
             const rawChanges = (item.metadata?.changes ?? {}) as Record<string, { from?: unknown; to?: unknown }>
             const changeLines = Object.entries(rawChanges)
               .map(([field, value]) => {
@@ -997,18 +1005,22 @@ export const CabinetSectionPage = () => {
                 return `${label}: ${from} → ${to}`
               })
               .slice(0, 4)
-            const targetTitle = item.targetType === 'player'
+            const targetFromMeta = String(item.metadata?.target_label ?? '').trim()
+            const targetTitle = targetFromMeta || (item.targetType === 'player'
               ? (pageChangeTargetNames.playerNames.get(item.targetId) ?? 'Неизвестный игрок')
               : item.targetType === 'team'
                 ? (pageChangeTargetNames.teamNames.get(item.targetId) ?? 'Неизвестная команда')
                 : item.targetType === 'match'
                   ? (pageChangeTargetNames.matchNames.get(item.targetId) ?? 'Неизвестный матч')
-                  : `${pageChangeTargetTypeLabels[item.targetType] ?? item.targetType}`
+                  : item.targetType === 'user'
+                    ? `Пользователь #${item.targetId}`
+                    : `${pageChangeTargetTypeLabels[item.targetType] ?? item.targetType}`)
             const title = `${pageChangeTargetTypeLabels[item.targetType] ?? item.targetType}: ${targetTitle}`
             return (
               <Link key={item.id} to={item.route || '/'} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
                 <p className="text-sm font-semibold text-textPrimary">{title}</p>
-                <p className="mt-1 text-xs text-textMuted">{formatDateTimeMsk(item.createdAt)} · {actorName}</p>
+                <p className="mt-1 text-xs text-textMuted">{formatDateTimeMsk(item.createdAt)} · {actorName}{actorUsername ? ` (@${actorUsername})` : ''}</p>
+                <p className="mt-1 text-xs text-textSecondary">{item.action}</p>
                 {changeLines.length ? (
                   <div className="mt-2 space-y-1">
                     {changeLines.map((line) => <p key={line} className="text-xs text-textSecondary">{line}</p>)}
@@ -1162,11 +1174,13 @@ export const CabinetSectionPage = () => {
               <p className="text-xs text-textMuted">Роли: {selectedUser.statuses.join(', ') || 'guest'}</p>
               <p className="text-xs text-textMuted">Права: {selectedUserPermissions.length ? selectedUserPermissions.join(', ') : 'не назначены'}</p>
 
+              {(canAssignCaptainRole || (selectedUser.statuses.includes('captain') && canRevokeCaptainRole)) && (
               <div className="space-y-2 rounded-lg border border-borderSubtle bg-panelBg p-3">
                 <p className="text-xs text-textMuted">Капитанство</p>
                 {selectedUser.statuses.includes('captain') ? (
                   <div className="space-y-2">
                     <p className="text-xs text-textSecondary">Команда: {selectedUser.teamId ? (teams ?? []).find((team) => team.id === selectedUser.teamId)?.name ?? selectedUser.teamId : 'без команды'}</p>
+                    {canRevokeCaptainRole && (
                     <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary" onClick={() => {
                       setConfirmDialog({
                         title: 'Снять капитанство?',
@@ -1183,8 +1197,10 @@ export const CabinetSectionPage = () => {
                         },
                       })
                     }}>Снять капитанство</button>
+                    )}
                   </div>
                 ) : (
+                  canAssignCaptainRole && (
                   <div className="space-y-2">
                     <select value={selectedUserTeamId} onChange={(e) => setSelectedUserTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
                       <option value="">Выберите команду</option>
@@ -1207,7 +1223,7 @@ export const CabinetSectionPage = () => {
                           },
                         })
                       }}>Сделать капитаном</button>
-                      <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary" onClick={() => {
+                      <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={() => {
                         setConfirmDialog({
                           title: 'Назначить капитаном без команды?',
                           description: 'Пользователь получит роль капитана без привязки к команде.',
@@ -1225,13 +1241,17 @@ export const CabinetSectionPage = () => {
                       }}>Сделать капитаном (без команды)</button>
                     </div>
                   </div>
+                  )
                 )}
               </div>
+              )}
 
+              {(canAssignPlayerRole || canRevokePlayerRole || canManageArchive) && (
               <div className="space-y-2 rounded-lg border border-borderSubtle bg-panelBg p-3">
                 <p className="text-xs text-textMuted">Профиль игрока</p>
                 {selectedUser.statuses.includes('player') ? (
                   <div className="flex flex-wrap gap-2">
+                    {canRevokePlayerRole && (
                     <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary" onClick={() => {
                       setConfirmDialog({
                         title: 'Удалить профиль игрока?',
@@ -1248,6 +1268,8 @@ export const CabinetSectionPage = () => {
                         },
                       })
                     }}>Удалить профиль игрока</button>
+                    )}
+                    {canManageArchive && (
                     <button type="button" disabled={!selectedUser.playerId} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={() => {
                       if (!selectedUser.playerId) return
                       setConfirmDialog({
@@ -1264,6 +1286,9 @@ export const CabinetSectionPage = () => {
                         },
                       })
                     }}>Скрыть профиль игрока</button>
+                    )}
+                    {canAssignPlayerRole && (
+                      <>
                     <select value={membershipTeamId} onChange={(e) => setMembershipTeamId(e.target.value)} className="min-w-44 rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
                       <option value="">Команда для переноса</option>
                       {(teams ?? []).map((team) => <option key={team.id} value={team.id}>{team.shortName}</option>)}
@@ -1284,11 +1309,13 @@ export const CabinetSectionPage = () => {
                         },
                       })
                     }}>Перенести в другую команду</button>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-2">
                     <p className="text-xs text-textSecondary">Профиль игрока не найден.</p>
-                    {!selectedUser.statuses.includes('captain') && (
+                    {!selectedUser.statuses.includes('captain') && canAssignPlayerRole && (
                       <>
                         <select value={membershipTeamId} onChange={(e) => setMembershipTeamId(e.target.value)} className="w-full rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1">
                           <option value="">Команда для приглашения</option>
@@ -1315,11 +1342,14 @@ export const CabinetSectionPage = () => {
                   </div>
                 )}
               </div>
+              )}
 
+              {(isSuperadminActor || canManageAdminPermissions) && (
               <div className="space-y-2 rounded-lg border border-borderSubtle bg-panelBg p-3">
                 <p className="text-xs text-textMuted">Администратор</p>
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" disabled={!currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)} className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50" onClick={async () => {
+                  {isSuperadminActor && (
+                  <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
                     setConfirmDialog({
                       title: selectedUser.statuses.includes('admin') ? 'Снять роль администратора?' : 'Выдать роль администратора?',
                       description: selectedUser.statuses.includes('admin')
@@ -1343,7 +1373,9 @@ export const CabinetSectionPage = () => {
                       },
                     })
                   }}>{selectedUser.statuses.includes('admin') ? 'Снять роль администратора' : 'Выдать роль администратора'}</button>
-                  <button type="button" disabled={!canManageAdminPermissions} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
+                  )}
+                  {(isSuperadminActor || (canManageAdminPermissions && selectedUser.statuses.includes('admin') && !selectedUser.statuses.includes('superadmin'))) && (
+                  <button type="button" className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app" onClick={async () => {
                     setConfirmDialog({
                       title: 'Сохранить точечные права?',
                       description: 'Набор включенных свитчей будет записан пользователю.',
@@ -1359,10 +1391,12 @@ export const CabinetSectionPage = () => {
                       },
                     })
                   }}>Сохранить права</button>
+                  )}
                 </div>
-                {!canManageAdminPermissions && (
-                  <p className="text-xs text-textMuted">Для сохранения точечных прав требуется permission <code>admin.permissions.manage</code> или роль superadmin.</p>
+                {!(isSuperadminActor || (canManageAdminPermissions && selectedUser.statuses.includes('admin') && !selectedUser.statuses.includes('superadmin'))) && (
+                  <p className="text-xs text-textMuted">Можно менять права только у пользователей с ролью <code>admin</code> (без <code>superadmin</code>).</p>
                 )}
+                {(isSuperadminActor || (canManageAdminPermissions && selectedUser.statuses.includes('admin') && !selectedUser.statuses.includes('superadmin'))) && (
                 <div className="mt-2 space-y-2">
                   {granularAdminPermissions
                     .filter((permission) => !permission.superadminOnly || currentRoles.some((role) => roleRank[role] >= roleRank.superadmin))
@@ -1383,7 +1417,9 @@ export const CabinetSectionPage = () => {
                       )
                     })}
                 </div>
+                )}
               </div>
+              )}
             </div>
           )}
         </section>
