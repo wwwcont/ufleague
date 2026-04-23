@@ -80,6 +80,9 @@ func (e Engine) CanDeleteAnyComment(user domain.User) bool {
 func (e Engine) CanManageAdminPermissions(user domain.User) bool {
 	return e.HasPermission(user, domain.PermAdminPermsManage)
 }
+func (e Engine) CanViewUserAccessMatrix(user domain.User) bool {
+	return e.IsSuperadmin(user) || e.CanManageAdminPermissions(user)
+}
 
 func hasRole(user domain.User, role domain.Role) bool {
 	for _, r := range user.Roles {

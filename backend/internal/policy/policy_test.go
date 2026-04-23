@@ -66,3 +66,19 @@ func TestCanManageAdminPermissions(t *testing.T) {
 		t.Fatalf("expected admin.permissions.manage to allow delegated admin permissions management")
 	}
 }
+
+func TestCanViewUserAccessMatrix(t *testing.T) {
+	engine := New()
+	superadmin := domain.User{ID: 1, Roles: []domain.Role{domain.RoleSuperadmin}}
+	if !engine.CanViewUserAccessMatrix(superadmin) {
+		t.Fatalf("superadmin should be allowed to view user access matrix")
+	}
+	adminWithoutPermission := domain.User{ID: 2, Roles: []domain.Role{domain.RoleAdmin}}
+	if engine.CanViewUserAccessMatrix(adminWithoutPermission) {
+		t.Fatalf("admin without admin.permissions.manage should not be allowed to view user access matrix")
+	}
+	adminWithPermission := domain.User{ID: 3, Roles: []domain.Role{domain.RoleAdmin}, Permissions: []string{domain.PermAdminPermsManage}}
+	if !engine.CanViewUserAccessMatrix(adminWithPermission) {
+		t.Fatalf("admin with admin.permissions.manage should be allowed to view user access matrix")
+	}
+}

@@ -21,6 +21,7 @@ import (
 	"football_ui/backend/internal/app/session"
 	"football_ui/backend/internal/domain"
 	"football_ui/backend/internal/platform/config"
+	"football_ui/backend/internal/policy"
 	"football_ui/backend/internal/repository"
 	cabinetadmin "football_ui/backend/internal/service/cabinetadmin"
 	commentservice "football_ui/backend/internal/service/comments"
@@ -2287,8 +2288,7 @@ func (h Handler) AdminListUserAccessMatrix(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "unauthorized", 401)
 		return
 	}
-	role := strongestRole(current.User.Roles)
-	if role != domain.RoleAdmin && role != domain.RoleSuperadmin {
+	if !policy.New().CanViewUserAccessMatrix(current.User) {
 		http.Error(w, "forbidden", 403)
 		return
 	}

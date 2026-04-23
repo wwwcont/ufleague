@@ -115,7 +115,7 @@ const sectionMeta: Record<string, { title: string; description: string; tips: st
 }
 
 const sectionPermissionOverrides: Record<string, string[]> = {
-  'users-access-management': ['role.player.assign', 'role.captain.assign', 'role.player.revoke', 'role.captain.revoke'],
+  'users-access-management': ['admin.permissions.manage', 'role.player.assign', 'role.captain.assign', 'role.player.revoke', 'role.captain.revoke'],
   'issue-restriction': ['comments.ban.issue'],
   'comment-blocks': ['comments.ban.issue'],
   'create-match': ['match.create'],
@@ -415,6 +415,8 @@ export const CabinetSectionPage = () => {
   const allowedByRole = minRole ? currentRoles.some((role) => roleRank[role] >= roleRank[minRole]) : false
   const allowedByPermission = section ? (sectionPermissionOverrides[section] ?? []).some((permission) => session.permissions.includes(permission as typeof session.permissions[number])) : false
   const allowed = allowedByRole || allowedByPermission
+  const canManageAdminPermissions = currentRoles.some((role) => roleRank[role] >= roleRank.superadmin)
+    || session.permissions.includes('admin.permissions.manage')
   const managedTeamId = useMemo(() => {
     if (session.user.teamId) return session.user.teamId
     const captainTeam = (teams ?? []).find((item) => item.captainUserId === session.user.id)
@@ -1341,7 +1343,7 @@ export const CabinetSectionPage = () => {
                       },
                     })
                   }}>{selectedUser.statuses.includes('admin') ? 'Снять роль администратора' : 'Выдать роль администратора'}</button>
-                  <button type="button" className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary" onClick={async () => {
+                  <button type="button" disabled={!canManageAdminPermissions} className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary disabled:opacity-50" onClick={async () => {
                     setConfirmDialog({
                       title: 'Сохранить точечные права?',
                       description: 'Набор включенных свитчей будет записан пользователю.',
@@ -1358,6 +1360,9 @@ export const CabinetSectionPage = () => {
                     })
                   }}>Сохранить права</button>
                 </div>
+                {!canManageAdminPermissions && (
+                  <p className="text-xs text-textMuted">Для сохранения точечных прав требуется permission <code>admin.permissions.manage</code> или роль superadmin.</p>
+                )}
                 <div className="mt-2 space-y-2">
                   {granularAdminPermissions
                     .filter((permission) => !permission.superadminOnly || currentRoles.some((role) => roleRank[role] >= roleRank.superadmin))
