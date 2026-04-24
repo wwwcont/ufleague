@@ -33,6 +33,34 @@ const fieldLabels: Record<string, string> = {
   position: 'Позиция',
   shirt_number: 'Номер',
   team_id: 'Команда',
+  visible: 'Видимость',
+  permissions: 'Права',
+  roles: 'Роли',
+  restrictions: 'Ограничения',
+  delta: 'Изменение',
+  field: 'Поле',
+  setting_key: 'Ключ настройки',
+  value: 'Значение',
+}
+
+const actionLabels: Record<string, string> = {
+  'team.update': 'Обновление команды',
+  'player.update': 'Обновление игрока',
+  'match.update': 'Обновление матча',
+  'user.profile_update': 'Обновление профиля',
+  'admin.user_profile_update': 'Обновление профиля (админ)',
+  'captain.invite': 'Приглашение в команду',
+  'captain.team_socials': 'Обновление соцсетей команды',
+  'captain.roster_visibility': 'Изменение видимости в составе',
+  'admin.assign_player_role': 'Назначение роли игрока',
+  'admin.assign_captain_role': 'Назначение роли капитана',
+  'admin.revoke_captain_role': 'Снятие роли капитана',
+  'admin.remove_player_from_user': 'Отвязка игрока от пользователя',
+  'superadmin.assign_roles': 'Назначение ролей',
+  'superadmin.assign_permissions': 'Назначение прав',
+  'superadmin.assign_restrictions': 'Назначение ограничений',
+  'admin.manual_stats_adjustment.create': 'Ручная корректировка статистики',
+  'admin.manual_stats_adjustment.delete': 'Удаление ручной корректировки',
 }
 
 const stringify = (value: unknown) => {
@@ -47,6 +75,14 @@ const changeLines = (metadata?: Record<string, unknown>) => {
     const label = fieldLabels[field] ?? field
     return `${label}: ${stringify(value?.from)} → ${stringify(value?.to)}`
   })
+}
+
+const metadataLines = (metadata?: Record<string, unknown>) => {
+  if (!metadata) return []
+  const skipKeys = new Set(['changes', 'actor_name', 'actor_username', 'target_label'])
+  return Object.entries(metadata)
+    .filter(([key, value]) => !skipKeys.has(key) && value !== undefined && value !== null && value !== '')
+    .map(([key, value]) => `${fieldLabels[key] ?? key}: ${stringify(value)}`)
 }
 
 export const EntityChangeHistoryPage = () => {
@@ -124,9 +160,10 @@ export const EntityChangeHistoryPage = () => {
               const actorUsername = String(item.metadata?.actor_username ?? '')
               const targetLabel = String(item.metadata?.target_label ?? '').trim()
               const lines = changeLines(item.metadata)
+              const details = metadataLines(item.metadata)
               return (
                 <article key={item.id} className="rounded-xl border border-borderSubtle bg-mutedBg p-3">
-                  <p className="text-sm font-semibold text-textPrimary">{item.action}</p>
+                  <p className="text-sm font-semibold text-textPrimary">{actionLabels[item.action] ?? item.action}</p>
                   <p className="mt-1 text-xs text-textMuted">
                     {formatDateTimeMsk(item.createdAt)} · {actorName}{actorUsername ? ` (@${actorUsername})` : ''}
                   </p>
@@ -136,7 +173,12 @@ export const EntityChangeHistoryPage = () => {
                       {lines.map((line) => <p key={line} className="text-xs text-textSecondary">{line}</p>)}
                     </div>
                   ) : (
-                    <p className="mt-2 text-xs text-textMuted">Подробности изменений не переданы.</p>
+                    <p className="mt-2 text-xs text-textMuted">Подробности изменений в формате "до/после" не переданы.</p>
+                  )}
+                  {details.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {details.map((line) => <p key={line} className="text-xs text-textSecondary">{line}</p>)}
+                    </div>
                   )}
                 </article>
               )

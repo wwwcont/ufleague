@@ -107,6 +107,10 @@ const mapTeam = (t: any): Team => ({
 const mapPlayer = (p: any): Player | null => {
   if (!p?.id || !p?.team_id || !p?.user_id) return null
 
+  const rawVisible = p.socials?.is_visible
+  const isVisibleFromSocials = rawVisible === undefined
+    ? undefined
+    : !['false', '0', 'no'].includes(String(rawVisible).trim().toLowerCase())
   return {
     id: String(p.id),
     teamId: String(p.team_id),
@@ -123,7 +127,9 @@ const mapPlayer = (p: any): Player | null => {
       instagram: p.socials?.instagram,
       website: p.socials?.website,
     },
-    isHidden: p.is_visible === false || p.visible === false || p.hidden === true || p.position === 'hidden',
+    isHidden: isVisibleFromSocials === undefined
+      ? (p.is_visible === false || p.visible === false || p.hidden === true || p.position === 'hidden')
+      : !isVisibleFromSocials,
     stats: { goals: 0, assists: 0, appearances: Number(p.appearances ?? 0) },
   }
 }
