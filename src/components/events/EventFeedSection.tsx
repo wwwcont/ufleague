@@ -18,9 +18,18 @@ interface EventFeedSectionProps {
   messageWhenEmpty?: string
   linkToAll?: string
   notificationScopeKey?: string
+  showNotificationToggle?: boolean
 }
 
-export const EventFeedSection = ({ title, events, layout = 'cards', messageWhenEmpty, linkToAll, notificationScopeKey }: EventFeedSectionProps) => {
+export const EventFeedSection = ({
+  title,
+  events,
+  layout = 'cards',
+  messageWhenEmpty,
+  linkToAll,
+  notificationScopeKey,
+  showNotificationToggle = true,
+}: EventFeedSectionProps) => {
   const { session } = useSession()
   const { isFeedMuted, toggleFeedMuted } = useUserPreferences()
   const { data: teams } = useTeams()
@@ -37,7 +46,7 @@ export const EventFeedSection = ({ title, events, layout = 'cards', messageWhenE
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-base font-semibold text-textPrimary">{title}</h2>
         <div className="flex items-center gap-2">
-          {session.isAuthenticated && (
+          {session.isAuthenticated && showNotificationToggle && (
             <button
               type="button"
               aria-label={muted ? 'Включить уведомления по ленте' : 'Выключить уведомления по ленте'}

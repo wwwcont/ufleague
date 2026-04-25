@@ -67,7 +67,8 @@ async function api<T>(path: string, init?: RequestInit, options?: ApiRequestOpti
   if (!res.ok) {
     const rawMessage = (await res.text()).trim() || `API ${res.status}`
     const message = toRussianMessage(rawMessage)
-    if (!options?.silent) {
+    const skipUnauthorizedReadToast = res.status === 401 && !isWrite
+    if (!options?.silent && !skipUnauthorizedReadToast) {
       notifyError(message)
     }
     throw new ApiError(res.status, message)
