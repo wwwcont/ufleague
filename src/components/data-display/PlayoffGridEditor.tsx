@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode, type WheelEvent } from 'react'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { TeamAvatar } from '../ui/TeamAvatar'
 import type { PlayoffGrid, Team } from '../../domain/entities/types'
@@ -30,6 +30,8 @@ type DraftTextBlock = {
   verticalAlign: TextVerticalAlign
   font: TextFont
   fontSize: number
+  bold: boolean
+  italic: boolean
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
@@ -79,6 +81,19 @@ const normalizeDimensionInput = (value: string, fallback: number, max: number) =
   return String(clamp(Math.trunc(parsed), 1, max))
 }
 
+const renderRichText = (value: string): ReactNode[] => {
+  const tokens = value.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g)
+  return tokens.filter(Boolean).map((token, index) => {
+    if (token.startsWith('**') && token.endsWith('**')) {
+      return <strong key={`strong_${index}`}>{token.slice(2, -2)}</strong>
+    }
+    if (token.startsWith('*') && token.endsWith('*')) {
+      return <em key={`em_${index}`}>{token.slice(1, -1)}</em>
+    }
+    return <span key={`txt_${index}`}>{token}</span>
+  })
+}
+
 export const PlayoffGridEditor = ({
   grid,
   teamMap,
@@ -122,6 +137,8 @@ export const PlayoffGridEditor = ({
   const [textDialogVerticalAlign, setTextDialogVerticalAlign] = useState<TextVerticalAlign>('top')
   const [textDialogFont, setTextDialogFont] = useState<TextFont>('inter')
   const [textDialogFontSizeInput, setTextDialogFontSizeInput] = useState('14')
+  const [textDialogBold, setTextDialogBold] = useState(false)
+  const [textDialogItalic, setTextDialogItalic] = useState(false)
   const [textDialogWidthInput, setTextDialogWidthInput] = useState('1')
   const [textDialogHeightInput, setTextDialogHeightInput] = useState('1')
   const [textDialogColInput, setTextDialogColInput] = useState('1')
@@ -131,6 +148,7 @@ export const PlayoffGridEditor = ({
   const boardW = GRID_COLS * CELL_W
   const boardH = GRID_ROWS * CELL_H
   const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const textDialogTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const activePointers = useRef<Map<number, { x: number; y: number }>>(new Map())
   const panStart = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null)
   const pinchStart = useRef<{ dist: number; scale: number } | null>(null)
@@ -264,6 +282,8 @@ export const PlayoffGridEditor = ({
     setTextDialogVerticalAlign('top')
     setTextDialogFont('inter')
     setTextDialogFontSizeInput('14')
+    setTextDialogBold(false)
+    setTextDialogItalic(false)
     setTextDialogWidthInput('1')
     setTextDialogHeightInput('1')
     setTextDialogColInput('1')
@@ -282,6 +302,8 @@ export const PlayoffGridEditor = ({
     setTextDialogVerticalAlign(block.verticalAlign ?? 'top')
     setTextDialogFont(block.font)
     setTextDialogFontSizeInput(String(block.fontSize ?? 14))
+    setTextDialogBold(Boolean(block.bold))
+    setTextDialogItalic(Boolean(block.italic))
     setTextDialogWidthInput(String(block.widthCells))
     setTextDialogHeightInput(String(block.heightCells))
     setTextDialogColInput(String(block.col))
@@ -341,6 +363,8 @@ export const PlayoffGridEditor = ({
       verticalAlign: textDialogVerticalAlign,
       font: textDialogFont,
       fontSize,
+      bold: textDialogBold,
+      italic: textDialogItalic,
       widthCells,
       heightCells,
       col,
@@ -362,6 +386,28 @@ export const PlayoffGridEditor = ({
     setSelectedTextBlockId(newBlock.id)
     setDirty(true)
     setShowTextDialog(false)
+  }
+
+  const wrapSelectedText = (marker: '*' | '**') => {
+    const textarea = textDialogTextareaRef.current
+    if (!textarea) return
+    const start = textarea.selectionStart ?? 0
+    const end = textarea.selectionEnd ?? 0
+    setTextDialogValue((prev) => {
+      const selected = prev.slice(start, end)
+      const replacement = `${marker}${selected}${marker}`
+      const next = `${prev.slice(0, start)}${replacement}${prev.slice(end)}`
+      window.requestAnimationFrame(() => {
+        textarea.focus()
+        if (selected.length === 0) {
+          const cursor = start + marker.length
+          textarea.setSelectionRange(cursor, cursor)
+        } else {
+          textarea.setSelectionRange(start + marker.length, end + marker.length)
+        }
+      })
+      return next
+    })
   }
 
   const boardPointerDown = (event: PointerEvent<HTMLDivElement>) => {
@@ -653,8 +699,11 @@ export const PlayoffGridEditor = ({
                   </button>
                 </div>
               )}
-              <p className={`w-full whitespace-pre-wrap break-words leading-relaxed text-textPrimary ${!block.visible ? 'line-through decoration-dashed' : ''}`}>
-                {block.text || 'Текстовый блок'}
+              <p
+                className={`w-full whitespace-pre-wrap break-words leading-relaxed text-textPrimary ${!block.visible ? 'line-through decoration-dashed' : ''}`}
+                style={{ fontWeight: block.bold ? 700 : 400, fontStyle: block.italic ? 'italic' : 'normal' }}
+              >
+                {block.text ? renderRichText(block.text) : 'Текстовый блок'}
               </p>
             </div>
           ))}
@@ -859,6 +908,7 @@ export const PlayoffGridEditor = ({
             <div className="space-y-2">
               <label className="block text-xs text-textMuted">Текст ({textDialogValue.length}/500)</label>
               <textarea
+                ref={textDialogTextareaRef}
                 rows={5}
                 maxLength={500}
                 className="w-full appearance-none rounded-lg border border-borderSubtle bg-mutedBg px-2 py-2 text-sm text-textPrimary placeholder:text-textMuted [color-scheme:dark] focus:border-accentYellow/70 focus:outline-none"
@@ -866,6 +916,22 @@ export const PlayoffGridEditor = ({
                 onChange={(event) => setTextDialogValue(event.target.value)}
                 placeholder="Введите текст блока..."
               />
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <button
+                  type="button"
+                  className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1.5 text-textSecondary"
+                  onClick={() => wrapSelectedText('**')}
+                >
+                  Выделить жирным
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1.5 text-textSecondary"
+                  onClick={() => wrapSelectedText('*')}
+                >
+                  Выделить курсивом
+                </button>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-textMuted">
                   Ширина (клетки)
@@ -976,6 +1042,16 @@ export const PlayoffGridEditor = ({
                     }}
                     onBlur={() => setTextDialogFontSizeInput(normalizeDimensionInput(textDialogFontSizeInput, 14, 56))}
                   />
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs text-textSecondary">
+                <label className="flex items-center gap-2 rounded-lg border border-borderSubtle bg-mutedBg px-2 py-2">
+                  <input type="checkbox" className="h-4 w-4 rounded border border-borderSubtle bg-mutedBg text-accentYellow [color-scheme:dark]" checked={textDialogBold} onChange={(event) => setTextDialogBold(event.target.checked)} />
+                  Весь блок жирный
+                </label>
+                <label className="flex items-center gap-2 rounded-lg border border-borderSubtle bg-mutedBg px-2 py-2">
+                  <input type="checkbox" className="h-4 w-4 rounded border border-borderSubtle bg-mutedBg text-accentYellow [color-scheme:dark]" checked={textDialogItalic} onChange={(event) => setTextDialogItalic(event.target.checked)} />
+                  Весь блок курсивом
                 </label>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs text-textSecondary">
