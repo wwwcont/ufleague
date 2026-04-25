@@ -18,6 +18,7 @@ import { canManageMatch, canManageMatchControls } from '../../domain/services/ac
 import { formatMatchMetaMsk, getTimeToKickoff } from '../../lib/date-time'
 import { toExternalUrl } from '../../lib/links'
 import type { Match } from '../../domain/entities/types'
+import { isSystemMatchFeedEvent } from '../../domain/services/eventFeedFilters'
 import { EditableSectionHeader, SectionActionBar } from '../../components/ui/editable'
 import { useUserPreferences } from '../../hooks/app/useUserPreferences'
 
@@ -127,7 +128,7 @@ export const MatchDetailsPage = () => {
   const { data: allMatches } = useMatches()
   const { data: teams } = useTeams()
   const { data: players } = usePlayers()
-  const { data: matchFeedEvents } = useEvents(matchId ? { entityType: 'match', entityId: matchId, limit: 3 } : undefined)
+  const { data: matchFeedEvents } = useEvents(matchId ? { entityType: 'match', entityId: matchId } : undefined)
   const { session } = useSession()
   const { isMatchMuted, toggleMatchMuted } = useUserPreferences()
   const { matchesRepository, playoffGridRepository, cabinetRepository, eventsRepository } = useRepositories()
@@ -302,9 +303,14 @@ export const MatchDetailsPage = () => {
       ? { home: 0, away: 3 }
       : null
   const latestEvents = (matchFeedEvents ?? [])
+    .filter((event) => !isSystemMatchFeedEvent(event))
     .slice()
     .sort((a, b) => String(b.timestamp ?? '').localeCompare(String(a.timestamp ?? '')))
-    .map((event) => ({ id: event.id, label: event.summary?.trim() || event.title?.trim() || 'Событие' }))
+    .map((event) => ({
+      id: event.id,
+      title: event.title?.trim() || 'Событие',
+      summary: event.summary?.trim() || event.text?.trim() || '',
+    }))
     .slice(0, 3)
   const playersById = Object.fromEntries(players.map((player) => [player.id, player]))
   const getGoalAwardedTeamId = (event: Match['events'][number]) => {
@@ -1166,9 +1172,14 @@ export const MatchDetailsPage = () => {
         ) : (
           <div className="space-y-2">
             {latestEvents.map((event) => (
-              <div key={event.id} className="flex items-center gap-3 rounded-xl border border-borderSubtle bg-mutedBg px-3 py-2 text-sm">
-                <span className="truncate text-textPrimary">{event.label}</span>
-              </div>
+              <Link
+                key={event.id}
+                to={`/events/${event.id}`}
+                className="block rounded-xl border border-borderSubtle bg-mutedBg px-3 py-2 transition hover:border-borderStrong hover:bg-panelSoft"
+              >
+                <p className="truncate text-sm font-medium text-textPrimary">{event.title}</p>
+                {event.summary && <p className="mt-0.5 truncate text-xs text-textMuted">{event.summary}</p>}
+              </Link>
             ))}
           </div>
         )}

@@ -162,8 +162,23 @@ func (r *NotificationsRepository) MarkRetry(ctx context.Context, jobID int64, re
 func (r *NotificationsRepository) ListUserNotifications(ctx context.Context, userID int64, limit int) ([]domain.UserNotificationItem, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, notification_type, payload, status, created_at
-		FROM notification_jobs
-		WHERE user_id = $1
+		FROM (
+			SELECT DISTINCT ON (
+				notification_type,
+				COALESCE(payload->>'title', ''),
+				COALESCE(payload->>'body', ''),
+				COALESCE(payload->>'route', '')
+			)
+				id, notification_type, payload, status, created_at
+			FROM notification_jobs
+			WHERE user_id = $1
+			ORDER BY
+				notification_type,
+				COALESCE(payload->>'title', ''),
+				COALESCE(payload->>'body', ''),
+				COALESCE(payload->>'route', ''),
+				created_at DESC
+		) deduped
 		ORDER BY created_at DESC
 		LIMIT $2
 	`, userID, limit)
