@@ -225,9 +225,27 @@ export interface PlayoffLine {
   toPlayoffId: ID
 }
 
+export interface PlayoffTextBlock {
+  id: ID
+  col: number
+  row: number
+  widthCells: number
+  heightCells: number
+  text: string
+  visible: boolean
+  showBackground: boolean
+  align: 'left' | 'center' | 'right'
+  verticalAlign: 'top' | 'center' | 'bottom'
+  font: 'inter' | 'roboto' | 'ptsans'
+  fontSize: number
+  bold: boolean
+  italic: boolean
+}
+
 export interface PlayoffGrid {
   cells: PlayoffCell[]
   lines: PlayoffLine[]
+  textBlocks: PlayoffTextBlock[]
 }
 
 export interface SearchResult {

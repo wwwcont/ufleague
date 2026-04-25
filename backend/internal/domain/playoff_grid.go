@@ -50,9 +50,27 @@ type PlayoffGridLinePayload struct {
 	ToPlayoffID   PlayoffRef `json:"to_playoff_id"`
 }
 
+type PlayoffTextBlockPayload struct {
+	ID             *int64 `json:"id,omitempty"`
+	Col            int    `json:"col"`
+	Row            int    `json:"row"`
+	WidthCells     int    `json:"width_cells"`
+	HeightCells    int    `json:"height_cells"`
+	Text           string `json:"text"`
+	Visible        bool   `json:"visible"`
+	ShowBackground bool   `json:"show_background"`
+	Align          string `json:"align"`
+	VerticalAlign  string `json:"vertical_align"`
+	Font           string `json:"font"`
+	FontSize       int    `json:"font_size"`
+	Bold           bool   `json:"bold"`
+	Italic         bool   `json:"italic"`
+}
+
 type SavePlayoffGridRequest struct {
-	Cells []PlayoffGridCellPayload `json:"cells"`
-	Lines []PlayoffGridLinePayload `json:"lines"`
+	Cells      []PlayoffGridCellPayload  `json:"cells"`
+	Lines      []PlayoffGridLinePayload  `json:"lines"`
+	TextBlocks []PlayoffTextBlockPayload `json:"text_blocks"`
 }
 
 type PlayoffAttachedMatch struct {
@@ -90,7 +108,28 @@ type PlayoffLine struct {
 	CreatedAt         time.Time `json:"created_at"`
 }
 
+type PlayoffTextBlock struct {
+	ID                int64     `json:"id"`
+	TournamentCycleID int64     `json:"tournament_cycle_id"`
+	Col               int       `json:"col"`
+	Row               int       `json:"row"`
+	WidthCells        int       `json:"width_cells"`
+	HeightCells       int       `json:"height_cells"`
+	Text              string    `json:"text"`
+	Visible           bool      `json:"visible"`
+	ShowBackground    bool      `json:"show_background"`
+	Align             string    `json:"align"`
+	VerticalAlign     string    `json:"vertical_align"`
+	Font              string    `json:"font"`
+	FontSize          int       `json:"font_size"`
+	Bold              bool      `json:"bold"`
+	Italic            bool      `json:"italic"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
 type PlayoffGridResponse struct {
-	Cells []PlayoffGridCell `json:"cells"`
-	Lines []PlayoffLine     `json:"lines"`
+	Cells      []PlayoffGridCell  `json:"cells"`
+	Lines      []PlayoffLine      `json:"lines"`
+	TextBlocks []PlayoffTextBlock `json:"text_blocks"`
 }

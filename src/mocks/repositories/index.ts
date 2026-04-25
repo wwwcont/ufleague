@@ -252,12 +252,13 @@ export const standingsRepository: StandingsRepository = {
   },
 }
 
-let mockPlayoffGrid: { cells: any[]; lines: any[] } = { cells: [], lines: [] }
+let mockPlayoffGrid: { cells: any[]; lines: any[]; textBlocks: any[] } = { cells: [], lines: [], textBlocks: [] }
 export const playoffGridRepository: PlayoffGridRepository = {
   async getPlayoffGrid() {
     return {
       cells: mockPlayoffGrid.cells.map((cell) => ({ ...cell, attachedMatchIds: [...cell.attachedMatchIds], attachedMatches: [...cell.attachedMatches] })),
       lines: mockPlayoffGrid.lines.map((line) => ({ ...line })),
+      textBlocks: mockPlayoffGrid.textBlocks.map((block) => ({ ...block })),
     }
   },
   async validateDraft(_tournamentId, payload) {
@@ -335,8 +336,12 @@ export const playoffGridRepository: PlayoffGridRepository = {
       fromPlayoffId: byRef.get(line.fromRef) ?? line.fromRef,
       toPlayoffId: byRef.get(line.toRef) ?? line.toRef,
     }))
-    mockPlayoffGrid = { cells, lines }
-    return { cells, lines }
+    const textBlocks = payload.textBlocks.map((block, index) => ({
+      id: block.id ?? `ptb_${Date.now()}_${index}`,
+      ...block,
+    }))
+    mockPlayoffGrid = { cells, lines, textBlocks }
+    return { cells, lines, textBlocks }
   },
 }
 

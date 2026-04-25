@@ -595,6 +595,35 @@ func (s Service) ValidatePlayoffGridDraft(ctx context.Context, actor domain.User
 			return fmt.Errorf("line to endpoint not found in payload: %s", toRef)
 		}
 	}
+	for _, block := range payload.TextBlocks {
+		if block.Col < 1 || block.Col > 35 || block.Row < 1 || block.Row > 35 {
+			return fmt.Errorf("text block out of bounds col=%d row=%d", block.Col, block.Row)
+		}
+		if block.WidthCells < 1 || block.WidthCells > 8 || block.HeightCells < 1 || block.HeightCells > 6 {
+			return fmt.Errorf("text block size is out of bounds")
+		}
+		if block.FontSize < 10 || block.FontSize > 56 {
+			return fmt.Errorf("text block font_size is out of bounds")
+		}
+		if len(block.Text) > 500 {
+			return fmt.Errorf("text block text is too long")
+		}
+		switch block.Align {
+		case "left", "center", "right":
+		default:
+			return fmt.Errorf("text block align is invalid")
+		}
+		switch block.VerticalAlign {
+		case "top", "center", "bottom":
+		default:
+			return fmt.Errorf("text block vertical_align is invalid")
+		}
+		switch block.Font {
+		case "inter", "roboto", "ptsans":
+		default:
+			return fmt.Errorf("text block font is invalid")
+		}
+	}
 	return nil
 }
 

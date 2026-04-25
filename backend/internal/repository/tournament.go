@@ -312,7 +312,7 @@ func (r *TournamentRepository) ListPlayoffGrid(ctx context.Context, tournamentID
 		ORDER BY row,col,id`, tournamentID)
 	if err != nil {
 		if isUndefinedTableErr(err) {
-			return domain.PlayoffGridResponse{Cells: []domain.PlayoffGridCell{}, Lines: []domain.PlayoffLine{}}, nil
+			return domain.PlayoffGridResponse{Cells: []domain.PlayoffGridCell{}, Lines: []domain.PlayoffLine{}, TextBlocks: []domain.PlayoffTextBlock{}}, nil
 		}
 		return domain.PlayoffGridResponse{}, err
 	}
@@ -335,7 +335,7 @@ func (r *TournamentRepository) ListPlayoffGrid(ctx context.Context, tournamentID
 		FROM playoff_lines WHERE tournament_cycle_id=$1 ORDER BY id`, tournamentID)
 	if err != nil {
 		if isUndefinedTableErr(err) {
-			return domain.PlayoffGridResponse{Cells: []domain.PlayoffGridCell{}, Lines: []domain.PlayoffLine{}}, nil
+			return domain.PlayoffGridResponse{Cells: []domain.PlayoffGridCell{}, Lines: []domain.PlayoffLine{}, TextBlocks: []domain.PlayoffTextBlock{}}, nil
 		}
 		return domain.PlayoffGridResponse{}, err
 	}
@@ -352,8 +352,39 @@ func (r *TournamentRepository) ListPlayoffGrid(ctx context.Context, tournamentID
 		return domain.PlayoffGridResponse{}, err
 	}
 
+	textBlocks := []domain.PlayoffTextBlock{}
+	textRows, err := r.pool.Query(ctx, `
+		SELECT id,tournament_cycle_id,col,row,width_cells,height_cells,text,visible,show_background,align,vertical_align,font,font_size,bold,italic,created_at,updated_at
+		FROM playoff_text_blocks
+		WHERE tournament_cycle_id=$1
+		ORDER BY row,col,id`, tournamentID)
+	if err != nil {
+		if isUndefinedTableErr(err) {
+			textBlocks = []domain.PlayoffTextBlock{}
+		} else {
+			return domain.PlayoffGridResponse{}, err
+		}
+	} else {
+		for textRows.Next() {
+			var block domain.PlayoffTextBlock
+			if err = textRows.Scan(
+				&block.ID, &block.TournamentCycleID, &block.Col, &block.Row, &block.WidthCells, &block.HeightCells, &block.Text,
+				&block.Visible, &block.ShowBackground, &block.Align, &block.VerticalAlign, &block.Font, &block.FontSize, &block.Bold, &block.Italic,
+				&block.CreatedAt, &block.UpdatedAt,
+			); err != nil {
+				textRows.Close()
+				return domain.PlayoffGridResponse{}, err
+			}
+			textBlocks = append(textBlocks, block)
+		}
+		textRows.Close()
+		if err = textRows.Err(); err != nil {
+			return domain.PlayoffGridResponse{}, err
+		}
+	}
+
 	if len(cells) == 0 {
-		return domain.PlayoffGridResponse{Cells: cells, Lines: lines}, nil
+		return domain.PlayoffGridResponse{Cells: cells, Lines: lines, TextBlocks: textBlocks}, nil
 	}
 
 	cellIDs := make([]int64, 0, len(cells))
@@ -371,7 +402,7 @@ func (r *TournamentRepository) ListPlayoffGrid(ctx context.Context, tournamentID
 		ORDER BY pcm.playoff_cell_id, pcm.sort_order`, cellIDs)
 	if err != nil {
 		if isUndefinedTableErr(err) {
-			return domain.PlayoffGridResponse{Cells: cells, Lines: lines}, nil
+			return domain.PlayoffGridResponse{Cells: cells, Lines: lines, TextBlocks: textBlocks}, nil
 		}
 		return domain.PlayoffGridResponse{}, err
 	}
@@ -391,7 +422,7 @@ func (r *TournamentRepository) ListPlayoffGrid(ctx context.Context, tournamentID
 		return domain.PlayoffGridResponse{}, err
 	}
 
-	return domain.PlayoffGridResponse{Cells: cells, Lines: lines}, nil
+	return domain.PlayoffGridResponse{Cells: cells, Lines: lines, TextBlocks: textBlocks}, nil
 }
 
 func (r *TournamentRepository) SavePlayoffGrid(ctx context.Context, tournamentID int64, payload domain.SavePlayoffGridRequest) error {
@@ -435,6 +466,9 @@ func (r *TournamentRepository) SavePlayoffGrid(ctx context.Context, tournamentID
 
 	if len(keptIDs) == 0 {
 		if _, err = tx.Exec(ctx, `DELETE FROM playoff_lines WHERE tournament_cycle_id=$1`, tournamentID); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(ctx, `DELETE FROM playoff_text_blocks WHERE tournament_cycle_id=$1`, tournamentID); err != nil {
 			return err
 		}
 		if _, err = tx.Exec(ctx, `DELETE FROM playoff_cells WHERE tournament_cycle_id=$1`, tournamentID); err != nil {
@@ -493,6 +527,20 @@ func (r *TournamentRepository) SavePlayoffGrid(ctx context.Context, tournamentID
 			return refErr
 		}
 		if _, err = tx.Exec(ctx, `INSERT INTO playoff_lines (tournament_cycle_id,from_playoff_id,to_playoff_id) VALUES ($1,$2,$3)`, tournamentID, fromID, toID); err != nil {
+			return err
+		}
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM playoff_text_blocks WHERE tournament_cycle_id=$1`, tournamentID); err != nil {
+		return err
+	}
+	for _, block := range payload.TextBlocks {
+		if _, err = tx.Exec(ctx, `
+			INSERT INTO playoff_text_blocks (
+				tournament_cycle_id,col,row,width_cells,height_cells,text,visible,show_background,align,vertical_align,font,font_size,bold,italic
+			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+			tournamentID, block.Col, block.Row, block.WidthCells, block.HeightCells, block.Text,
+			block.Visible, block.ShowBackground, block.Align, block.VerticalAlign, block.Font, block.FontSize, block.Bold, block.Italic,
+		); err != nil {
 			return err
 		}
 	}

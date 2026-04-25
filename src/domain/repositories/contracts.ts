@@ -58,8 +58,46 @@ export interface PlayoffGridRepository {
   getMatchCandidates(tournamentId: string, matchId: string): Promise<PlayoffGrid['cells']>
   attachMatch(playoffCellId: string, matchId: string): Promise<void>
   detachMatch(playoffCellId: string, matchId: string): Promise<void>
-  validateDraft(tournamentId: string, payload: { cells: Array<{ id?: string; tempId?: string; homeTeamId: string | null; awayTeamId: string | null; col: number; row: number; attachedMatchIds: string[] }>; lines: Array<{ id?: string; fromRef: string; toRef: string }> }): Promise<void>
-  savePlayoffGrid(tournamentId: string, payload: { cells: Array<{ id?: string; tempId?: string; homeTeamId: string | null; awayTeamId: string | null; col: number; row: number; attachedMatchIds: string[] }>; lines: Array<{ id?: string; fromRef: string; toRef: string }> }): Promise<PlayoffGrid>
+  validateDraft(tournamentId: string, payload: {
+    cells: Array<{ id?: string; tempId?: string; homeTeamId: string | null; awayTeamId: string | null; col: number; row: number; attachedMatchIds: string[] }>
+    lines: Array<{ id?: string; fromRef: string; toRef: string }>
+    textBlocks: Array<{
+      id?: string
+      col: number
+      row: number
+      widthCells: number
+      heightCells: number
+      text: string
+      visible: boolean
+      showBackground: boolean
+      align: 'left' | 'center' | 'right'
+      verticalAlign: 'top' | 'center' | 'bottom'
+      font: 'inter' | 'roboto' | 'ptsans'
+      fontSize: number
+      bold: boolean
+      italic: boolean
+    }>
+  }): Promise<void>
+  savePlayoffGrid(tournamentId: string, payload: {
+    cells: Array<{ id?: string; tempId?: string; homeTeamId: string | null; awayTeamId: string | null; col: number; row: number; attachedMatchIds: string[] }>
+    lines: Array<{ id?: string; fromRef: string; toRef: string }>
+    textBlocks: Array<{
+      id?: string
+      col: number
+      row: number
+      widthCells: number
+      heightCells: number
+      text: string
+      visible: boolean
+      showBackground: boolean
+      align: 'left' | 'center' | 'right'
+      verticalAlign: 'top' | 'center' | 'bottom'
+      font: 'inter' | 'roboto' | 'ptsans'
+      fontSize: number
+      bold: boolean
+      italic: boolean
+    }>
+  }): Promise<PlayoffGrid>
 }
 
 export interface TournamentRepository {

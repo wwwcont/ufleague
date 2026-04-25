@@ -18,22 +18,7 @@ type TextFont = 'inter' | 'roboto' | 'ptsans'
 
 type DraftCell = PlayoffGrid['cells'][number] & { clientKey: string }
 type DraftLine = PlayoffGrid['lines'][number] & { clientKey: string; fromCellId: string; toCellId: string }
-type DraftTextBlock = {
-  id: string
-  col: number
-  row: number
-  widthCells: number
-  heightCells: number
-  text: string
-  visible: boolean
-  showBackground: boolean
-  align: TextAlign
-  verticalAlign: TextVerticalAlign
-  font: TextFont
-  fontSize: number
-  bold: boolean
-  italic: boolean
-}
+type DraftTextBlock = PlayoffGrid['textBlocks'][number]
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
@@ -106,6 +91,7 @@ export const PlayoffGridEditor = ({
   onSave: (payload: {
     cells: Array<{ id?: string; tempId?: string; homeTeamId: string | null; awayTeamId: string | null; col: number; row: number; attachedMatchIds: string[] }>
     lines: Array<{ id?: string; fromRef: string; toRef: string }>
+    textBlocks: Array<{ id?: string; col: number; row: number; widthCells: number; heightCells: number; text: string; visible: boolean; showBackground: boolean; align: TextAlign; verticalAlign: TextVerticalAlign; font: TextFont; fontSize: number; bold: boolean; italic: boolean }>
   }) => Promise<void>
   editable?: boolean
 }) => {
@@ -157,29 +143,11 @@ export const PlayoffGridEditor = ({
   const movingTextBlock = useRef<{ id: string } | null>(null)
   const initialTextBlocks = useRef<DraftTextBlock[]>([])
 
-  const textBlocksStorageKey = useMemo(() => {
-    const route = `${window.location.pathname}${window.location.search}`
-    return `playoff-text-blocks:v1:${route}`
-  }, [])
-
   useEffect(() => {
     setCellsDraft(toCells(grid.cells))
     setLinesDraft(toLines(grid.lines))
-    try {
-      const raw = window.localStorage.getItem(textBlocksStorageKey)
-      if (!raw) {
-        setTextBlocksDraft([])
-        initialTextBlocks.current = []
-      } else {
-        const parsed = JSON.parse(raw) as DraftTextBlock[]
-        const safeParsed = Array.isArray(parsed) ? parsed : []
-        setTextBlocksDraft(safeParsed)
-        initialTextBlocks.current = safeParsed
-      }
-    } catch {
-      setTextBlocksDraft([])
-      initialTextBlocks.current = []
-    }
+    setTextBlocksDraft(grid.textBlocks ?? [])
+    initialTextBlocks.current = grid.textBlocks ?? []
     setDirty(false)
     setSelectedCellId(null)
     setSelectedLineId(null)
@@ -193,15 +161,7 @@ export const PlayoffGridEditor = ({
     setCellDialogHomeTeamId(null)
     setCellDialogAwayTeamId(null)
     setSaveError(null)
-  }, [grid, textBlocksStorageKey])
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(textBlocksStorageKey, JSON.stringify(textBlocksDraft))
-    } catch {
-      // ignore storage quota errors
-    }
-  }, [textBlocksDraft, textBlocksStorageKey])
+  }, [grid])
 
   useEffect(() => {
     if (!isEditing) setEditorMode('navigation')
@@ -530,6 +490,22 @@ export const PlayoffGridEditor = ({
         id: line.id.startsWith('tmp_') ? undefined : line.id,
         fromRef: line.fromCellId.startsWith('tmp_') ? `temp:${line.fromCellId}` : line.fromCellId,
         toRef: line.toCellId.startsWith('tmp_') ? `temp:${line.toCellId}` : line.toCellId,
+      })),
+      textBlocks: textBlocksDraft.map((block) => ({
+        id: /^\d+$/.test(block.id) ? block.id : undefined,
+        col: block.col,
+        row: block.row,
+        widthCells: block.widthCells,
+        heightCells: block.heightCells,
+        text: block.text,
+        visible: block.visible,
+        showBackground: block.showBackground,
+        align: block.align,
+        verticalAlign: block.verticalAlign,
+        font: block.font,
+        fontSize: block.fontSize,
+        bold: block.bold,
+        italic: block.italic,
       })),
     }
     setSaving(true)
