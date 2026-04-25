@@ -94,12 +94,15 @@ func (s Service) CreateTeam(ctx context.Context, actor domain.User, req domain.C
 	if !hasRole(actor, domain.RoleCaptain, domain.RoleAdmin, domain.RoleSuperadmin) {
 		return domain.Team{}, ErrForbidden
 	}
-	if hasRole(actor, domain.RoleCaptain) && !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+	captainTeamCount := 0
+	isCaptainActor := hasRole(actor, domain.RoleCaptain)
+	if isCaptainActor {
 		count, err := s.repo.CountTeamsByCaptain(ctx, actor.ID)
 		if err != nil {
 			return domain.Team{}, err
 		}
-		if count >= 1 {
+		captainTeamCount = count
+		if count >= 1 && !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
 			return domain.Team{}, ErrForbidden
 		}
 	}
@@ -112,7 +115,7 @@ func (s Service) CreateTeam(ctx context.Context, actor domain.User, req domain.C
 		LogoURL:     req.LogoURL,
 		Socials:     req.Socials,
 	}
-	if hasRole(actor, domain.RoleCaptain) && !hasRole(actor, domain.RoleAdmin, domain.RoleSuperadmin) {
+	if isCaptainActor && captainTeamCount == 0 {
 		team.CaptainUserID = &actor.ID
 	}
 	return s.repo.CreateTeam(ctx, team)

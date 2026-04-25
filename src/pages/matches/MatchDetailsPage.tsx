@@ -1015,7 +1015,6 @@ export const MatchDetailsPage = () => {
       <section className="rounded-2xl border border-borderSubtle bg-panelBg px-4 py-3 shadow-soft">
         <EditableSectionHeader
           title="Информация"
-          subtitle="Ключевая metadata матча"
           canEdit={isAdmin}
           isEditing={isInfoEditing}
           onStartEdit={() => {
