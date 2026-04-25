@@ -1,12 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { PublicEvent } from '../../domain/entities/types'
+import type { Match, Player, PublicEvent, Team } from '../../domain/entities/types'
 import { EntityReactions } from '../ui/EntityReactions'
 import { formatDateTimeMsk } from '../../lib/date-time'
 import { MediaPreviewModal } from '../ui/MediaPreviewModal'
-import { useTeams } from '../../hooks/data/useTeams'
-import { usePlayers } from '../../hooks/data/usePlayers'
-import { useMatches } from '../../hooks/data/useMatches'
 import { resolveEventSourceLabel } from '../../domain/services/eventSourceLabel'
 
 const categoryLabel: Record<string, string> = {
@@ -21,24 +18,21 @@ const categoryLabel: Record<string, string> = {
 interface EventCardProps {
   event: PublicEvent
   showRoleActions?: boolean
+  teamsById?: Record<string, Team | undefined>
+  playersById?: Record<string, Player | undefined>
+  matchesById?: Record<string, Match | undefined>
 }
 
-export const EventCard = ({ event, showRoleActions = true }: EventCardProps) => (
-  <EventCardInner event={event} showRoleActions={showRoleActions} />
+export const EventCard = ({ event, showRoleActions = true, teamsById, playersById, matchesById }: EventCardProps) => (
+  <EventCardInner event={event} showRoleActions={showRoleActions} teamsById={teamsById} playersById={playersById} matchesById={matchesById} />
 )
 
-const EventCardInner = ({ event, showRoleActions }: EventCardProps) => {
+const EventCardInner = ({ event, showRoleActions, teamsById, playersById, matchesById }: EventCardProps) => {
   const [previewImage, setPreviewImage] = useState<string | null>(null)
-  const { data: teams } = useTeams()
-  const { data: players } = usePlayers()
-  const { data: matches } = useMatches()
   const coverImageUrl = useMemo(
     () => event.imageUrl ?? event.contentBlocks?.find((block) => block.type === 'image')?.imageUrl ?? null,
     [event.contentBlocks, event.imageUrl],
   )
-  const teamsById = useMemo(() => Object.fromEntries((teams ?? []).map((team) => [team.id, team])), [teams])
-  const playersById = useMemo(() => Object.fromEntries((players ?? []).map((player) => [player.id, player])), [players])
-  const matchesById = useMemo(() => Object.fromEntries((matches ?? []).map((match) => [match.id, match])), [matches])
   const sourceLabel = resolveEventSourceLabel({ event, teamsById, playersById, matchesById })
 
   return (
