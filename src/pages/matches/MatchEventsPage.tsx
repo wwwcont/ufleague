@@ -152,6 +152,7 @@ export const MatchEventsPage = () => {
         layout="timeline"
         events={visibleEvents}
         notificationScopeKey={`events:match:${matchId}`}
+        showNotificationToggle={false}
         messageWhenEmpty={isLoading ? 'Загрузка событий...' : error ? 'Не удалось загрузить события матча.' : 'Событий для этого матча пока нет.'}
       />
     </PageContainer>
