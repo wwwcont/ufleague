@@ -13,7 +13,7 @@ import { useMatches } from '../../hooks/data/useMatches'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
 import { ApiError } from '../../infrastructure/api/repositories'
-import { canManagePlayer, isAdmin } from '../../domain/services/accessControl'
+import { canManagePlayer, hasPermission, hasRole, isAdmin } from '../../domain/services/accessControl'
 import {
   EditableImageField,
   EditableSection,
@@ -115,8 +115,13 @@ export const PlayerDetailsPage = () => {
       .catch(() => undefined)
   }, [player?.userId, usersRepository])
 
+  const canReadManualStats = hasRole(session, 'superadmin') || hasPermission(session, 'stats.manual.manage')
+
   useEffect(() => {
-    if (!player?.id || !cabinetRepository.getManualStatAdjustments) return
+    if (!player?.id || !cabinetRepository.getManualStatAdjustments || !canReadManualStats) {
+      setPlayerStatAdjustments({ matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 })
+      return
+    }
     void cabinetRepository.getManualStatAdjustments()
       .then((items) => {
         const totals = items
@@ -146,7 +151,7 @@ export const PlayerDetailsPage = () => {
         setPlayerStatAdjustments(totals)
       })
       .catch(() => setPlayerStatAdjustments({ matches: 0, goals: 0, assists: 0, yellowCards: 0, redCards: 0 }))
-  }, [cabinetRepository, player?.id])
+  }, [cabinetRepository, canReadManualStats, player?.id])
 
   if (!player) return <PageContainer><EmptyState title="Игрок не найден" /></PageContainer>
 
@@ -194,6 +199,16 @@ export const PlayerDetailsPage = () => {
             subtitle="Аватар и имя"
             canEdit={canEditPlayer}
             isEditing={heroEditing}
+            actions={session.isAuthenticated ? (
+              <button
+                type="button"
+                onClick={() => toggleFavorite(`player:${player.id}`)}
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${isFavoritePlayer ? 'border-accentYellow/70 bg-accentYellow/10 text-accentYellow' : 'border-borderSubtle bg-black/30 text-textMuted'}`}
+                aria-label={isFavoritePlayer ? 'Убрать игрока из избранного' : 'Добавить игрока в избранное'}
+              >
+                <Star size={14} className={isFavoritePlayer ? 'fill-current' : ''} />
+              </button>
+            ) : null}
             onStartEdit={() => {
               setDisplayName(player.displayName)
               setAvatarPreview(player.avatar ?? undefined)
@@ -211,18 +226,6 @@ export const PlayerDetailsPage = () => {
               setHeroEditing(false)
             }}
           />
-          {session.isAuthenticated && (
-            <div className="mb-3 flex flex-wrap justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => toggleFavorite(`player:${player.id}`)}
-                className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${isFavoritePlayer ? 'border-accentYellow/70 bg-accentYellow/10 text-accentYellow' : 'border-borderSubtle bg-black/30 text-textMuted'}`}
-                aria-label={isFavoritePlayer ? 'Убрать игрока из избранного' : 'Добавить игрока в избранное'}
-              >
-                <Star size={14} className={isFavoritePlayer ? 'fill-current' : ''} />
-              </button>
-            </div>
-          )}
           <div className="mb-4 flex items-start gap-4">
             <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-borderStrong bg-panelSoft text-2xl font-bold text-textPrimary">
               {avatarPreview ? <img src={avatarPreview} alt={displayName || player.displayName} className="h-full w-full object-cover" /> : getInitials(displayName || player.displayName)}

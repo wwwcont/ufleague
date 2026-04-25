@@ -16,7 +16,7 @@ import { CommentsSection } from '../../components/comments'
 import { EventFeedSection } from '../../components/events'
 import { useSession } from '../../app/providers/use-session'
 import { useRepositories } from '../../app/providers/use-repositories'
-import { canManageTeam } from '../../domain/services/accessControl'
+import { canManageTeam, hasPermission, hasRole } from '../../domain/services/accessControl'
 import { buildPlayerStatsMap, buildTeamHistorySummary } from '../../domain/services/teamPlayerStats'
 import { ApiError } from '../../infrastructure/api/repositories'
 import { useUserPreferences } from '../../hooks/app/useUserPreferences'
@@ -95,8 +95,13 @@ export const TeamDetailsPage = () => {
     setLocalTeamFeed(teamFeed ?? [])
   }, [teamFeed])
 
+  const canReadManualStats = hasRole(session, 'superadmin') || hasPermission(session, 'stats.manual.manage')
+
   useEffect(() => {
-    if (!team?.id || !cabinetRepository.getManualStatAdjustments) return
+    if (!team?.id || !cabinetRepository.getManualStatAdjustments || !canReadManualStats) {
+      setTeamStatAdjustments({ matches: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 })
+      return
+    }
     void cabinetRepository.getManualStatAdjustments()
       .then((items) => {
         const totals = items
@@ -129,7 +134,7 @@ export const TeamDetailsPage = () => {
         setTeamStatAdjustments(totals)
       })
       .catch(() => setTeamStatAdjustments({ matches: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 }))
-  }, [cabinetRepository, team?.id])
+  }, [cabinetRepository, canReadManualStats, team?.id])
 
   if (!team) return <PageContainer><EmptyState title="Команда не найдена" /></PageContainer>
 
@@ -205,39 +210,40 @@ export const TeamDetailsPage = () => {
         </div>
 
         <div className="relative z-10">
-          {!heroEditing && session.isAuthenticated && (
-            <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => toggleFavorite(`team:${team.id}`)}
-                className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${isFavoriteTeam ? 'border-accentYellow/70 bg-accentYellow/10 text-accentYellow' : 'border-borderSubtle bg-black/30 text-textMuted'}`}
-                aria-label={isFavoriteTeam ? 'Убрать команду из избранного' : 'Добавить команду в избранное'}
-              >
-                <Star size={14} className={isFavoriteTeam ? 'fill-current' : ''} />
-              </button>
-              {canManageCurrentTeam && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    syncHeroDraft()
-                    setHeroStatus(null)
-                    setHeroTone('idle')
-                    setHeroEditing(true)
-                  }}
-                  className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle bg-black/30 px-2 py-1 text-xs text-textSecondary"
-                  aria-label="Редактировать профиль команды"
-                >
-                  <Pencil size={14} />
-                  Редактировать
-                </button>
-              )}
-            </div>
-          )}
-
           <div className="mb-4 space-y-4">
-            <div>
-              <h1 className="text-3xl font-bold text-white">{team.name}</h1>
-              {team.slogan && <p className="mt-1 text-sm text-textSecondary">{team.slogan}</p>}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h1 className="text-3xl font-bold text-white">{team.name}</h1>
+                {team.slogan && <p className="mt-1 text-sm text-textSecondary">{team.slogan}</p>}
+              </div>
+              {!heroEditing && session.isAuthenticated && (
+                <div className="flex shrink-0 items-center gap-2">
+                  {canManageCurrentTeam && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        syncHeroDraft()
+                        setHeroStatus(null)
+                        setHeroTone('idle')
+                        setHeroEditing(true)
+                      }}
+                      className="inline-flex items-center gap-1 rounded-lg border border-borderSubtle bg-black/30 px-2 py-1 text-xs text-textSecondary"
+                      aria-label="Редактировать профиль команды"
+                    >
+                      <Pencil size={14} />
+                      Редактировать
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => toggleFavorite(`team:${team.id}`)}
+                    className={`inline-flex h-8 w-8 items-center justify-center rounded-full border ${isFavoriteTeam ? 'border-accentYellow/70 bg-accentYellow/10 text-accentYellow' : 'border-borderSubtle bg-black/30 text-textMuted'}`}
+                    aria-label={isFavoriteTeam ? 'Убрать команду из избранного' : 'Добавить команду в избранное'}
+                  >
+                    <Star size={14} className={isFavoriteTeam ? 'fill-current' : ''} />
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between gap-4">
