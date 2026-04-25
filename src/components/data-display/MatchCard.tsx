@@ -63,7 +63,7 @@ export const MatchCard = ({ match, home, away }: { match: Match; home: Team; awa
           </div>
           {tourLabel && (
             <p className="mt-1 text-[11px] font-medium leading-tight text-textMuted sm:text-xs">
-              Тур: <span className="text-textSecondary">{tourLabel}</span>
+              <span className="text-textSecondary">{tourLabel}</span>
             </p>
           )}
         </div>

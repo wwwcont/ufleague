@@ -1787,8 +1787,13 @@ func (h Handler) notifyTelegramAboutEvent(ctx context.Context, item domain.Event
 		return
 	}
 	location := h.eventScopeNotificationLocation(ctx, item)
+	titleText := strings.TrimSpace(item.Title)
+	bodyText := strings.TrimSpace(item.Body)
+	if bodyText == "" {
+		bodyText = "Откройте событие, чтобы прочитать подробности."
+	}
 	messageTitle := fmt.Sprintf("🔔 Новое событие на странице %s", location)
-	message := fmt.Sprintf("%s\n\n%s", messageTitle, strings.TrimSpace(item.Title))
+	message := fmt.Sprintf("%s\n\n%s\n%s", messageTitle, titleText, bodyText)
 	for _, recipient := range recipients {
 		if sendErr := h.sendTelegramMessage(ctx, recipient.ChatID, message); sendErr != nil {
 			slog.Warn("event_notification_send_failed", "err", sendErr, "chat_id", recipient.ChatID, "event_id", item.ID)
@@ -1796,7 +1801,7 @@ func (h Handler) notifyTelegramAboutEvent(ctx context.Context, item domain.Event
 		}
 		_ = h.notifications.Enqueue(ctx, recipient.UserID, notificationType, map[string]any{
 			"title": messageTitle,
-			"body":  strings.TrimSpace(item.Title),
+			"body":  fmt.Sprintf("%s. %s", titleText, bodyText),
 			"route": "/events/" + strconv.FormatInt(item.ID, 10),
 		})
 	}
@@ -1820,9 +1825,73 @@ func (h Handler) eventScopeNotificationLocation(ctx context.Context, item domain
 	case domain.EventScopeGlobal:
 		return "турнира"
 	case domain.EventScopeMatch:
+		if item.ScopeID != nil {
+			if match, err := h.tournament.GetMatch(ctx, *item.ScopeID); err == nil {
+				homeName := strconv.FormatInt(match.HomeTeamID, 10)
+				awayName := strconv.FormatInt(match.AwayTeamID, 10)
+				if homeTeam, teamErr := h.tournament.GetTeam(ctx, match.HomeTeamID); teamErr == nil && strings.TrimSpace(homeTeam.Name) != "" {
+					homeName = strings.TrimSpace(homeTeam.Name)
+				}
+				if awayTeam, teamErr := h.tournament.GetTeam(ctx, match.AwayTeamID); teamErr == nil && strings.TrimSpace(awayTeam.Name) != "" {
+					awayName = strings.TrimSpace(awayTeam.Name)
+				}
+				return fmt.Sprintf("матча %s vs %s", homeName, awayName)
+			}
+		}
 		return "матча"
 	default:
 		return "турнира"
+	}
+}
+
+func commentSnippet(body string) string {
+	text := strings.TrimSpace(body)
+	if text == "" {
+		return "Без текста"
+	}
+	runes := []rune(text)
+	if len(runes) > 120 {
+		return string(runes[:120]) + "…"
+	}
+	return text
+}
+
+func (h Handler) commentLocation(ctx context.Context, item domain.Comment) (string, string) {
+	switch item.EntityType {
+	case domain.CommentEntityMatch:
+		match, err := h.tournament.GetMatch(ctx, item.EntityID)
+		if err != nil {
+			return "в комментариях матча", "/matches/" + strconv.FormatInt(item.EntityID, 10)
+		}
+		homeName := strconv.FormatInt(match.HomeTeamID, 10)
+		awayName := strconv.FormatInt(match.AwayTeamID, 10)
+		if homeTeam, teamErr := h.tournament.GetTeam(ctx, match.HomeTeamID); teamErr == nil && strings.TrimSpace(homeTeam.Name) != "" {
+			homeName = strings.TrimSpace(homeTeam.Name)
+		}
+		if awayTeam, teamErr := h.tournament.GetTeam(ctx, match.AwayTeamID); teamErr == nil && strings.TrimSpace(awayTeam.Name) != "" {
+			awayName = strings.TrimSpace(awayTeam.Name)
+		}
+		return fmt.Sprintf("в комментариях матча %s vs %s", homeName, awayName), "/matches/" + strconv.FormatInt(item.EntityID, 10)
+	case domain.CommentEntityTeam:
+		team, err := h.tournament.GetTeam(ctx, item.EntityID)
+		if err != nil || strings.TrimSpace(team.Name) == "" {
+			return "в комментариях команды", "/teams/" + strconv.FormatInt(item.EntityID, 10)
+		}
+		return "в комментариях команды " + strings.TrimSpace(team.Name), "/teams/" + strconv.FormatInt(item.EntityID, 10)
+	case domain.CommentEntityPlayer:
+		player, err := h.tournament.GetPlayer(ctx, item.EntityID)
+		if err != nil || strings.TrimSpace(player.FullName) == "" {
+			return "в комментариях игрока", "/players/" + strconv.FormatInt(item.EntityID, 10)
+		}
+		return "в комментариях игрока " + strings.TrimSpace(player.FullName), "/players/" + strconv.FormatInt(item.EntityID, 10)
+	case domain.CommentEntityEvent:
+		event, err := h.events.GetEvent(ctx, item.EntityID)
+		if err != nil || strings.TrimSpace(event.Title) == "" {
+			return "в комментариях события", "/events/" + strconv.FormatInt(item.EntityID, 10)
+		}
+		return "в комментариях события \"" + strings.TrimSpace(event.Title) + "\"", "/events/" + strconv.FormatInt(item.EntityID, 10)
+	default:
+		return "в комментариях", "/"
 	}
 }
 func (h Handler) UpdateEvent(w http.ResponseWriter, r *http.Request) {
@@ -1983,19 +2052,23 @@ func (h Handler) ReplyComment(w http.ResponseWriter, r *http.Request) {
 		if listErr != nil {
 			slog.Warn("comment_reply_notifications_list_failed", "err", listErr, "comment_id", id)
 		} else {
+			locationLabel, route := h.commentLocation(r.Context(), parent)
+			parentSnippet := commentSnippet(parent.Body)
+			replySnippet := commentSnippet(item.Body)
 			for _, recipient := range recipients {
 				if recipient.UserID != parent.AuthorUserID {
 					continue
 				}
 				title := fmt.Sprintf("🔔 %s ответил на ваш комментарий", strings.TrimSpace(current.User.DisplayName))
-				if sendErr := h.sendTelegramMessage(r.Context(), recipient.ChatID, title); sendErr != nil {
+				message := fmt.Sprintf("%s\n\nГде: %s\nВаш комментарий: %s\nОтвет: %s", title, locationLabel, parentSnippet, replySnippet)
+				if sendErr := h.sendTelegramMessage(r.Context(), recipient.ChatID, message); sendErr != nil {
 					slog.Warn("comment_reply_notification_send_failed", "err", sendErr, "chat_id", recipient.ChatID, "comment_id", id)
 					continue
 				}
 				_ = h.notifications.Enqueue(r.Context(), recipient.UserID, domain.NotificationCommentReply, map[string]any{
 					"title": title,
-					"body":  "",
-					"route": "/users/" + strconv.FormatInt(current.User.ID, 10),
+					"body":  fmt.Sprintf("Где: %s. Ваш комментарий: %s. Ответ: %s", locationLabel, parentSnippet, replySnippet),
+					"route": route,
 				})
 			}
 		}

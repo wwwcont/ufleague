@@ -14,19 +14,6 @@ import { EventEditor } from '../../components/events'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
 import type { EventContentBlock } from '../../domain/entities/types'
 
-const isSystemMatchFeedEvent = (event: { title?: string; summary?: string; text?: string }) => {
-  const title = String(event.title ?? '').trim().toLowerCase()
-  const summary = String(event.summary ?? '').trim().toLowerCase()
-  const text = String(event.text ?? '').trim().toLowerCase()
-
-  if (title === 'гол') return true
-  if (title === 'желтая карточка' || title === 'жёлтая карточка') return true
-  if (title === 'красная карточка') return true
-  if (summary.includes('ассист') && text.includes('забил')) return true
-  if (text.includes('получил желтую карточку') || text.includes('получил жёлтую карточку') || text.includes('получил красную карточку')) return true
-  return false
-}
-
 export const MatchEventsPage = () => {
   const { matchId } = useParams()
   const { data: match } = useMatchDetails(matchId)
@@ -43,7 +30,7 @@ export const MatchEventsPage = () => {
 
   const canManage = canManageMatch(session)
   const canCreate = canCreateEvent(session)
-  const visibleEvents = (events ?? []).filter((event) => !isSystemMatchFeedEvent(event))
+  const visibleEvents = events ?? []
 
   const actionError = (cause: unknown) => {
     if (cause instanceof ApiError) {

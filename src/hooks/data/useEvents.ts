@@ -10,31 +10,12 @@ interface UseEventsFilters {
   limit?: number
 }
 
-const normalizeForKey = (value?: string) => (value ?? '').trim().toLowerCase()
-
-const dedupeEvents = <T extends { id: string; title: string; summary: string; timestamp: string; source: string; entityType: string; entityId?: string }>(events: T[]) => {
-  const byKey = new Map<string, T>()
-
+const dedupeEvents = <T extends { id: string }>(events: T[]) => {
+  const byId = new Map<string, T>()
   events.forEach((event) => {
-    const tsMinute = String(event.timestamp ?? '').slice(0, 16)
-    const key = [
-      event.entityType,
-      event.entityId ?? '-',
-      normalizeForKey(event.title),
-      normalizeForKey(event.summary),
-      tsMinute,
-    ].join('|')
-    const existing = byKey.get(key)
-    if (!existing) {
-      byKey.set(key, event)
-      return
-    }
-    const existingIsSystem = normalizeForKey(existing.source).includes('system')
-    const nextIsSystem = normalizeForKey(event.source).includes('system')
-    if (existingIsSystem && !nextIsSystem) byKey.set(key, event)
+    if (!byId.has(event.id)) byId.set(event.id, event)
   })
-
-  return [...byKey.values()]
+  return [...byId.values()]
 }
 
 export const useEvents = (filters?: UseEventsFilters) => {
