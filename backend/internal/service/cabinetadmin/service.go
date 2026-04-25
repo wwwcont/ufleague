@@ -152,7 +152,12 @@ func (s Service) CaptainInviteByUsername(ctx context.Context, actor domain.User,
 			return err
 		}
 	}
-	return s.repo.AddAuditLog(ctx, actor.ID, "captain.invite", "team", strconv.FormatInt(teamID, 10), map[string]any{"username": username})
+	return s.repo.AddAuditLog(ctx, actor.ID, "captain.invite", "team", strconv.FormatInt(teamID, 10), map[string]any{
+		"username":         username,
+		"invited_user_id":  uid,
+		"already_in_team":  alreadyInTeam,
+		"invite_created":   !alreadyInTeam,
+	})
 }
 func (s Service) CaptainUpdateTeamSocials(ctx context.Context, actor domain.User, teamID int64, socials map[string]string) error {
 	team, err := s.repo.GetTeamByID(ctx, teamID)
@@ -171,7 +176,9 @@ func (s Service) CaptainUpdateTeamSocials(ctx context.Context, actor domain.User
 	if err = s.repo.UpdateTeamSocials(ctx, teamID, socials); err != nil {
 		return err
 	}
-	return s.repo.AddAuditLog(ctx, actor.ID, "captain.team_socials", "team", strconv.FormatInt(teamID, 10), nil)
+	return s.repo.AddAuditLog(ctx, actor.ID, "captain.team_socials", "team", strconv.FormatInt(teamID, 10), map[string]any{
+		"socials": socials,
+	})
 }
 func (s Service) CaptainManageRosterVisibility(ctx context.Context, actor domain.User, teamID, playerID int64, visible bool) error {
 	team, err := s.repo.GetTeamByID(ctx, teamID)
@@ -201,7 +208,9 @@ func (s Service) AdminModerateComment(ctx context.Context, actor domain.User, co
 	if err := s.repo.ModerateDeleteComment(ctx, commentID); err != nil {
 		return err
 	}
-	return s.repo.AddAuditLog(ctx, actor.ID, "admin.comment_delete", "comment", strconv.FormatInt(commentID, 10), nil)
+	return s.repo.AddAuditLog(ctx, actor.ID, "admin.comment_delete", "comment", strconv.FormatInt(commentID, 10), map[string]any{
+		"comment_id": commentID,
+	})
 }
 func (s Service) AdminTransferCaptain(ctx context.Context, actor domain.User, teamID int64, newCaptain *int64) error {
 	if !s.policy.CanAssignCaptainRole(actor) {
@@ -325,7 +334,9 @@ func (s Service) AdminRevokeCaptainRole(ctx context.Context, actor domain.User, 
 			return err
 		}
 	}
-	return s.repo.AddAuditLog(ctx, actor.ID, "admin.revoke_captain_role", "user", strconv.FormatInt(userID, 10), nil)
+	return s.repo.AddAuditLog(ctx, actor.ID, "admin.revoke_captain_role", "user", strconv.FormatInt(userID, 10), map[string]any{
+		"had_captain_teams": teams > 0,
+	})
 }
 
 func (s Service) AdminRemovePlayerFromUser(ctx context.Context, actor domain.User, userID int64) error {
@@ -345,7 +356,9 @@ func (s Service) AdminRemovePlayerFromUser(ctx context.Context, actor domain.Use
 	if err = s.repo.RevokeUserRole(ctx, userID, domain.RolePlayer); err != nil {
 		return err
 	}
-	return s.repo.AddAuditLog(ctx, actor.ID, "admin.remove_player_from_user", "user", strconv.FormatInt(userID, 10), nil)
+	return s.repo.AddAuditLog(ctx, actor.ID, "admin.remove_player_from_user", "user", strconv.FormatInt(userID, 10), map[string]any{
+		"player_detached": true,
+	})
 }
 
 func (s Service) AdminArchiveTeam(ctx context.Context, actor domain.User, teamID int64, archived bool) error {
@@ -393,7 +406,9 @@ func (s Service) AdminDeleteManualStatAdjustment(ctx context.Context, actor doma
 	if err := s.repo.DeleteManualStatAdjustment(ctx, adjustmentID); err != nil {
 		return err
 	}
-	return s.repo.AddAuditLog(ctx, actor.ID, "admin.manual_stats_adjustment.delete", "manual_stat_adjustment", strconv.FormatInt(adjustmentID, 10), nil)
+	return s.repo.AddAuditLog(ctx, actor.ID, "admin.manual_stats_adjustment.delete", "manual_stat_adjustment", strconv.FormatInt(adjustmentID, 10), map[string]any{
+		"manual_adjustment_id": adjustmentID,
+	})
 }
 
 func (s Service) AdminListManualStatAdjustments(ctx context.Context, actor domain.User, tournamentID int64) ([]domain.ManualStatAdjustment, error) {
@@ -547,7 +562,11 @@ func (s Service) SuperadminSetGlobalSetting(ctx context.Context, actor domain.Us
 	if err := s.repo.UpsertGlobalSetting(ctx, key, req.Value, actor.ID); err != nil {
 		return err
 	}
-	return s.repo.AddAuditLog(ctx, actor.ID, "superadmin.global_setting", "setting", key, map[string]any{"at": time.Now().UTC()})
+	return s.repo.AddAuditLog(ctx, actor.ID, "superadmin.global_setting", "setting", key, map[string]any{
+		"setting_key": key,
+		"value":       req.Value,
+		"at":          time.Now().UTC(),
+	})
 }
 
 func (s Service) EnsureCaptainPlayerProfile(ctx context.Context, userID, teamID int64, fallbackDisplayName string) error {

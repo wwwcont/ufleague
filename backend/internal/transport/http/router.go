@@ -926,12 +926,21 @@ func (h Handler) ListPlayers(w http.ResponseWriter, r *http.Request) {
 	}
 	visible := make([]domain.Player, 0, len(items))
 	for _, player := range items {
-		if strings.EqualFold(strings.TrimSpace(player.Position), "hidden") {
+		if !isPlayerVisible(player) {
 			continue
 		}
 		visible = append(visible, player)
 	}
 	writeJSON(w, 200, visible)
+}
+
+func isPlayerVisible(player domain.Player) bool {
+	rawVisible, hasVisible := player.Socials["is_visible"]
+	if hasVisible {
+		normalized := strings.TrimSpace(strings.ToLower(rawVisible))
+		return normalized != "false" && normalized != "0" && normalized != "no"
+	}
+	return !strings.EqualFold(strings.TrimSpace(player.Position), "hidden")
 }
 func (h Handler) GetPlayer(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(chi.URLParam(r, "id"))

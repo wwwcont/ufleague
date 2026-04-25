@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -143,11 +142,12 @@ func (r *CabinetAdminRepository) UpdateTeamSocials(ctx context.Context, teamID i
 	return err
 }
 func (r *CabinetAdminRepository) SetPlayerVisible(ctx context.Context, playerID int64, visible bool) error {
-	prefix := "hidden"
-	if visible {
-		prefix = "visible"
-	}
-	_, err := r.pool.Exec(ctx, `UPDATE players SET position=$2, updated_at=NOW() WHERE id=$1`, playerID, fmt.Sprintf("%s", prefix))
+	_, err := r.pool.Exec(ctx, `
+		UPDATE players
+		SET socials = jsonb_set(COALESCE(socials, '{}'::jsonb), '{is_visible}', to_jsonb($2::text), true),
+			updated_at = NOW()
+		WHERE id = $1
+	`, playerID, strconv.FormatBool(visible))
 	return err
 }
 func (r *CabinetAdminRepository) TransferCaptain(ctx context.Context, teamID int64, newCaptain *int64) error {

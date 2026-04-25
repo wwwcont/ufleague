@@ -263,6 +263,34 @@ const pageChangeFieldLabels: Record<string, string> = {
   first_name: 'Имя',
   last_name: 'Фамилия',
   bio: 'О себе',
+  visible: 'Видимость',
+  permissions: 'Права',
+  roles: 'Роли',
+  restrictions: 'Ограничения',
+  delta: 'Изменение',
+  field: 'Поле',
+  setting_key: 'Ключ настройки',
+  value: 'Значение',
+}
+
+const pageChangeActionLabels: Record<string, string> = {
+  'team.update': 'Обновление команды',
+  'player.update': 'Обновление игрока',
+  'match.update': 'Обновление матча',
+  'user.profile_update': 'Обновление профиля',
+  'admin.user_profile_update': 'Обновление профиля (админ)',
+  'captain.invite': 'Приглашение в команду',
+  'captain.team_socials': 'Обновление соцсетей команды',
+  'captain.roster_visibility': 'Изменение видимости в составе',
+  'admin.assign_player_role': 'Назначение роли игрока',
+  'admin.assign_captain_role': 'Назначение роли капитана',
+  'admin.revoke_captain_role': 'Снятие роли капитана',
+  'admin.remove_player_from_user': 'Отвязка игрока от пользователя',
+  'superadmin.assign_roles': 'Назначение ролей',
+  'superadmin.assign_permissions': 'Назначение прав',
+  'superadmin.assign_restrictions': 'Назначение ограничений',
+  'admin.manual_stats_adjustment.create': 'Ручная корректировка статистики',
+  'admin.manual_stats_adjustment.delete': 'Удаление ручной корректировки',
 }
 
 const stringifyChangeValue = (value: unknown) => {
@@ -280,6 +308,14 @@ const formatPageChangeValue = (field: string, value: unknown, teamNames: Map<str
     if (Number.isFinite(unix) && unix > 0) return formatDateTimeMsk(new Date(unix * 1000).toISOString())
   }
   return stringifyChangeValue(value)
+}
+
+const pageChangeMetadataLines = (metadata?: Record<string, unknown>) => {
+  if (!metadata) return []
+  const skipKeys = new Set(['changes', 'actor_name', 'actor_username', 'target_label'])
+  return Object.entries(metadata)
+    .filter(([key, value]) => !skipKeys.has(key) && value !== undefined && value !== null && value !== '')
+    .map(([key, value]) => `${pageChangeFieldLabels[key] ?? key}: ${stringifyChangeValue(value)}`)
 }
 
 export const CabinetSectionPage = () => {
@@ -1005,6 +1041,7 @@ export const CabinetSectionPage = () => {
                 return `${label}: ${from} → ${to}`
               })
               .slice(0, 4)
+            const detailLines = pageChangeMetadataLines(item.metadata).slice(0, 4)
             const targetFromMeta = String(item.metadata?.target_label ?? '').trim()
             const targetTitle = targetFromMeta || (item.targetType === 'player'
               ? (pageChangeTargetNames.playerNames.get(item.targetId) ?? 'Неизвестный игрок')
@@ -1020,12 +1057,17 @@ export const CabinetSectionPage = () => {
               <Link key={item.id} to={item.route || '/'} className="block rounded-xl border border-borderSubtle bg-mutedBg p-3">
                 <p className="text-sm font-semibold text-textPrimary">{title}</p>
                 <p className="mt-1 text-xs text-textMuted">{formatDateTimeMsk(item.createdAt)} · {actorName}{actorUsername ? ` (@${actorUsername})` : ''}</p>
-                <p className="mt-1 text-xs text-textSecondary">{item.action}</p>
+                <p className="mt-1 text-xs text-textSecondary">{pageChangeActionLabels[item.action] ?? item.action}</p>
                 {changeLines.length ? (
                   <div className="mt-2 space-y-1">
                     {changeLines.map((line) => <p key={line} className="text-xs text-textSecondary">{line}</p>)}
                   </div>
                 ) : <p className="mt-2 text-xs text-textMuted">Изменения не детализированы.</p>}
+                {detailLines.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {detailLines.map((line) => <p key={line} className="text-xs text-textSecondary">{line}</p>)}
+                  </div>
+                )}
                 <p className="mt-2 text-xs text-accentYellow">Открыть страницу →</p>
               </Link>
             )
