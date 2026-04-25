@@ -18,6 +18,7 @@ import { canManageMatch, canManageMatchControls } from '../../domain/services/ac
 import { formatMatchMetaMsk, getTimeToKickoff } from '../../lib/date-time'
 import { toExternalUrl } from '../../lib/links'
 import type { Match } from '../../domain/entities/types'
+import { isSystemMatchFeedEvent } from '../../domain/services/eventFeedFilters'
 import { EditableSectionHeader, SectionActionBar } from '../../components/ui/editable'
 import { useUserPreferences } from '../../hooks/app/useUserPreferences'
 
@@ -127,7 +128,7 @@ export const MatchDetailsPage = () => {
   const { data: allMatches } = useMatches()
   const { data: teams } = useTeams()
   const { data: players } = usePlayers()
-  const { data: matchFeedEvents } = useEvents(matchId ? { entityType: 'match', entityId: matchId, limit: 3 } : undefined)
+  const { data: matchFeedEvents } = useEvents(matchId ? { entityType: 'match', entityId: matchId } : undefined)
   const { session } = useSession()
   const { isMatchMuted, toggleMatchMuted } = useUserPreferences()
   const { matchesRepository, playoffGridRepository, cabinetRepository, eventsRepository } = useRepositories()
@@ -302,6 +303,7 @@ export const MatchDetailsPage = () => {
       ? { home: 0, away: 3 }
       : null
   const latestEvents = (matchFeedEvents ?? [])
+    .filter((event) => !isSystemMatchFeedEvent(event))
     .slice()
     .sort((a, b) => String(b.timestamp ?? '').localeCompare(String(a.timestamp ?? '')))
     .map((event) => ({

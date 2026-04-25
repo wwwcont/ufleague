@@ -12,6 +12,7 @@ import { useRepositories } from '../../app/providers/use-repositories'
 import { ApiError } from '../../infrastructure/api/repositories'
 import { EventEditor } from '../../components/events'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
+import { isSystemMatchFeedEvent } from '../../domain/services/eventFeedFilters'
 import type { EventContentBlock } from '../../domain/entities/types'
 
 export const MatchEventsPage = () => {
@@ -30,7 +31,7 @@ export const MatchEventsPage = () => {
 
   const canManage = canManageMatch(session)
   const canCreate = canCreateEvent(session)
-  const visibleEvents = events ?? []
+  const visibleEvents = (events ?? []).filter((event) => !isSystemMatchFeedEvent(event))
 
   const actionError = (cause: unknown) => {
     if (cause instanceof ApiError) {
