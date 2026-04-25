@@ -165,6 +165,9 @@ export const MatchDetailsPage = () => {
   const [cardCreateEvent, setCardCreateEvent] = useState(false)
   const [matchFlowPending, setMatchFlowPending] = useState(false)
   const [matchControlOpen, setMatchControlOpen] = useState(false)
+  const [techDefeatModalOpen, setTechDefeatModalOpen] = useState(false)
+  const [techDefeatConfirmOpen, setTechDefeatConfirmOpen] = useState(false)
+  const [techDefeatWinnerTeamId, setTechDefeatWinnerTeamId] = useState('')
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false)
   const [archivePending, setArchivePending] = useState(false)
   const [nowTs, setNowTs] = useState(Date.now())
@@ -292,6 +295,12 @@ export const MatchDetailsPage = () => {
     const elapsed = Math.max(0, Math.floor((nowTs - anchorTs) / 60_000))
     return Math.min(96, baseMinute + elapsed)
   })()
+
+  const techDefeatScore = techDefeatWinnerTeamId === match.homeTeamId
+    ? { home: 3, away: 0 }
+    : techDefeatWinnerTeamId === match.awayTeamId
+      ? { home: 0, away: 3 }
+      : null
   const latestEvents = (matchFeedEvents ?? [])
     .slice()
     .sort((a, b) => String(b.timestamp ?? '').localeCompare(String(a.timestamp ?? '')))
@@ -872,8 +881,124 @@ export const MatchDetailsPage = () => {
               >
                 Закончить перерыв
               </button>
+              <button
+                type="button"
+                disabled={matchFlowPending || match.status !== 'live'}
+                className="col-span-2 rounded-lg border border-red-400/40 px-3 py-2 text-xs font-semibold text-red-300 disabled:opacity-50"
+                onClick={() => {
+                  setTechDefeatWinnerTeamId(match.homeTeamId)
+                  setTechDefeatConfirmOpen(false)
+                  setTechDefeatModalOpen(true)
+                }}
+              >
+                Тех поражение (3:0)
+              </button>
             </div>
             <button type="button" className="mt-3 rounded-lg border border-borderSubtle px-3 py-1.5 text-xs text-textSecondary" onClick={() => setMatchControlOpen(false)}>Закрыть</button>
+          </div>
+        </section>
+      )}
+      {techDefeatModalOpen && (
+        <section className="fixed inset-0 z-[61] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-borderSubtle bg-panelBg p-4">
+            <p className="text-sm font-semibold text-textPrimary">Техническое поражение</p>
+            <p className="mt-1 text-xs text-textMuted">Выберите команду-победителя. Матч будет завершён со счётом 3:0 без голов игрокам.</p>
+            <div className="mt-3 grid gap-2">
+              {[home, away].map((team) => {
+                if (!team) return null
+                const selected = techDefeatWinnerTeamId === team.id
+                return (
+                  <button
+                    key={team.id}
+                    type="button"
+                    className={`rounded-lg border px-3 py-2 text-left text-xs ${selected ? 'border-accentYellow bg-accentYellow/10 text-textPrimary' : 'border-borderSubtle text-textSecondary'}`}
+                    onClick={() => setTechDefeatWinnerTeamId(team.id)}
+                  >
+                    Победитель: {team.name}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary"
+                onClick={() => {
+                  setTechDefeatModalOpen(false)
+                  setTechDefeatConfirmOpen(false)
+                }}
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                disabled={!techDefeatScore}
+                className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app disabled:opacity-50"
+                onClick={() => {
+                  setTechDefeatModalOpen(false)
+                  setTechDefeatConfirmOpen(true)
+                }}
+              >
+                Подтвердить
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+      {techDefeatConfirmOpen && techDefeatScore && (
+        <section className="fixed inset-0 z-[62] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-borderSubtle bg-panelBg p-4">
+            <p className="text-sm font-semibold text-textPrimary">Подтвердите тех. поражение</p>
+            <p className="mt-1 text-xs text-textMuted">
+              Матч будет завершён со счётом {techDefeatScore.home}:{techDefeatScore.away}. Игрокам голы не будут засчитаны.
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-borderSubtle px-3 py-2 text-xs text-textSecondary"
+                onClick={() => {
+                  setTechDefeatConfirmOpen(false)
+                  setTechDefeatModalOpen(true)
+                }}
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                disabled={matchFlowPending}
+                className="rounded-lg bg-red-500/90 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                onClick={async () => {
+                  setMatchFlowPending(true)
+                  try {
+                    const winnerName = techDefeatWinnerTeamId === match.homeTeamId ? (home?.name ?? 'Хозяева') : (away?.name ?? 'Гости')
+                    const nextEvents = [
+                      ...localEvents,
+                      { id: `tech_defeat_${Date.now()}`, type: 'substitution', note: `Система: техническое поражение. Победитель — ${winnerName}, счет ${techDefeatScore.home}:${techDefeatScore.away}.` } satisfies Match['events'][number],
+                    ]
+                    await matchesRepository.updateMatch?.(match.id, {
+                      status: 'finished',
+                      homeScore: techDefeatScore.home,
+                      awayScore: techDefeatScore.away,
+                      currentMinute: Math.max(liveMinute ?? 0, match.currentMinute ?? 0),
+                      clockAnchorAt: null,
+                      matchEvents: nextEvents,
+                    })
+                    setScoreDraft(techDefeatScore)
+                    setLocalEvents(nextEvents)
+                    setGoalStatus(`Матч завершен техническим поражением. Итог: ${techDefeatScore.home}:${techDefeatScore.away}.`)
+                    setTechDefeatConfirmOpen(false)
+                    setTechDefeatModalOpen(false)
+                    setMatchControlOpen(false)
+                  } catch (error) {
+                    setGoalStatus(actionError(error))
+                  } finally {
+                    setMatchFlowPending(false)
+                  }
+                }}
+              >
+                Подтвердить
+              </button>
+            </div>
           </div>
         </section>
       )}
