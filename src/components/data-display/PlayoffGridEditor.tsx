@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode, type WheelEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { TeamAvatar } from '../ui/TeamAvatar'
 import type { PlayoffGrid, Team } from '../../domain/entities/types'
@@ -210,6 +211,16 @@ export const PlayoffGridEditor = ({
     movingCell.current = null
     movingTextBlock.current = null
   }, [isEditing])
+
+  useEffect(() => {
+    const isAnyDialogOpen = editable && isEditing && (showCellDialog || showTextDialog)
+    if (!isAnyDialogOpen) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [editable, isEditing, showCellDialog, showTextDialog])
 
   const cellsById = useMemo(() => Object.fromEntries(cellsDraft.map((cell) => [cell.id, cell])), [cellsDraft])
 
@@ -810,7 +821,7 @@ export const PlayoffGridEditor = ({
         </div>
       </div>
 
-      {editable && !isEditing && (
+      {!isEditing && (
         <div className="absolute right-3 top-3 flex gap-2">
           <button
             type="button"
@@ -819,13 +830,15 @@ export const PlayoffGridEditor = ({
           >
             Фокус
           </button>
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app"
-          >
-            Редактировать
-          </button>
+          {editable && (
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="rounded-lg bg-accentYellow px-3 py-2 text-xs font-semibold text-app"
+            >
+              Редактировать
+            </button>
+          )}
         </div>
       )}
 
@@ -869,8 +882,8 @@ export const PlayoffGridEditor = ({
         onCancel={() => setShowCancelConfirm(false)}
       />
 
-      {editable && isEditing && showCellDialog && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
+      {editable && isEditing && showCellDialog && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4">
           <div className="w-full max-w-sm rounded-xl border border-borderSubtle bg-app p-4">
             <p className="mb-3 text-sm font-semibold">{editingCellId ? 'Редактировать плейофф' : 'Добавить плейофф'}</p>
             <div className="space-y-2">
@@ -899,11 +912,11 @@ export const PlayoffGridEditor = ({
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
-      {editable && isEditing && showTextDialog && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-xl border border-borderSubtle bg-app p-4">
+      {editable && isEditing && showTextDialog && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-xl border border-borderSubtle bg-app p-4 md:max-h-[calc(100vh-3rem)] md:overflow-y-auto">
             <p className="mb-3 text-sm font-semibold">{editingTextBlockId ? 'Редактировать текстовый блок' : 'Добавить текстовый блок'}</p>
             <div className="space-y-2">
               <label className="block text-xs text-textMuted">Текст ({textDialogValue.length}/500)</label>
@@ -1071,7 +1084,7 @@ export const PlayoffGridEditor = ({
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </section>
   )
 }
