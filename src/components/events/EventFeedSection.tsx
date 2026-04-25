@@ -6,6 +6,10 @@ import { EventEmptyState } from './EventEmptyState'
 import { EventTimelineItem } from './EventTimelineItem'
 import { useSession } from '../../app/providers/use-session'
 import { useUserPreferences } from '../../hooks/app/useUserPreferences'
+import { useTeams } from '../../hooks/data/useTeams'
+import { usePlayers } from '../../hooks/data/usePlayers'
+import { useMatches } from '../../hooks/data/useMatches'
+import { useMemo } from 'react'
 
 interface EventFeedSectionProps {
   title: string
@@ -19,6 +23,12 @@ interface EventFeedSectionProps {
 export const EventFeedSection = ({ title, events, layout = 'cards', messageWhenEmpty, linkToAll, notificationScopeKey }: EventFeedSectionProps) => {
   const { session } = useSession()
   const { isFeedMuted, toggleFeedMuted } = useUserPreferences()
+  const { data: teams } = useTeams()
+  const { data: players } = usePlayers()
+  const { data: matches } = useMatches()
+  const teamsById = useMemo(() => Object.fromEntries((teams ?? []).map((team) => [team.id, team])), [teams])
+  const playersById = useMemo(() => Object.fromEntries((players ?? []).map((player) => [player.id, player])), [players])
+  const matchesById = useMemo(() => Object.fromEntries((matches ?? []).map((match) => [match.id, match])), [matches])
   const feedKey = notificationScopeKey ?? title
   const muted = session.isAuthenticated ? isFeedMuted(feedKey) : false
 
@@ -46,13 +56,20 @@ export const EventFeedSection = ({ title, events, layout = 'cards', messageWhenE
       ) : layout === 'timeline' ? (
         <div className="space-y-2">
           {events.map((event, index) => (
-            <EventTimelineItem key={event.id} event={event} isLast={index === events.length - 1} />
+            <EventTimelineItem
+              key={event.id}
+              event={event}
+              isLast={index === events.length - 1}
+              teamsById={teamsById}
+              playersById={playersById}
+              matchesById={matchesById}
+            />
           ))}
         </div>
       ) : (
         <div className="space-y-2">
           {events.map((event) => (
-            <EventCard key={event.id} event={event} />
+            <EventCard key={event.id} event={event} teamsById={teamsById} playersById={playersById} matchesById={matchesById} />
           ))}
         </div>
       )}

@@ -1,5 +1,5 @@
 import { PageContainer } from '../../layouts/containers/PageContainer'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useEventDetails } from '../../hooks/data/useEventDetails'
 import { EmptyState } from '../../components/ui/EmptyState'
@@ -21,6 +21,20 @@ import type { EventContentBlock } from '../../domain/entities/types'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
 import { resolveEventSourceLabel } from '../../domain/services/eventSourceLabel'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+
+const resolveEventSourceRoute = (eventType: string, eventEntityId?: string) => {
+  if (eventType === 'match' && eventEntityId) return `/matches/${eventEntityId}`
+  if (eventType === 'team' && eventEntityId) return `/teams/${eventEntityId}`
+  if (eventType === 'player' && eventEntityId) return `/players/${eventEntityId}`
+  return '/events?scope=global'
+}
+
+const resolveEventSourceButtonLabel = (eventType: string) => {
+  if (eventType === 'match') return 'Перейти к матчу'
+  if (eventType === 'team') return 'Перейти к команде'
+  if (eventType === 'player') return 'Перейти к игроку'
+  return 'Перейти в ленту главных событий'
+}
 
 export const EventDetailsPage = () => {
   const { eventId } = useParams()
@@ -65,6 +79,8 @@ export const EventDetailsPage = () => {
   const matchMap = Object.fromEntries((matches ?? []).map((match) => [match.id, match]))
   const canManage = canManageEvent(session, teamMap, event, playerMap)
   const sourceLabel = resolveEventSourceLabel({ event, teamsById: teamMap, playersById: playerMap, matchesById: matchMap })
+  const sourceRoute = resolveEventSourceRoute(event.entityType, event.entityId)
+  const sourceButtonLabel = resolveEventSourceButtonLabel(event.entityType)
 
   const actionError = (err: unknown) => {
     if (err instanceof ApiError) return `Ошибка API ${err.status}: ${err.message}`
@@ -102,6 +118,11 @@ export const EventDetailsPage = () => {
         <div className="mb-2 flex items-center justify-between text-xs text-textMuted">
           <span>{sourceLabel}</span>
           <span>{formatDateTimeMsk(event.timestamp)}</span>
+        </div>
+        <div className="mb-3">
+          <Link to={sourceRoute} className="inline-flex rounded-lg border border-borderSubtle px-3 py-1.5 text-xs font-semibold text-accentYellow hover:bg-accentYellow/10">
+            {sourceButtonLabel}
+          </Link>
         </div>
 
         <EditableSectionHeader
