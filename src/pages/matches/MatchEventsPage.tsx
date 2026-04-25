@@ -13,12 +13,14 @@ import { ApiError } from '../../infrastructure/api/repositories'
 import { EventEditor } from '../../components/events'
 import { blocksToPlainText, deriveSummaryFromBlocks, normalizeEventBlocks } from '../../domain/services/eventContent'
 import { isSystemMatchFeedEvent } from '../../domain/services/eventFeedFilters'
+import { useTeams } from '../../hooks/data/useTeams'
 import type { EventContentBlock } from '../../domain/entities/types'
 
 export const MatchEventsPage = () => {
   const { matchId } = useParams()
   const { data: match } = useMatchDetails(matchId)
   const { data: events, isLoading, error } = useEvents({ entityType: 'match', entityId: matchId })
+  const { data: teams } = useTeams()
   const { session } = useSession()
   const { eventsRepository, uploadsRepository } = useRepositories()
 
@@ -32,6 +34,8 @@ export const MatchEventsPage = () => {
   const canManage = canManageMatch(session)
   const canCreate = canCreateEvent(session)
   const visibleEvents = (events ?? []).filter((event) => !isSystemMatchFeedEvent(event))
+  const homeTeamName = match ? teams?.find((team) => team.id === match.homeTeamId)?.shortName ?? teams?.find((team) => team.id === match.homeTeamId)?.name ?? `Команда ${match.homeTeamId}` : null
+  const awayTeamName = match ? teams?.find((team) => team.id === match.awayTeamId)?.shortName ?? teams?.find((team) => team.id === match.awayTeamId)?.name ?? `Команда ${match.awayTeamId}` : null
 
   const actionError = (cause: unknown) => {
     if (cause instanceof ApiError) {
@@ -53,7 +57,7 @@ export const MatchEventsPage = () => {
   return (
     <PageContainer>
       <SectionHeader
-        title={match ? `События: ${match.homeTeamId} vs ${match.awayTeamId}` : 'События матча'}
+        title={match ? `События: ${homeTeamName} vs ${awayTeamName}` : 'События матча'}
         action={<Link to={`/matches/${matchId}`} className="text-sm text-accentYellow">К матчу</Link>}
       />
       <p className="mt-[-10px] text-sm text-textMuted">Только события выбранного матча.</p>

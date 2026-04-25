@@ -582,7 +582,7 @@ export const MatchDetailsPage = () => {
                       assistPlayerId: goalAction === 'add_own_goal' ? undefined : (goalAssistId || undefined),
                       note: goalAction === 'add_own_goal'
                         ? 'Автогол'
-                        : (goalAssistId ? `ассист: ${goalAssistId}` : undefined),
+                        : (goalAssistId ? `ассист: ${players.find((player) => player.id === goalAssistId)?.displayName ?? `Игрок #${goalAssistId}`}` : undefined),
                     } satisfies Match['events'][number]
                     return {
                       nextEvents: [...localEvents, createdEvent],
@@ -633,6 +633,9 @@ export const MatchDetailsPage = () => {
                 try {
                   if (goalCreateEvent && result.createdEvent) {
                     const scorer = players.find((player) => player.id === goalScorerId)?.displayName ?? `Игрок #${goalScorerId}`
+                    const assistant = goalAssistId
+                      ? (players.find((player) => player.id === goalAssistId)?.displayName ?? `Игрок #${goalAssistId}`)
+                      : null
                     const ownGoalForTeam = goalTeamId === home.id ? away : home
                     const createdFeed = await eventsRepository.createEventForScope?.({
                       scopeType: 'match',
@@ -640,10 +643,10 @@ export const MatchDetailsPage = () => {
                       title: goalAction === 'add_own_goal' ? 'Автогол' : 'Гол',
                       summary: goalAction === 'add_own_goal'
                         ? `${scorer} (в пользу ${ownGoalForTeam.shortName})`
-                        : (goalAssistId ? `${scorer} • ассист ${goalAssistId}` : scorer),
+                        : (assistant ? `${scorer} • ассист ${assistant}` : scorer),
                       body: goalAction === 'add_own_goal'
                         ? `${scorer} забил автогол. Мяч записан в пользу ${ownGoalForTeam.name}.`
-                        : (goalAssistId ? `${scorer} забил. Ассист: ${goalAssistId}.` : `${scorer} забил гол.`),
+                        : (assistant ? `${scorer} забил. Ассист: ${assistant}.` : `${scorer} забил гол.`),
                     })
                     if (createdFeed?.id) {
                       persistedEvents = nextEvents.map((event) => (
