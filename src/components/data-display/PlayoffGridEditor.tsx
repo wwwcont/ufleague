@@ -12,6 +12,7 @@ const PAN_MARGIN_CELLS = 3
 type EditorMode = 'navigation' | 'move' | 'lines'
 type LineAnchorSide = 'left' | 'right'
 type TextAlign = 'left' | 'center' | 'right'
+type TextVerticalAlign = 'top' | 'center' | 'bottom'
 type TextFont = 'inter' | 'roboto' | 'ptsans'
 
 type DraftCell = PlayoffGrid['cells'][number] & { clientKey: string }
@@ -26,7 +27,9 @@ type DraftTextBlock = {
   visible: boolean
   showBackground: boolean
   align: TextAlign
+  verticalAlign: TextVerticalAlign
   font: TextFont
+  fontSize: number
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
@@ -62,6 +65,12 @@ const textAlignClass: Record<TextAlign, string> = {
   left: 'text-left',
   center: 'text-center',
   right: 'text-right',
+}
+
+const textVerticalAlignClass: Record<TextVerticalAlign, string> = {
+  top: 'justify-start',
+  center: 'justify-center',
+  bottom: 'justify-end',
 }
 
 const normalizeDimensionInput = (value: string, fallback: number, max: number) => {
@@ -110,9 +119,13 @@ export const PlayoffGridEditor = ({
   const [textDialogShowBackground, setTextDialogShowBackground] = useState(true)
   const [textDialogVisible, setTextDialogVisible] = useState(true)
   const [textDialogAlign, setTextDialogAlign] = useState<TextAlign>('left')
+  const [textDialogVerticalAlign, setTextDialogVerticalAlign] = useState<TextVerticalAlign>('top')
   const [textDialogFont, setTextDialogFont] = useState<TextFont>('inter')
+  const [textDialogFontSizeInput, setTextDialogFontSizeInput] = useState('14')
   const [textDialogWidthInput, setTextDialogWidthInput] = useState('1')
   const [textDialogHeightInput, setTextDialogHeightInput] = useState('1')
+  const [textDialogColInput, setTextDialogColInput] = useState('1')
+  const [textDialogRowInput, setTextDialogRowInput] = useState('1')
   const [saveError, setSaveError] = useState<string | null>(null)
 
   const boardW = GRID_COLS * CELL_W
@@ -248,9 +261,13 @@ export const PlayoffGridEditor = ({
     setTextDialogShowBackground(true)
     setTextDialogVisible(true)
     setTextDialogAlign('left')
+    setTextDialogVerticalAlign('top')
     setTextDialogFont('inter')
+    setTextDialogFontSizeInput('14')
     setTextDialogWidthInput('1')
     setTextDialogHeightInput('1')
+    setTextDialogColInput('1')
+    setTextDialogRowInput('1')
     setShowTextDialog(true)
   }
 
@@ -262,9 +279,13 @@ export const PlayoffGridEditor = ({
     setTextDialogShowBackground(block.showBackground)
     setTextDialogVisible(block.visible)
     setTextDialogAlign(block.align)
+    setTextDialogVerticalAlign(block.verticalAlign ?? 'top')
     setTextDialogFont(block.font)
+    setTextDialogFontSizeInput(String(block.fontSize ?? 14))
     setTextDialogWidthInput(String(block.widthCells))
     setTextDialogHeightInput(String(block.heightCells))
+    setTextDialogColInput(String(block.col))
+    setTextDialogRowInput(String(block.row))
     setShowTextDialog(true)
   }
 
@@ -309,15 +330,22 @@ export const PlayoffGridEditor = ({
   const submitTextDialog = () => {
     const widthCells = clamp(Number(textDialogWidthInput) || 1, 1, 8)
     const heightCells = clamp(Number(textDialogHeightInput) || 1, 1, 6)
+    const col = clamp(Number(textDialogColInput) || 1, 1, GRID_COLS)
+    const row = clamp(Number(textDialogRowInput) || 1, 1, GRID_ROWS)
+    const fontSize = clamp(Number(textDialogFontSizeInput) || 14, 10, 56)
     const payload = {
       text: textDialogValue.slice(0, 500),
       showBackground: textDialogShowBackground,
       visible: textDialogVisible,
       align: textDialogAlign,
+      verticalAlign: textDialogVerticalAlign,
       font: textDialogFont,
+      fontSize,
       widthCells,
       heightCells,
-    } satisfies Omit<DraftTextBlock, 'id' | 'col' | 'row'>
+      col,
+      row,
+    } satisfies Omit<DraftTextBlock, 'id'>
 
     if (editingTextBlockId) {
       setTextBlocksDraft((prev) => prev.map((block) => (block.id === editingTextBlockId ? { ...block, ...payload } : block)))
@@ -328,8 +356,6 @@ export const PlayoffGridEditor = ({
 
     const newBlock: DraftTextBlock = {
       id: `text_${Date.now()}`,
-      col: 1,
-      row: 1,
       ...payload,
     }
     setTextBlocksDraft((prev) => [...prev, newBlock])
@@ -582,13 +608,14 @@ export const PlayoffGridEditor = ({
           {textBlocksDraft.map((block) => (
             <div
               key={block.id}
-              className={`absolute ${block.visible ? '' : 'opacity-35'} ${block.showBackground ? 'rounded-xl border border-borderSubtle bg-panelAlt/95 px-2 py-1 shadow-soft' : 'px-1 py-0.5'} ${textAlignClass[block.align]} ${showEditorOverlays && selectedTextBlockId === block.id ? 'outline outline-2 outline-accentYellow/80' : ''}`}
+              className={`absolute flex ${block.visible ? '' : 'opacity-35'} ${block.showBackground ? 'rounded-xl border border-borderSubtle bg-panelAlt/95 px-2 py-1 shadow-soft' : 'px-1 py-0.5'} ${textAlignClass[block.align]} ${textVerticalAlignClass[block.verticalAlign ?? 'top']} ${showEditorOverlays && selectedTextBlockId === block.id ? 'outline outline-2 outline-accentYellow/80' : ''}`}
               style={{
                 left: (block.col - 1) * CELL_W,
                 top: (block.row - 1) * CELL_H,
                 width: block.widthCells * CELL_W,
                 minHeight: block.heightCells * CELL_H,
                 fontFamily: textFontFamily[block.font],
+                fontSize: `${block.fontSize ?? 14}px`,
               }}
               onPointerDown={() => {
                 if (editable && isEditing && editorMode === 'move') movingTextBlock.current = { id: block.id }
@@ -626,7 +653,7 @@ export const PlayoffGridEditor = ({
                   </button>
                 </div>
               )}
-              <p className={`whitespace-pre-wrap break-words text-xs leading-relaxed text-textPrimary ${!block.visible ? 'line-through decoration-dashed' : ''}`}>
+              <p className={`w-full whitespace-pre-wrap break-words leading-relaxed text-textPrimary ${!block.visible ? 'line-through decoration-dashed' : ''}`}>
                 {block.text || 'Текстовый блок'}
               </p>
             </div>
@@ -875,7 +902,41 @@ export const PlayoffGridEditor = ({
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-textMuted">
-                  Выравнивание
+                  Позиция X (колонка)
+                  <input
+                    type="number"
+                    min={1}
+                    max={GRID_COLS}
+                    inputMode="numeric"
+                    className="mt-1 w-full appearance-none rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1.5 text-sm text-textPrimary [color-scheme:dark] outline-none focus:border-accentYellow/70"
+                    value={textDialogColInput}
+                    onChange={(event) => {
+                      const nextValue = event.target.value
+                      if (/^\d*$/.test(nextValue)) setTextDialogColInput(nextValue)
+                    }}
+                    onBlur={() => setTextDialogColInput(normalizeDimensionInput(textDialogColInput, 1, GRID_COLS))}
+                  />
+                </label>
+                <label className="text-xs text-textMuted">
+                  Позиция Y (строка)
+                  <input
+                    type="number"
+                    min={1}
+                    max={GRID_ROWS}
+                    inputMode="numeric"
+                    className="mt-1 w-full appearance-none rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1.5 text-sm text-textPrimary [color-scheme:dark] outline-none focus:border-accentYellow/70"
+                    value={textDialogRowInput}
+                    onChange={(event) => {
+                      const nextValue = event.target.value
+                      if (/^\d*$/.test(nextValue)) setTextDialogRowInput(nextValue)
+                    }}
+                    onBlur={() => setTextDialogRowInput(normalizeDimensionInput(textDialogRowInput, 1, GRID_ROWS))}
+                  />
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs text-textMuted">
+                  Горизонталь текста
                   <select className="mt-1 w-full appearance-none rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1.5 text-sm text-textPrimary [color-scheme:dark] focus:border-accentYellow/70 focus:outline-none" value={textDialogAlign} onChange={(event) => setTextDialogAlign(event.target.value as TextAlign)}>
                     <option value="left">Слева</option>
                     <option value="center">По центру</option>
@@ -883,12 +944,38 @@ export const PlayoffGridEditor = ({
                   </select>
                 </label>
                 <label className="text-xs text-textMuted">
+                  Вертикаль текста
+                  <select className="mt-1 w-full appearance-none rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1.5 text-sm text-textPrimary [color-scheme:dark] focus:border-accentYellow/70 focus:outline-none" value={textDialogVerticalAlign} onChange={(event) => setTextDialogVerticalAlign(event.target.value as TextVerticalAlign)}>
+                    <option value="top">Сверху</option>
+                    <option value="center">По центру</option>
+                    <option value="bottom">Снизу</option>
+                  </select>
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs text-textMuted">
                   Шрифт
                   <select className="mt-1 w-full appearance-none rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1.5 text-sm text-textPrimary [color-scheme:dark] focus:border-accentYellow/70 focus:outline-none" value={textDialogFont} onChange={(event) => setTextDialogFont(event.target.value as TextFont)}>
                     <option value="inter">Inter</option>
                     <option value="roboto">Roboto</option>
                     <option value="ptsans">PT Sans</option>
                   </select>
+                </label>
+                <label className="text-xs text-textMuted">
+                  Размер шрифта (px)
+                  <input
+                    type="number"
+                    min={10}
+                    max={56}
+                    inputMode="numeric"
+                    className="mt-1 w-full appearance-none rounded-lg border border-borderSubtle bg-mutedBg px-2 py-1.5 text-sm text-textPrimary [color-scheme:dark] outline-none focus:border-accentYellow/70"
+                    value={textDialogFontSizeInput}
+                    onChange={(event) => {
+                      const nextValue = event.target.value
+                      if (/^\d*$/.test(nextValue)) setTextDialogFontSizeInput(nextValue)
+                    }}
+                    onBlur={() => setTextDialogFontSizeInput(normalizeDimensionInput(textDialogFontSizeInput, 14, 56))}
+                  />
                 </label>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs text-textSecondary">

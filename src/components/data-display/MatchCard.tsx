@@ -16,6 +16,7 @@ const getMatchIndicator = (match: Match) => {
 
 export const MatchCard = ({ match, home, away }: { match: Match; home: Team; away: Team }) => {
   const indicator = getMatchIndicator(match)
+  const tourLabel = match.tour?.trim()
   const leftGradientId = `scoreFlowLeft-${match.id}`
   const rightGradientId = `scoreFlowRight-${match.id}`
 
@@ -60,6 +61,11 @@ export const MatchCard = ({ match, home, away }: { match: Match; home: Team; awa
             </svg>
             {match.score.home}<span className="mx-1 text-accentYellow">:</span>{match.score.away}
           </div>
+          {tourLabel && (
+            <p className="mt-1 text-[11px] font-medium leading-tight text-textMuted sm:text-xs">
+              Тур: <span className="text-textSecondary">{tourLabel}</span>
+            </p>
+          )}
         </div>
 
         <div className="z-10 flex min-w-0 items-center justify-end gap-2 text-right">
